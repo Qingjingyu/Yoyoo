@@ -15,6 +15,8 @@ Any new employee activated from Git should get the same default stack:
 On server (root):
 
 ```bash
+git clone -b release/yoyoo-1.0-rc1 git@github.com:Qingjingyu/Yoyoo.git
+cd Yoyoo
 export MINIMAX_API_KEY='your_key'
 export YOYOO_ROLE='ceo'   # ceo | ops | rd-director | rd-engineer
 bash Yoyoo/project/bootstrap/activate_employee.sh
