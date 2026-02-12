@@ -14,6 +14,7 @@ OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}"
 YOYOO_ENABLE_QMD="${YOYOO_ENABLE_QMD:-1}"
 YOYOO_ENABLE_BASE_SKILLS="${YOYOO_ENABLE_BASE_SKILLS:-1}"
 YOYOO_DEFAULT_MODEL="${YOYOO_DEFAULT_MODEL:-MiniMax-M2.1}"
+YOYOO_FORCE_OPENCLAW_INSTALL="${YOYOO_FORCE_OPENCLAW_INSTALL:-0}"
 
 if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
   echo "MINIMAX_API_KEY is required" >&2
@@ -41,7 +42,9 @@ if ! command -v node >/dev/null 2>&1; then
   apt-get install -y nodejs >/tmp/yoyoo_bootstrap_node_install.log 2>&1
 fi
 
-npm i -g openclaw@latest >/tmp/yoyoo_bootstrap_openclaw_install.log 2>&1
+if [[ "${YOYOO_FORCE_OPENCLAW_INSTALL}" == "1" ]] || ! command -v openclaw >/dev/null 2>&1; then
+  npm i -g openclaw@latest >/tmp/yoyoo_bootstrap_openclaw_install.log 2>&1
+fi
 
 mkdir -p "${YOYOO_HOME}/agents/main/agent" "${YOYOO_WORKSPACE}"
 

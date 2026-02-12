@@ -22,6 +22,9 @@ export YOYOO_ROLE='ceo'   # ceo | ops | rd-director | rd-engineer
 bash Yoyoo/project/bootstrap/activate_employee.sh
 ```
 
+Optional:
+- `YOYOO_FORCE_OPENCLAW_INSTALL=1` to force reinstall OpenClaw latest.
+
 ## Hire directly from Git
 
 ```bash
