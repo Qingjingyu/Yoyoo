@@ -7,6 +7,7 @@ This repository is documentation-first. Primary content lives under `Yoyoo/`:
 - `Yoyoo/research/`: external research and implementation notes.
 - `Yoyoo/project/`: deployment notes and implementation workspace.
 - `Yoyoo/project/backend/`: FastAPI bootstrap (`app/`, `tests/`, `pyproject.toml`, `Makefile`).
+- `Yoyoo/project/bootstrap/`: Yoyoo 1.0 employee activation baseline (OpenClaw/QMD/skills/profile templates).
 - `Yoyoo/BRAIN/MEMORY/`: long-term project evolution records.
 
 Supporting folders:
@@ -22,6 +23,8 @@ Commands:
 - `cd Yoyoo/project/backend && make lint` - run Ruff.
 - `bash -n Yoyoo/project/install_minimax.sh` - validate installer script syntax.
 - `bash Yoyoo/project/install_minimax.sh` - run deployment installer on target Ubuntu server as `root`.
+- `bash Yoyoo/project/bootstrap/activate_employee.sh` - activate one Yoyoo employee with default baseline.
+- `bash Yoyoo/project/bootstrap/hire_employee_from_git.sh` - pull repo and activate employee in one step.
 - `openclaw doctor --fix` - repair OpenClaw config.
 
 ## Coding Style & Naming Conventions
