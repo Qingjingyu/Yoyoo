@@ -1,4 +1,4 @@
-# Yoyoo 1.0
+# Yoyoo 1.0.1
 
 Yoyoo 是企业化 AI 团队底座。  
 本仓库支持“一键激活员工”，让新员工默认具备初始能力与基础技能。
@@ -22,6 +22,10 @@ bash Yoyoo/project/bootstrap/hire_employee_from_git.sh
 - 基础技能包（clawhub / coding-agent / healthcheck / session-logs / skill-creator / tmux / weather）
 - 角色身份模板（CEO / 后勤 / 研发总监 / 研发员工）
 - 网关守护与健康检查（2 分钟巡检）
+- Yoyoo Backend 长任务内核（默认启用）：
+  - 自动重试（可重试错误）
+  - 断点恢复（“继续执行/重试”复用同 task）
+  - 任务状态持久化（attempts / resume_count）
 
 ## 详细文档
 
