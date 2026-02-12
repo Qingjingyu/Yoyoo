@@ -1,6 +1,6 @@
 # Yoyoo Employee Bootstrap
 
-This folder defines Yoyoo 1.0 employee activation baseline.
+This folder defines Yoyoo 1.0.1 employee activation baseline.
 
 ## Goal
 Any new employee activated from Git should get the same default stack:
@@ -10,6 +10,7 @@ Any new employee activated from Git should get the same default stack:
 - base skills
 - role profile
 - gateway health baseline
+- Yoyoo backend long-task kernel (retry + resume)
 
 ## Quick Start
 On server (root):
@@ -24,6 +25,7 @@ bash Yoyoo/project/bootstrap/activate_employee.sh
 
 Optional:
 - `YOYOO_FORCE_OPENCLAW_INSTALL=1` to force reinstall OpenClaw latest.
+- `YOYOO_ENABLE_BACKEND_KERNEL=0` to skip backend kernel install (not recommended).
 
 ## Hire directly from Git
 

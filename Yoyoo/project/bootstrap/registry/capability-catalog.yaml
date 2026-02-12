@@ -1,4 +1,4 @@
-version: yoyoo-1.0
+version: yoyoo-1.0.1
 updated_at: 2026-02-12
 
 baseline:
@@ -10,6 +10,7 @@ baseline:
     - base_skills_pack
     - role_profile_templates
     - gateway_guard_healthcheck
+    - yoyoo_backend_long_task_kernel
 
 base_skills_pack:
   install_mode: default
