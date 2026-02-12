@@ -1,0 +1,39 @@
+version: yoyoo-1.0
+updated_at: 2026-02-12
+
+baseline:
+  description: Default capabilities every new Yoyoo employee gets at activation.
+  required:
+    - openclaw_latest
+    - minimax_provider_config
+    - qmd_memory_backend
+    - base_skills_pack
+    - role_profile_templates
+    - gateway_guard_healthcheck
+
+base_skills_pack:
+  install_mode: default
+  skills:
+    - clawhub
+    - coding-agent
+    - healthcheck
+    - session-logs
+    - skill-creator
+    - tmux
+    - weather
+
+optional_skills_pack:
+  install_mode: on_demand
+  notes:
+    - Requires extra keys or environment dependencies.
+  examples:
+    - github
+    - mcporter
+    - video-frames
+    - openai-image-gen
+    - openai-whisper-api
+
+governance:
+  rule:
+    - New capability must pass sandbox test before entering baseline.
+    - Optional skills must include dependency and risk notes.
