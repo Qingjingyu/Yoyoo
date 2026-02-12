@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Pull Yoyoo repo and activate one employee profile.
 
-GIT_URL="${GIT_URL:-https://github.com/Qingjingyu/Yoyoo.git}"
+GIT_URL="${GIT_URL:-git@github.com:Qingjingyu/Yoyoo.git}"
 GIT_REF="${GIT_REF:-release/yoyoo-1.0-rc1}"
 RUNTIME_DIR="${RUNTIME_DIR:-/opt/yoyoo-runtime}"
 YOYOO_ROLE="${YOYOO_ROLE:-ceo}"
