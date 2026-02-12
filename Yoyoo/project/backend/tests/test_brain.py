@@ -68,6 +68,27 @@ class _LowThenHighQualityAdapter:
         )
 
 
+class _RetryThenSuccessAdapter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate_reply(
+        self,
+        *,
+        user_id: str,
+        conversation_id: str,
+        message: str,
+        route_model: str,
+        channel: str,
+        trace_id: str | None = None,
+    ) -> _FakeAdapterResult:
+        _ = (user_id, conversation_id, message, route_model, channel, trace_id)
+        self.calls += 1
+        if self.calls == 1:
+            return _FakeAdapterResult(ok=False, error="local_exec_error: timeout")
+        return _FakeAdapterResult(ok=True, reply="重试后执行成功。")
+
+
 class _FakeYYOSOrchestrator:
     def route(self, *, request_text: str, project: str = "default") -> YYOSRoutingSnapshot:
         _ = (request_text, project)
@@ -170,6 +191,96 @@ def test_brain_applies_execution_quality_correction() -> None:
     assert tasks
     assert tasks[0].correction_applied is True
     assert tasks[0].quality_score == result.decision.execution_quality_score
+
+
+def test_brain_task_request_retries_on_retryable_error() -> None:
+    memory = MemoryService()
+    adapter = _RetryThenSuccessAdapter()
+    brain = YoyooBrain(
+        chat_service=ChatService(),
+        memory_service=memory,
+        policy_guard=PolicyGuard(),
+        model_router=ModelRouter(),
+        task_planner=TaskPlanner(playbook=ResearchPlaybook()),
+        task_verifier=TaskVerifier(),
+        openclaw_adapter=adapter,  # type: ignore[arg-type]
+        execution_quality_guard=ExecutionQualityGuard(),
+        task_max_attempts=2,
+    )
+
+    result = brain.handle_message(
+        context=DialogueContext(
+            user_id="u_retryable",
+            conversation_id="c_retryable",
+            channel=Channel.API,
+            scope=ChatScope.PRIVATE,
+            trusted=True,
+        ),
+        text="请执行这个部署任务",
+    )
+
+    assert result.decision.intent == "task_request"
+    assert result.decision.task_id is not None
+    task = memory.get_task_record(task_id=result.decision.task_id)
+    assert task is not None
+    assert adapter.calls == 2
+    assert task.status in {"completed", "completed_with_warnings"}
+    assert task.execution_attempts == 2
+    assert task.max_attempts == 2
+
+
+def test_brain_resume_reuses_latest_failed_task() -> None:
+    memory = MemoryService()
+    seeded = memory.create_task_record(
+        conversation_id="c_resume",
+        user_id="u_resume",
+        channel="api",
+        project_key="proj_resume",
+        trace_id="trace_resume_seed",
+        request_text="部署并检查服务",
+        route_model="openai/gpt-5.2-codex",
+        plan_steps=["部署", "检查"],
+        verification_checks=["healthz"],
+        rollback_template=["回滚"],
+    )
+    memory.update_task_record(
+        task_id=seeded.task_id,
+        status="failed",
+        executor_error="timeout",
+        execution_attempts=1,
+        max_attempts=2,
+    )
+    adapter = _RetryThenSuccessAdapter()
+    brain = YoyooBrain(
+        chat_service=ChatService(),
+        memory_service=memory,
+        policy_guard=PolicyGuard(),
+        model_router=ModelRouter(),
+        task_planner=TaskPlanner(playbook=ResearchPlaybook()),
+        task_verifier=TaskVerifier(),
+        openclaw_adapter=adapter,  # type: ignore[arg-type]
+        execution_quality_guard=ExecutionQualityGuard(),
+        task_max_attempts=2,
+    )
+
+    result = brain.handle_message(
+        context=DialogueContext(
+            user_id="u_resume",
+            conversation_id="c_resume",
+            channel=Channel.API,
+            scope=ChatScope.PRIVATE,
+            trusted=True,
+        ),
+        text="继续执行",
+    )
+
+    assert result.decision.intent == "task_request"
+    assert result.decision.task_id == seeded.task_id
+    task = memory.get_task_record(task_id=seeded.task_id)
+    assert task is not None
+    assert task.resume_count >= 1
+    assert task.execution_attempts >= 2
+    assert "任务恢复：已复用" in result.reply
 
 
 def test_brain_exposes_yyos_routing_metadata() -> None:

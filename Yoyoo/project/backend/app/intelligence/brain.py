@@ -27,6 +27,17 @@ _TASK_REPLY_FEEDBACK_HINT = (
     "\n\n反馈方式：直接回复这条消息“这次很好”或“这次不好”，"
     "我会自动绑定到该任务。"
 )
+_TASK_RETRYABLE_ERROR_TOKENS = (
+    "timeout",
+    "timed out",
+    "network",
+    "connection refused",
+    "connection reset",
+    "local_unhealthy",
+    "session_locked",
+    "circuit_open",
+)
+_TASK_RESUME_TOKENS = ("继续", "重试", "再试", "接着", "resume", "retry")
 _FEEDBACK_BINDING_SOURCE_TEXT: dict[str, str] = {
     "hint_user": "你在消息里提供了 task_id",
     "hint_trusted_channel": "你在消息里提供了 task_id（同渠道可信绑定）",
@@ -73,6 +84,8 @@ class YoyooBrain:
         yyos_orchestrator: YYOSOrchestrator | None = None,
         memory_sidecar: MemorySidecarClient | None = None,
         feedback_binding_explain_enabled: bool = True,
+        task_max_attempts: int = 2,
+        task_resume_window_hours: float = 24.0,
     ) -> None:
         self._chat_service = chat_service
         self._memory_service = memory_service
@@ -84,6 +97,8 @@ class YoyooBrain:
         self._execution_quality_guard = execution_quality_guard
         self._yyos_orchestrator = yyos_orchestrator
         self._feedback_binding_explain_enabled = feedback_binding_explain_enabled
+        self._task_max_attempts = max(int(task_max_attempts), 1)
+        self._task_resume_window_hours = max(float(task_resume_window_hours), 1.0)
         self._memory_pipeline = MemoryPipeline(
             memory_service=memory_service,
             memory_sidecar=memory_sidecar,
@@ -284,60 +299,118 @@ class YoyooBrain:
                 for item in strategy_cards
             ]
             decision.strategy_id = decision.strategy_cards[0] if decision.strategy_cards else None
-            task = self._memory_service.create_task_record(
-                conversation_id=conversation_id,
-                user_id=context.user_id,
-                channel=context.channel.value,
-                project_key=project_key,
-                trace_id=context.trace_id,
-                request_text=message,
-                route_model=decision.route_model,
-                plan_steps=plan_steps,
-                verification_checks=verification_checks,
-                rollback_template=rollback_template,
-            )
+
+            resumed = False
+            task = None
+            if self._looks_like_resume_request(message):
+                task = self._memory_service.find_resumable_task(
+                    conversation_id=conversation_id,
+                    user_id=context.user_id,
+                    channel=context.channel.value,
+                    max_age_hours=self._task_resume_window_hours,
+                )
+                resumed = task is not None
+            if task is None:
+                task = self._memory_service.create_task_record(
+                    conversation_id=conversation_id,
+                    user_id=context.user_id,
+                    channel=context.channel.value,
+                    project_key=project_key,
+                    trace_id=context.trace_id,
+                    request_text=message,
+                    route_model=decision.route_model,
+                    plan_steps=plan_steps,
+                    verification_checks=verification_checks,
+                    rollback_template=rollback_template,
+                )
+            else:
+                decision.route_model = task.route_model or decision.route_model
+                if not task.plan_steps:
+                    task.plan_steps = list(plan_steps)
+                if not task.verification_checks:
+                    task.verification_checks = list(verification_checks)
+                if not task.rollback_template:
+                    task.rollback_template = list(rollback_template)
+
             decision.task_id = task.task_id
-            execution_started_at = monotonic()
-            bridge_result = self._call_openclaw(
-                context=context,
-                message=message,
-                route_model=decision.route_model,
+            execution_message = task.request_text if resumed else message
+            max_attempts = max(task.max_attempts, self._task_max_attempts)
+            self._memory_service.mark_task_running(
+                task_id=task.task_id,
+                max_attempts=max_attempts,
+                resumed=resumed,
+                resume_reason=message if resumed else None,
             )
+
+            execution_started_at = monotonic()
+            bridge_result = OpenClawAdapterResult(ok=False, error="bridge_not_called")
+            attempt_count = max(task.execution_attempts, 0)
             correction_applied = False
             quality_score: float | None = None
             quality_issues: list[str] = []
-            execution_reply: str | None = bridge_result.reply
-            if bridge_result.ok and bridge_result.reply:
-                quality = self._execution_quality_guard.assess(
-                    task_text=message,
-                    reply_text=bridge_result.reply,
+            execution_reply: str | None = None
+            while attempt_count < max_attempts:
+                attempt_count += 1
+                self._memory_service.record_task_attempt(
+                    task_id=task.task_id,
+                    attempt_no=attempt_count,
+                    reason="resume_execution" if resumed else "task_execution",
                 )
-                quality_score = quality.score
-                quality_issues = quality.issues
-                if quality.needs_correction:
-                    correction_prompt = self._execution_quality_guard.build_correction_prompt(
-                        task_text=message,
-                        low_quality_reply=bridge_result.reply,
+                bridge_result = self._call_openclaw(
+                    context=context,
+                    message=execution_message,
+                    route_model=decision.route_model,
+                )
+                execution_reply = bridge_result.reply
+                if bridge_result.ok and bridge_result.reply:
+                    quality = self._execution_quality_guard.assess(
+                        task_text=execution_message,
+                        reply_text=bridge_result.reply,
                     )
-                    correction_result = self._call_openclaw(
-                        context=context,
-                        message=correction_prompt,
-                        route_model=decision.route_model,
-                    )
-                    if correction_result.ok and correction_result.reply:
-                        corrected_quality = self._execution_quality_guard.assess(
-                            task_text=message,
-                            reply_text=correction_result.reply,
+                    quality_score = quality.score
+                    quality_issues = quality.issues
+                    if quality.needs_correction:
+                        correction_prompt = self._execution_quality_guard.build_correction_prompt(
+                            task_text=execution_message,
+                            low_quality_reply=bridge_result.reply,
                         )
-                        if corrected_quality.score >= quality.score:
-                            bridge_result = correction_result
-                            execution_reply = correction_result.reply
-                            quality_score = corrected_quality.score
-                            quality_issues = corrected_quality.issues
-                            correction_applied = True
-                decision.execution_quality_score = quality_score
-                decision.execution_quality_issues = quality_issues
-                decision.execution_corrected = correction_applied
+                        correction_result = self._call_openclaw(
+                            context=context,
+                            message=correction_prompt,
+                            route_model=decision.route_model,
+                        )
+                        if correction_result.ok and correction_result.reply:
+                            corrected_quality = self._execution_quality_guard.assess(
+                                task_text=execution_message,
+                                reply_text=correction_result.reply,
+                            )
+                            if corrected_quality.score >= quality.score:
+                                bridge_result = correction_result
+                                execution_reply = correction_result.reply
+                                quality_score = corrected_quality.score
+                                quality_issues = corrected_quality.issues
+                                correction_applied = True
+                    decision.execution_quality_score = quality_score
+                    decision.execution_quality_issues = quality_issues
+                    decision.execution_corrected = correction_applied
+                    break
+                if attempt_count >= max_attempts:
+                    break
+                if not self._is_retryable_task_error(bridge_result.error):
+                    break
+                self._memory_service.touch_task_heartbeat(
+                    task_id=task.task_id,
+                    note=(
+                        "retry_scheduled "
+                        f"attempt={attempt_count + 1}/{max_attempts} "
+                        f"reason={(bridge_result.error or 'unknown')[:160]}"
+                    ),
+                )
+            if not bridge_result.ok:
+                self._memory_service.touch_task_heartbeat(
+                    task_id=task.task_id,
+                    note=f"execution_failed attempts={attempt_count}/{max_attempts}",
+                )
 
             execution_duration_ms = max(int((monotonic() - execution_started_at) * 1000), 0)
             evidence_structured = self._build_execution_evidence(
@@ -351,6 +424,13 @@ class YoyooBrain:
                 correction_applied=correction_applied,
                 execution_duration_ms=execution_duration_ms,
                 yyos_snapshot=yyos_snapshot,
+            )
+            evidence_structured.append(
+                {
+                    "type": "execution_attempts",
+                    "value": {"used": attempt_count, "max": max_attempts, "resumed": resumed},
+                    "source": "brain",
+                }
             )
             decision.execution_duration_ms = execution_duration_ms
             decision.evidence_structured = evidence_structured
@@ -373,6 +453,9 @@ class YoyooBrain:
                     quality_issues=quality_issues,
                     correction_applied=correction_applied,
                     strategy_cards_used=decision.strategy_cards,
+                    execution_attempts=attempt_count,
+                    max_attempts=max_attempts,
+                    resume_count=task.resume_count,
                 )
             else:
                 self._memory_service.update_task_record(
@@ -389,12 +472,18 @@ class YoyooBrain:
                     quality_issues=quality_issues,
                     correction_applied=correction_applied,
                     strategy_cards_used=decision.strategy_cards,
+                    execution_attempts=attempt_count,
+                    max_attempts=max_attempts,
+                    resume_count=task.resume_count,
                 )
             logger.info(
-                "task_ledger_updated trace_id=%s task_id=%s status=%s",
+                "task_ledger_updated trace_id=%s task_id=%s status=%s attempts=%s/%s resumed=%s",
                 context.trace_id,
                 task.task_id,
                 task_status if bridge_result.ok else "failed",
+                attempt_count,
+                max_attempts,
+                resumed,
             )
             refs = "\n".join(f"- {item}" for item in references)
             steps = "\n".join(plan_steps)
@@ -435,6 +524,9 @@ class YoyooBrain:
                     f"\n执行质量问题：{issues}"
                     f"\n执行质量纠偏：{'已纠偏' if correction_applied else '未纠偏'}"
                 )
+            execution_retry_context = f"\n执行尝试：{attempt_count}/{max_attempts}"
+            if resumed:
+                execution_retry_context += f"\n任务恢复：已复用 task_id={task.task_id}"
             yyos_context = self._build_yyos_context(snapshot=yyos_snapshot)
             if bridge_result.ok and execution_reply:
                 execution = f"\n执行器反馈：\n{execution_reply}"
@@ -455,6 +547,7 @@ class YoyooBrain:
                 f"{learning_context}"
                 f"{yyos_context}"
                 f"{quality_context}"
+                f"{execution_retry_context}"
                 f"\n验收清单：\n{checks}"
                 f"\n回滚模板：\n{rollback}"
                 f"{execution}"
@@ -903,6 +996,18 @@ class YoyooBrain:
                     }
                 )
         return evidence
+
+    def _looks_like_resume_request(self, message: str) -> bool:
+        normalized = (message or "").strip().lower()
+        if not normalized:
+            return False
+        return any(token in normalized for token in _TASK_RESUME_TOKENS)
+
+    def _is_retryable_task_error(self, error: str | None) -> bool:
+        normalized = (error or "").strip().lower()
+        if not normalized:
+            return False
+        return any(token in normalized for token in _TASK_RETRYABLE_ERROR_TOKENS)
 
     def _call_openclaw(
         self,

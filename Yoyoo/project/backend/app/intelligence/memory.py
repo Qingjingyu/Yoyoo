@@ -55,6 +55,10 @@ class TaskRecord:
     feedback_history: list[dict[str, Any]] = field(default_factory=list)
     started_at: datetime | None = None
     last_heartbeat_at: datetime | None = None
+    last_retry_at: datetime | None = None
+    execution_attempts: int = 0
+    max_attempts: int = 1
+    resume_count: int = 0
     closed_at: datetime | None = None
     close_reason: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -292,11 +296,16 @@ class MemoryService:
         quality_issues: list[str] | None = None,
         correction_applied: bool | None = None,
         strategy_cards_used: list[str] | None = None,
+        execution_attempts: int | None = None,
+        max_attempts: int | None = None,
+        resume_count: int | None = None,
     ) -> TaskRecord | None:
         record = self._tasks.get(task_id)
         if record is None:
             return None
-        record.status = status
+        normalized_status = (status or "").strip().lower() or "planned"
+        now = datetime.now(UTC)
+        record.status = normalized_status
         record.executor_reply = executor_reply
         record.executor_error = executor_error
         if evidence:
@@ -312,9 +321,109 @@ class MemoryService:
             record.correction_applied = correction_applied
         if strategy_cards_used is not None:
             record.strategy_cards_used = list(strategy_cards_used)
-        record.updated_at = datetime.now(UTC)
+        if execution_attempts is not None:
+            record.execution_attempts = max(int(execution_attempts), 0)
+        if max_attempts is not None:
+            record.max_attempts = max(int(max_attempts), 1)
+        if resume_count is not None:
+            record.resume_count = max(int(resume_count), 0)
+        if normalized_status in {"running", "in_progress"} and record.started_at is None:
+            record.started_at = now
+        if normalized_status in {"completed", "completed_with_warnings", "failed", "timeout", "cancelled"}:
+            record.closed_at = now
+        else:
+            record.closed_at = None
+            record.close_reason = None
+        record.updated_at = now
         self._update_learning_from_task(record)
         self._update_strategy_runtime_from_task(record=record)
+        self._save_to_disk()
+        return record
+
+    def find_resumable_task(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        channel: str,
+        max_age_hours: float = 24.0,
+    ) -> TaskRecord | None:
+        if not conversation_id or not user_id:
+            return None
+        now = datetime.now(UTC)
+        candidates = self.recent_tasks(conversation_id=conversation_id, limit=30)
+        for item in reversed(candidates):
+            if item.user_id != user_id:
+                continue
+            if channel and item.channel != channel:
+                continue
+            status = (item.status or "").strip().lower()
+            if status not in {"planned", "running", "in_progress", "failed", "timeout"}:
+                continue
+            age_hours = max((now - item.updated_at).total_seconds() / 3600.0, 0.0)
+            if age_hours > max(max_age_hours, 1.0):
+                continue
+            return item
+        return None
+
+    def mark_task_running(
+        self,
+        *,
+        task_id: str,
+        max_attempts: int,
+        resumed: bool = False,
+        resume_reason: str | None = None,
+    ) -> TaskRecord | None:
+        record = self._tasks.get(task_id)
+        if record is None:
+            return None
+        now = datetime.now(UTC)
+        record.status = "running"
+        record.max_attempts = max(int(max_attempts), 1)
+        if record.started_at is None:
+            record.started_at = now
+        record.closed_at = None
+        record.close_reason = None
+        if resumed:
+            record.resume_count = max(record.resume_count, 0) + 1
+            record.evidence_structured.append(
+                {
+                    "type": "task_resumed",
+                    "source": "yoyoo",
+                    "value": (resume_reason or "manual_resume").strip()[:500] or "manual_resume",
+                    "timestamp": now.isoformat(),
+                }
+            )
+        record.updated_at = now
+        self._save_to_disk()
+        return record
+
+    def record_task_attempt(
+        self,
+        *,
+        task_id: str,
+        attempt_no: int,
+        reason: str | None = None,
+    ) -> TaskRecord | None:
+        record = self._tasks.get(task_id)
+        if record is None:
+            return None
+        now = datetime.now(UTC)
+        normalized_attempt = max(int(attempt_no), 1)
+        record.execution_attempts = max(record.execution_attempts, normalized_attempt)
+        record.last_heartbeat_at = now
+        if normalized_attempt > 1:
+            record.last_retry_at = now
+        record.evidence_structured.append(
+            {
+                "type": "task_attempt",
+                "source": "yoyoo",
+                "attempt_no": normalized_attempt,
+                "reason": (reason or "").strip()[:200] or None,
+                "timestamp": now.isoformat(),
+            }
+        )
+        record.updated_at = now
         self._save_to_disk()
         return record
 
@@ -2208,6 +2317,10 @@ class MemoryService:
                 feedback_history=self._normalize_feedback_history(item.get("feedback_history")),
                 started_at=self._parse_optional_datetime(item.get("started_at")),
                 last_heartbeat_at=self._parse_optional_datetime(item.get("last_heartbeat_at")),
+                last_retry_at=self._parse_optional_datetime(item.get("last_retry_at")),
+                execution_attempts=self._safe_int(item.get("execution_attempts"), default=0),
+                max_attempts=max(self._safe_int(item.get("max_attempts"), default=1), 1),
+                resume_count=self._safe_int(item.get("resume_count"), default=0),
                 closed_at=self._parse_optional_datetime(item.get("closed_at")),
                 close_reason=(
                     str(item.get("close_reason"))
@@ -2589,6 +2702,12 @@ class MemoryService:
                         if record.last_heartbeat_at is not None
                         else None
                     ),
+                    "last_retry_at": (
+                        record.last_retry_at.isoformat() if record.last_retry_at is not None else None
+                    ),
+                    "execution_attempts": record.execution_attempts,
+                    "max_attempts": record.max_attempts,
+                    "resume_count": record.resume_count,
                     "closed_at": (
                         record.closed_at.isoformat() if record.closed_at is not None else None
                     ),
