@@ -1,0 +1,65 @@
+{
+  "cases": [
+    {
+      "name": "greeting",
+      "steps": [
+        {
+          "user_id": "u_baseline_001",
+          "message": "你好",
+          "expect": {
+            "intent": "greeting",
+            "reply_contains": ["你好"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "task-request",
+      "steps": [
+        {
+          "user_id": "u_baseline_002",
+          "message": "请执行一个部署任务并反馈",
+          "expect": {
+            "intent": "task_request",
+            "has_task_id": true,
+            "reply_contains": ["任务台账ID", "反馈方式"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "task-feedback-success",
+      "steps": [
+        {
+          "user_id": "u_baseline_003",
+          "message": "请执行一个部署任务并反馈",
+          "expect": {
+            "intent": "task_request",
+            "has_task_id": true
+          }
+        },
+        {
+          "user_id": "u_baseline_003",
+          "message": "这次很好",
+          "expect": {
+            "intent": "task_feedback",
+            "reply_contains": ["已记录正向反馈", "绑定依据"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "task-feedback-without-task",
+      "steps": [
+        {
+          "user_id": "u_baseline_004",
+          "message": "这次不行",
+          "expect": {
+            "intent": "task_feedback",
+            "reply_contains": ["我没找到可反馈的最近任务"]
+          }
+        }
+      ]
+    }
+  ]
+}

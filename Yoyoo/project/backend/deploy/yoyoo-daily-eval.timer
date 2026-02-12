@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Yoyoo daily evaluation and strategy rebalance
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+Unit=yoyoo-daily-eval.service
+
+[Install]
+WantedBy=timers.target
+

@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+
+# Local secrets / transfer
+中转/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local archives / raw logs (contain sensitive history)
+历史存档/
+开发过程/
+Yoyoo/soul/remote_memory/
+Yoyoo/soul/.sync_state/
+Yoyoo/soul/memory/
+Yoyoo/BRAIN/MEMORY/
+Yoyoo/project/backend/data/yoyoo_memory.json
+Yoyoo/project/backend/data/yoyoo_memory.json.bak*
+
+# Heavy local mirrors/sandboxes (not source of Yoyoo 1.0)
+Yoyoo project/base-repos/
+Yoyoo/project/external/
+Yoyoo/project/baseline/
+YYOS/

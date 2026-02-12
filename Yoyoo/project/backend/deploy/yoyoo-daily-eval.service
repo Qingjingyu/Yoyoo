@@ -1,0 +1,11 @@
+[Unit]
+Description=Yoyoo Daily Evaluation and Strategy Rebalance
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/yoyoo/backend
+EnvironmentFile=-/root/yoyoo/backend/.env
+ExecStart=/root/yoyoo/backend/.venv/bin/python scripts/daily_eval_and_rebalance.py --memory-file /root/yoyoo/backend/data/yoyoo_memory.json --report-dir /root/yoyoo/backend/data/reports
+

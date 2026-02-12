@@ -1,0 +1,290 @@
+{
+  "version": "2026-02-07",
+  "source_bundle": [
+    "openakita/openakita",
+    "openclaw/openclaw",
+    "NevaMind-AI/memU"
+  ],
+  "templates": [
+    {
+      "template_id": "openclaw_bridge_health_probe",
+      "tag": "openclaw",
+      "title": "[openclaw] 先做 Bridge 健康探测",
+      "summary": "执行前先探测 18080 bridge 可用性，不可用再降级到 SSH。",
+      "trigger_tags": ["openclaw", "backend", "task_request"],
+      "recommended_steps": [
+        "先请求 bridge 健康端点并记录响应时延。",
+        "bridge 异常时切换 SSH，并标注降级原因。"
+      ],
+      "cautions": ["不要在执行失败后才补做健康探测。"],
+      "evidence_requirements": ["bridge 健康检查输出", "降级决策记录"],
+      "confidence": 0.82
+    },
+    {
+      "template_id": "openclaw_bridge_first_ssh_fallback",
+      "tag": "ssh",
+      "title": "[ssh] Bridge 优先，SSH 回退",
+      "summary": "默认走 HTTP bridge，失败时只做一次 SSH 回退并保留错误上下文。",
+      "trigger_tags": ["ssh", "openclaw", "task_request"],
+      "recommended_steps": [
+        "优先 bridge 执行并记录 trace_id。",
+        "失败后做一次 SSH 回退，不做无限重试。"
+      ],
+      "cautions": ["重复回退会放大噪声并拖慢反馈。"],
+      "evidence_requirements": ["bridge 错误信息", "SSH 执行结果"],
+      "confidence": 0.8
+    },
+    {
+      "template_id": "openclaw_timeout_split_retry",
+      "tag": "deploy",
+      "title": "[deploy] 超时任务拆分重试",
+      "summary": "遇到超时先拆小步骤，短链路验证后再继续主任务。",
+      "trigger_tags": ["deploy", "openclaw", "task_request"],
+      "recommended_steps": [
+        "把任务拆成 2-5 分钟可验证的小步骤。",
+        "每步完成后立即做只读验证，再进入下一步。"
+      ],
+      "cautions": ["禁止在超时后直接整包重跑。"],
+      "evidence_requirements": ["每步执行日志", "每步验证结果"],
+      "confidence": 0.81
+    },
+    {
+      "template_id": "openclaw_channel_delivery_check",
+      "tag": "dingtalk",
+      "title": "[dingtalk] 结果先确认投递状态",
+      "summary": "执行成功不代表用户收到，必须记录 IM 投递结果。",
+      "trigger_tags": ["dingtalk", "openclaw", "task_request"],
+      "recommended_steps": [
+        "回包后检查 delivered/error 字段。",
+        "投递失败时给出下一条可执行补救动作。"
+      ],
+      "cautions": ["不要把执行成功误判为闭环完成。"],
+      "evidence_requirements": ["outbound 投递日志", "补救动作记录"],
+      "confidence": 0.79
+    },
+    {
+      "template_id": "openclaw_model_failover_guard",
+      "tag": "backend",
+      "title": "[backend] 模型失败切换防护",
+      "summary": "主模型失败时触发受控 failover，避免盲目模型抖动。",
+      "trigger_tags": ["backend", "openclaw", "task_request"],
+      "recommended_steps": [
+        "主模型失败后按策略切备用模型。",
+        "保留主备模型切换的触发条件与次数。"
+      ],
+      "cautions": ["同一任务中避免频繁来回切换模型。"],
+      "evidence_requirements": ["模型路由日志", "failover 决策原因"],
+      "confidence": 0.78
+    },
+    {
+      "template_id": "openclaw_doctor_before_big_change",
+      "tag": "openclaw",
+      "title": "[openclaw] 大改前先 doctor",
+      "summary": "执行大变更前先跑诊断，提前发现环境级问题。",
+      "trigger_tags": ["openclaw", "deploy", "task_request"],
+      "recommended_steps": [
+        "执行前跑健康诊断并保存输出。",
+        "有高优先级告警时先修复再继续。"
+      ],
+      "cautions": ["不要跳过 doctor 直接改配置。"],
+      "evidence_requirements": ["doctor 输出摘要", "已修复项列表"],
+      "confidence": 0.77
+    },
+    {
+      "template_id": "openclaw_read_only_probe_first",
+      "tag": "ssh",
+      "title": "[ssh] 远程先读后写",
+      "summary": "远程变更前先做只读探测（权限/路径/进程状态）。",
+      "trigger_tags": ["ssh", "deploy", "task_request"],
+      "recommended_steps": [
+        "先执行只读命令确认目标状态。",
+        "确认后再执行写操作并立即验证。"
+      ],
+      "cautions": ["未确认权限与路径前不要写入。"],
+      "evidence_requirements": ["只读探测结果", "写后验证结果"],
+      "confidence": 0.82
+    },
+    {
+      "template_id": "openclaw_min_change_with_rollback",
+      "tag": "deploy",
+      "title": "[deploy] 最小变更+回滚预案",
+      "summary": "每次只做最小可验证变更，提前准备可执行回滚命令。",
+      "trigger_tags": ["deploy", "backend", "task_request"],
+      "recommended_steps": [
+        "将改动压缩为单一目标变更。",
+        "变更前写出并验证回滚路径可用。"
+      ],
+      "cautions": ["避免多目标改动捆绑上线。"],
+      "evidence_requirements": ["变更 diff 摘要", "回滚命令与结果"],
+      "confidence": 0.83
+    },
+    {
+      "template_id": "openakita_plan_mode_first",
+      "tag": "general",
+      "title": "[general] 多步骤任务先计划后执行",
+      "summary": "复杂任务先生成步骤计划与验收清单，再进入执行阶段。",
+      "trigger_tags": ["general", "task_request", "backend"],
+      "recommended_steps": [
+        "先列出步骤、验收、回滚三件套。",
+        "步骤执行中持续更新状态。"
+      ],
+      "cautions": ["不要边想边改导致路径漂移。"],
+      "evidence_requirements": ["任务计划", "步骤状态更新记录"],
+      "confidence": 0.84
+    },
+    {
+      "template_id": "openakita_progress_checkpoint_notify",
+      "tag": "dingtalk",
+      "title": "[dingtalk] 关键步骤主动播报",
+      "summary": "长任务在关键节点主动播报进度，减少用户失联感。",
+      "trigger_tags": ["dingtalk", "general", "task_request"],
+      "recommended_steps": [
+        "至少在开始/中段/完成三个节点播报。",
+        "异常时附上下一步处理计划。"
+      ],
+      "cautions": ["避免只在失败后才第一次沟通。"],
+      "evidence_requirements": ["进度播报记录", "异常播报内容"],
+      "confidence": 0.76
+    },
+    {
+      "template_id": "openakita_persistent_retry_path_switch",
+      "tag": "openclaw",
+      "title": "[openclaw] 失败重试需换路径",
+      "summary": "重试必须带策略变化（参数/通道/顺序），避免无效重复。",
+      "trigger_tags": ["openclaw", "general", "task_request"],
+      "recommended_steps": [
+        "记录首次失败原因。",
+        "重试时明确变化点并对比结果。"
+      ],
+      "cautions": ["同参数重复重试通常无增益。"],
+      "evidence_requirements": ["失败原因", "重试变化点", "结果对比"],
+      "confidence": 0.79
+    },
+    {
+      "template_id": "openakita_ambiguity_clarify_before_write",
+      "tag": "general",
+      "title": "[general] 目标歧义先澄清",
+      "summary": "目标不清时先提澄清问题，不直接进入写操作。",
+      "trigger_tags": ["general", "task_request", "memory"],
+      "recommended_steps": [
+        "识别关键歧义点并最小提问。",
+        "拿到确认后再执行写操作。"
+      ],
+      "cautions": ["不要用主观假设替代用户确认。"],
+      "evidence_requirements": ["澄清问题与用户确认", "执行前后目标对照"],
+      "confidence": 0.8
+    },
+    {
+      "template_id": "openakita_privacy_redaction_first",
+      "tag": "dingtalk",
+      "title": "[dingtalk] 回包先做敏感信息脱敏",
+      "summary": "对外回包默认脱敏，避免密钥/令牌/路径泄露。",
+      "trigger_tags": ["dingtalk", "backend", "task_request"],
+      "recommended_steps": [
+        "输出前扫描 token/secret/password/key 片段。",
+        "必要时用占位符替换敏感值。"
+      ],
+      "cautions": ["不要在公共会话回传原始凭证。"],
+      "evidence_requirements": ["脱敏前后文本摘要", "敏感项检测记录"],
+      "confidence": 0.83
+    },
+    {
+      "template_id": "openakita_daily_self_maintenance",
+      "tag": "memory",
+      "title": "[memory] 定时归档与自检",
+      "summary": "每日做记忆归档和异常扫描，避免记忆污染累积。",
+      "trigger_tags": ["memory", "general", "task_request"],
+      "recommended_steps": [
+        "按天归档历史任务与对话。",
+        "统计异常指标并生成修复建议。"
+      ],
+      "cautions": ["不要无限膨胀主记忆文件。"],
+      "evidence_requirements": ["归档摘要", "异常扫描结果"],
+      "confidence": 0.77
+    },
+    {
+      "template_id": "memu_memory_filesystem_layout",
+      "tag": "memory",
+      "title": "[memory] 用文件系统思维组织记忆",
+      "summary": "按主题目录组织记忆（偏好/关系/知识/上下文），提高检索稳定性。",
+      "trigger_tags": ["memory", "task_request", "general"],
+      "recommended_steps": [
+        "写入前先映射到记忆分类目录。",
+        "跨主题信息建立引用关系。"
+      ],
+      "cautions": ["避免把所有内容塞进单一长文本。"],
+      "evidence_requirements": ["分类路径", "引用关系记录"],
+      "confidence": 0.85
+    },
+    {
+      "template_id": "memu_atomic_fact_supersede",
+      "tag": "memory",
+      "title": "[memory] 事实更新用 supersede 不删除",
+      "summary": "用户事实变更采用替代链，不直接覆盖或删除历史。",
+      "trigger_tags": ["memory", "task_request", "backend"],
+      "recommended_steps": [
+        "保留旧值并标记 superseded。",
+        "新值设为 active 并建立追溯链路。"
+      ],
+      "cautions": ["直接删除历史会破坏可解释性。"],
+      "evidence_requirements": ["事实链快照", "active/superseded 标记"],
+      "confidence": 0.84
+    },
+    {
+      "template_id": "memu_proactive_intent_prefetch",
+      "tag": "memory",
+      "title": "[memory] 预判意图并预取上下文",
+      "summary": "根据近期任务轨迹预判下一步，提前准备相关上下文。",
+      "trigger_tags": ["memory", "task_request", "openclaw"],
+      "recommended_steps": [
+        "识别最近 3-5 轮高频目标。",
+        "预取下一步可能用到的配置和状态。"
+      ],
+      "cautions": ["预取要限量，避免上下文过载。"],
+      "evidence_requirements": ["预判依据", "预取命中情况"],
+      "confidence": 0.78
+    },
+    {
+      "template_id": "memu_scope_isolation_first",
+      "tag": "memory",
+      "title": "[memory] 检索先走用户-渠道隔离域",
+      "summary": "记忆检索优先用户+渠道域，减少跨会话污染。",
+      "trigger_tags": ["memory", "dingtalk", "task_request"],
+      "recommended_steps": [
+        "先查 user|channel|project，再降级到更宽域。",
+        "跨域复用时必须标记来源。"
+      ],
+      "cautions": ["不要默认混用不同用户记忆。"],
+      "evidence_requirements": ["命中 scope", "跨域来源标注"],
+      "confidence": 0.86
+    },
+    {
+      "template_id": "memu_dedup_and_context_budget",
+      "tag": "memory",
+      "title": "[memory] 去重优先，控制上下文预算",
+      "summary": "同义片段先去重再注入，减少 token 成本与噪声。",
+      "trigger_tags": ["memory", "backend", "task_request"],
+      "recommended_steps": [
+        "检索后做语义去重。",
+        "按相关度裁剪到固定上下文预算。"
+      ],
+      "cautions": ["重复记忆会稀释关键事实权重。"],
+      "evidence_requirements": ["去重前后数量", "预算裁剪结果"],
+      "confidence": 0.82
+    },
+    {
+      "template_id": "memu_feedback_conflict_cooldown",
+      "tag": "memory",
+      "title": "[memory] 反馈冲突期启用冷却机制",
+      "summary": "当好坏反馈短期冲突升高时，降低自动策略权重并优先稳妥路径。",
+      "trigger_tags": ["memory", "dingtalk", "task_request"],
+      "recommended_steps": [
+        "冲突率超阈值时降低策略自动化强度。",
+        "优先只读探测和小步验证。"
+      ],
+      "cautions": ["冲突期不要激进升级策略优先级。"],
+      "evidence_requirements": ["冲突率指标", "降权与恢复记录"],
+      "confidence": 0.8
+    }
+  ]
+}

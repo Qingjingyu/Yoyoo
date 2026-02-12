@@ -1,0 +1,30 @@
+{
+  "strict_mode": false,
+  "allowed_names": [
+    "continuous-learning-v2",
+    "deep-research",
+    "dispatching-parallel-agents",
+    "executing-plans",
+    "qa-expert",
+    "skills-search",
+    "systematic-debugging",
+    "verification-before-completion",
+    "writing-plans",
+    "yoyoo-brain-dev",
+    "skill-creator",
+    "skill-installer",
+    "find-skills"
+  ],
+  "allowed_prefixes": [
+    "yoyoo-",
+    "skill-"
+  ],
+  "allowed_patterns": [
+    "^continuous-learning",
+    "^verification-",
+    "^writing-",
+    "^dispatching-",
+    "^systematic-",
+    "^qa-"
+  ]
+}
