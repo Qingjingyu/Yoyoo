@@ -171,17 +171,17 @@ function writeMemory(content) {
 
 ### 一键导出记忆
 
-当需要迁移或备份时，执行以下命令导出所有记忆：
+当需要迁移或备份时，执行以下命令导出所有记忆（推荐使用脚本，支持时间戳防覆盖）：
 
 ```bash
-# 创建记忆备份
-mkdir -p ~/.openclaw/workspace/memory-backup
-cp ~/.openclaw/workspace/MEMORY.md ~/.openclaw/workspace/memory-backup/
-cp -r ~/.openclaw/workspace/memory/ ~/.openclaw/workspace/memory-backup/
+# 在 skills 目录下执行
+bash ~/.openclaw/skills/yoyoo-memory/backup-memory.sh export
+```
 
-# 打包备份
-cd ~/.openclaw/workspace
-zip -r memory-backup.zip memory-backup
+导出文件默认保存在：
+
+```text
+~/.openclaw/workspace/memory-backups/yoyoo-memory-backup-YYYYMMDD_HHMMSS.zip
 ```
 
 ### 一键导入记忆
@@ -189,16 +189,14 @@ zip -r memory-backup.zip memory-backup
 将备份文件复制到新服务器后：
 
 ```bash
-# 解压备份
-unzip memory-backup.zip
+# 使用最近一次备份导入
+bash ~/.openclaw/skills/yoyoo-memory/backup-memory.sh import
 
-# 恢复记忆
-cp memory-backup/MEMORY.md ~/.openclaw/workspace/
-cp -r memory-backup/memory/ ~/.openclaw/workspace/
-
-# 重启Gateway使生效
-openclaw gateway restart
+# 或指定备份文件导入
+bash ~/.openclaw/skills/yoyoo-memory/backup-memory.sh import /path/to/backup.zip
 ```
+
+导入前会自动创建快照（`pre-import-*.zip`），异常时可回滚。
 
 ### 自动同步（可选）
 
@@ -226,5 +224,5 @@ openclaw gateway restart
 ### 注意事项
 
 - 导出时排除临时文件和缓存
-- 导入前建议先备份当前记忆
+- 导入会自动生成“导入前快照”，仍建议在关键迁移前做额外离线备份
 - 敏感信息请单独加密处理
