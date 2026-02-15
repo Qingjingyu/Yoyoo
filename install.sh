@@ -8,7 +8,7 @@ WORKSPACE_DIR="${OPENCLAW_HOME}/workspace"
 SKILLS_DIR="${OPENCLAW_HOME}/skills"
 BACKUP_ROOT="${OPENCLAW_HOME}/.yoyoo-backup"
 MANIFEST_FILE="${WORKSPACE_DIR}/manifest.json"
-BASELINE_VERSION="1.0.1"
+BASELINE_VERSION="1.0.2"
 PLATFORM=""
 
 log() {
@@ -109,6 +109,193 @@ sync_templates() {
   cp -a "${SCRIPT_DIR}/workspace/." "${WORKSPACE_DIR}/"
 }
 
+write_default_openclaw_config() {
+  local cfg
+  cfg="${OPENCLAW_HOME}/openclaw.json"
+  mkdir -p "${OPENCLAW_HOME}"
+
+  if [[ -f "${cfg}" ]]; then
+    if grep -q '"backend"[[:space:]]*:[[:space:]]*"qmd"' "${cfg}"; then
+      log "检测到已有 openclaw.json 且已启用 qmd，跳过覆盖"
+    else
+      log "检测到已有 openclaw.json，保持不覆盖。建议手动确认 memory.backend=qmd"
+    fi
+    return 0
+  fi
+
+  cat > "${cfg}" <<'EOF'
+{
+  "channels": {
+    "feishu": {
+      "enabled": false,
+      "connectionMode": "websocket",
+      "dmPolicy": "open",
+      "groupPolicy": "open",
+      "requireMention": false,
+      "appId": "REPLACE_FEISHU_APP_ID",
+      "appSecret": "REPLACE_FEISHU_APP_SECRET"
+    },
+    "dingtalk": {
+      "enabled": false,
+      "clientId": "REPLACE_DINGTALK_CLIENT_ID",
+      "clientSecret": "REPLACE_DINGTALK_CLIENT_SECRET",
+      "robotCode": "REPLACE_DINGTALK_ROBOT_CODE",
+      "corpId": "REPLACE_DINGTALK_CORP_ID",
+      "agentId": "REPLACE_DINGTALK_AGENT_ID"
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "minimax": {
+        "baseURL": "https://api.minimaxi.com/anthropic",
+        "apiKey": "REPLACE_MINIMAX_API_KEY"
+      }
+    }
+  },
+  "memory": {
+    "backend": "qmd",
+    "qmd": {
+      "limits": {
+        "timeoutMs": 8000
+      }
+    }
+  },
+  "yoyoo": {
+    "llmops": {
+      "litellm": {
+        "enabled": false,
+        "baseURL": "http://127.0.0.1:4000"
+      },
+      "langfuse": {
+        "enabled": false,
+        "host": "https://cloud.langfuse.com",
+        "publicKey": "REPLACE_LANGFUSE_PUBLIC_KEY",
+        "secretKey": "REPLACE_LANGFUSE_SECRET_KEY"
+      },
+      "promptfoo": {
+        "enabled": false,
+        "configPath": "~/.openclaw/workspace/ops/promptfooconfig.yaml"
+      }
+    }
+  }
+}
+EOF
+  log "已生成默认 openclaw.json（含 QMD/LiteLLM/Langfuse/Promptfoo 模板）"
+}
+
+write_baseline_learning_pack() {
+  mkdir -p "${WORKSPACE_DIR}/onboarding" "${WORKSPACE_DIR}/ops" "${WORKSPACE_DIR}/bootstrap"
+
+  cat > "${WORKSPACE_DIR}/onboarding/NEW_EMPLOYEE_7D.md" <<'EOF'
+# Yoyoo 新员工 7 天入职清单
+
+## Day 1: 系统基础
+- 理解角色：Yoyoo 是“脑”，执行器是“手”。
+- 会用：`openclaw gateway`、`openclaw doctor --fix`。
+
+## Day 2: 记忆系统
+- 启用并理解 QMD。
+- 掌握 `skills/yoyoo-memory/backup-memory.sh` 导入导出。
+
+## Day 3: 稳定性
+- 学会失败重试、兜底策略、超时治理。
+- 能完成一次“服务异常 -> 恢复”的演练。
+
+## Day 4: 可观测
+- 接入 Langfuse（可选）并查看一次完整 trace。
+
+## Day 5: 评测
+- 使用 Promptfoo（可选）做 3 条关键任务回归。
+
+## Day 6: 组织化记忆
+- 按 CEO/后勤/研发设计记忆块并写入规范。
+
+## Day 7: 安全
+- 按 OWASP LLM Top 10 完成一次技能/提示词安全检查。
+EOF
+
+  cat > "${WORKSPACE_DIR}/ops/LLMOPS_QUICKSTART.md" <<'EOF'
+# Yoyoo LLMOps 快速启用
+
+## 1) 启用 QMD（推荐）
+```bash
+bash ~/.openclaw/workspace/bootstrap/enable_qmd.sh
+```
+
+## 2) 启用 LiteLLM/Langfuse/Promptfoo（按需）
+```bash
+bash ~/.openclaw/workspace/bootstrap/enable_llmops.sh
+```
+
+脚本只负责安装与模板提示，不会覆盖你现有业务配置。
+EOF
+
+  cat > "${WORKSPACE_DIR}/bootstrap/enable_qmd.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[Yoyoo] Enable QMD baseline..."
+if ! command -v bun >/dev/null 2>&1; then
+  echo "[Yoyoo] bun not found, please install bun first."
+  exit 1
+fi
+
+if ! command -v sqlite3 >/dev/null 2>&1; then
+  echo "[Yoyoo] sqlite3 not found, install sqlite3 first."
+  exit 1
+fi
+
+if ! command -v qmd >/dev/null 2>&1; then
+  bun install -g github:tobi/qmd
+fi
+
+CFG="${HOME}/.openclaw/openclaw.json"
+if [[ ! -f "${CFG}" ]]; then
+  echo "[Yoyoo] ${CFG} not found. Run install.sh first."
+  exit 1
+fi
+
+if grep -q '"backend"[[:space:]]*:[[:space:]]*"qmd"' "${CFG}"; then
+  echo "[Yoyoo] qmd backend already configured."
+else
+  echo "[Yoyoo] please set memory.backend=qmd manually in ${CFG}."
+fi
+
+echo "[Yoyoo] QMD check done."
+EOF
+  chmod +x "${WORKSPACE_DIR}/bootstrap/enable_qmd.sh"
+
+  cat > "${WORKSPACE_DIR}/bootstrap/enable_llmops.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[Yoyoo] Enable LLMOps toolkit..."
+
+if command -v python3 >/dev/null 2>&1; then
+  python3 -m pip install --user --upgrade litellm || true
+else
+  echo "[Yoyoo] python3 missing: skip litellm install"
+fi
+
+if command -v npm >/dev/null 2>&1; then
+  npm i -g promptfoo || true
+else
+  echo "[Yoyoo] npm missing: skip promptfoo install"
+fi
+
+cat <<'TIPS'
+[Yoyoo] Next:
+1) Fill LANGFUSE keys in ~/.openclaw/openclaw.json (yoyoo.llmops.langfuse)
+2) Start LiteLLM proxy when needed
+3) Run promptfoo eval on your critical tasks
+TIPS
+EOF
+  chmod +x "${WORKSPACE_DIR}/bootstrap/enable_llmops.sh"
+
+  log "已写入新员工学习包与 LLMOps 启用脚本"
+}
+
 write_manifest() {
   local installed_at openclaw_ver bun_ver
   installed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -124,7 +311,7 @@ write_manifest() {
   "openclaw_home": "${OPENCLAW_HOME}",
   "openclaw_version": "${openclaw_ver}",
   "bun_version": "${bun_ver}",
-  "features": ["install", "check", "rollback", "manifest"]
+  "features": ["install", "check", "rollback", "manifest", "baseline-learning-pack", "qmd", "llmops"]
 }
 EOF
   log "已写入 manifest: ${MANIFEST_FILE}"
@@ -137,6 +324,10 @@ run_check() {
     "${WORKSPACE_DIR}/USER.md"
     "${WORKSPACE_DIR}/SOUL.md"
     "${WORKSPACE_DIR}/MEMORY.md"
+    "${WORKSPACE_DIR}/onboarding/NEW_EMPLOYEE_7D.md"
+    "${WORKSPACE_DIR}/ops/LLMOPS_QUICKSTART.md"
+    "${WORKSPACE_DIR}/bootstrap/enable_qmd.sh"
+    "${WORKSPACE_DIR}/bootstrap/enable_llmops.sh"
     "${SKILLS_DIR}/yoyoo-memory/SKILL.md"
     "${SKILLS_DIR}/yoyoo-workflow/SKILL.md"
     "${MANIFEST_FILE}"
@@ -217,6 +408,8 @@ run_install() {
   install_bun_if_missing
   install_openclaw_if_missing
   sync_templates
+  write_default_openclaw_config
+  write_baseline_learning_pack
   write_manifest
   run_check
 

@@ -15,6 +15,8 @@
 - ⚡ **工作流编排** - 自动化流程
 - 🔧 **系统调试** - 问题排查
 - 📚 **知识增强** - RAG检索
+- 🧠 **员工学习包内置** - 安装后自带 7 天入职清单
+- 🚀 **LLMOps 基线内置** - QMD/LiteLLM/Langfuse/Promptfoo 启用模板
 
 ## 快速开始
 
@@ -43,7 +45,15 @@ bash install.sh --check
 bash install.sh --rollback
 ```
 
-### 4. 配置
+### 4. 1.0 默认内置（安装即有）
+
+- 新员工入职学习包：`~/.openclaw/workspace/onboarding/NEW_EMPLOYEE_7D.md`
+- LLMOps 快速指南：`~/.openclaw/workspace/ops/LLMOPS_QUICKSTART.md`
+- QMD 一键启用脚本：`~/.openclaw/workspace/bootstrap/enable_qmd.sh`
+- LLMOps 一键安装脚本：`~/.openclaw/workspace/bootstrap/enable_llmops.sh`
+- 默认配置模板：`~/.openclaw/openclaw.json`（含 MiniMax 中国区、QMD、LLMOps 配置位）
+
+### 5. 配置
 
 编辑 `~/.openclaw/openclaw.json`：
 
@@ -70,7 +80,7 @@ bash install.sh --rollback
 
 > 说明：`channels` 里通常只先开一个通道（飞书或钉钉），跑通后再加第二个。
 
-### 5. 初始化身份
+### 6. 初始化身份
 
 编辑 workspace 文件：
 
@@ -83,13 +93,13 @@ nano ~/.openclaw/workspace/IDENTITY.md
 nano ~/.openclaw/workspace/USER.md
 ```
 
-### 6. 启动
+### 7. 启动
 
 ```bash
 openclaw gateway
 ```
 
-### 7. 通过飞书/钉钉使用（推荐）
+### 8. 通过飞书/钉钉使用（推荐）
 
 一般用户不直接在终端里操作，而是通过 IM（飞书/钉钉）对话使用 Yoyoo。
 
@@ -135,13 +145,20 @@ openclaw gateway
 - 群里不回：检查平台侧事件订阅是否开启、群策略是否允许。  
 - 通道配置改完后：重启网关再测一次。
 
-## 安装脚本能力（v1.0.1）
+## 安装脚本能力（v1.0.2）
 
 | 命令 | 作用 |
 |------|------|
 | `bash install.sh` | 安装基础包（Bun/OpenClaw/skills/workspace） |
 | `bash install.sh --check` | 检查基础包完整性与关键文件 |
 | `bash install.sh --rollback` | 回滚到最近一次安装前快照 |
+
+推荐在首次安装后执行：
+
+```bash
+bash ~/.openclaw/workspace/bootstrap/enable_qmd.sh
+bash ~/.openclaw/workspace/bootstrap/enable_llmops.sh
+```
 
 安装成功后会生成安装清单：
 
