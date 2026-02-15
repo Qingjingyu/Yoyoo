@@ -1,9 +1,0 @@
-{
-  "blocked_names": [],
-  "blocked_patterns": [
-    "(?i)oauth[_-]?spoof",
-    "(?i)credential[_-]?stealer",
-    "(?i)token[_-]?exfil",
-    "(?i)bypass[_-]?auth"
-  ]
-}

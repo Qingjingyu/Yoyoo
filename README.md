@@ -1,33 +1,106 @@
-# Yoyoo 1.0.1
+# Yoyoo AI - 多员工AI协作系统
 
-Yoyoo 是企业化 AI 团队底座。  
-本仓库支持“一键激活员工”，让新员工默认具备初始能力与基础技能。
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-green" alt="Platform">
+  <img src="https://img.shields.io/badge/AI-MiniMax-orange" alt="Model">
+</p>
 
-## 克隆后直接激活（推荐）
+> 开箱即用、零门槛的AI产品
 
-在服务器（Ubuntu，root）执行：
+## 特性
+
+- 🤖 **多AI协作** - 多个AI员工分工合作
+- 💾 **统一记忆** - 跨实例记忆同步
+- ⚡ **工作流编排** - 自动化流程
+- 🔧 **系统调试** - 问题排查
+- 📚 **知识增强** - RAG检索
+
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
-git clone -b release/yoyoo-1.0-rc1 git@github.com:Qingjingyu/Yoyoo.git
-cd Yoyoo
-export MINIMAX_API_KEY='your_key'
-export YOYOO_ROLE='ceo'   # ceo | ops | rd-director | rd-engineer
-bash Yoyoo/project/bootstrap/hire_employee_from_git.sh
+# 安装 Bun
+curl -fsSL https://bun.sh/install | bash
+
+# 安装 OpenClaw
+curl -fsSL https://openclaw.ai/install.sh | bash
 ```
 
-## 激活后默认拥有
+### 2. 配置
 
-- OpenClaw（latest）
-- QMD 记忆后端
-- 基础技能包（clawhub / coding-agent / healthcheck / session-logs / skill-creator / tmux / weather）
-- 角色身份模板（CEO / 后勤 / 研发总监 / 研发员工）
-- 网关守护与健康检查（2 分钟巡检）
-- Yoyoo Backend 长任务内核（默认启用）：
-  - 自动重试（可重试错误）
-  - 断点恢复（“继续执行/重试”复用同 task）
-  - 任务状态持久化（attempts / resume_count）
+编辑 `~/.openclaw/openclaw.json`：
 
-## 详细文档
+```json
+{
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "dmPolicy": "open",
+      "appId": "你的飞书App ID",
+      "appSecret": "你的飞书App Secret"
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "minimax": {
+        "apiKey": "你的MiniMax API Key"
+      }
+    }
+  }
+}
+```
 
-- 激活基座说明：`Yoyoo/project/bootstrap/README.md`
-- 运营规范：`Yoyoo/docs/ops/2026-02-12_Yoyoo_员工激活基座_v1.md`
+### 3. 初始化身份
+
+编辑 workspace 文件：
+
+```bash
+# 复制配置模板
+cp -r workspace ~/.openclaw/
+
+# 编辑你的身份
+nano ~/.openclaw/workspace/IDENTITY.md
+nano ~/.openclaw/workspace/USER.md
+```
+
+### 4. 启动
+
+```bash
+openclaw gateway
+```
+
+## 配置说明
+
+### 飞书配置
+
+1. 创建飞书应用：https://open.feishu.com/
+2. 获取 App ID 和 App Secret
+3. 配置事件订阅（长连接）
+
+### 模型配置
+
+推荐使用 MiniMax API：
+- 注册：https://platform.minimaxi.com/
+
+## Skills
+
+| Skill | 功能 |
+|-------|------|
+| yoyoo-multi-agent | 多AI协作管理 |
+| yoyoo-memory | 统一记忆系统 |
+| yoyoo-workflow | 工作流编排 |
+| yoyoo-debug | 系统调试 |
+| yoyoo-knowledge | 知识增强 |
+| brave-search | 网页搜索 |
+
+## 文档
+
+- [OpenClaw文档](https://docs.openclaw.ai)
+- [飞书配置指南](https://docs.openclaw.ai/channels/feishu)
+
+## License
+
+MIT

@@ -1,2 +1,0 @@
-"""Yoyoo backend package."""
-
