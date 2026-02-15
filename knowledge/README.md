@@ -46,3 +46,17 @@
 1. 先读 OpenClaw 入门文档和官网。  
 2. 再看 `superpowers`（流程方法）和 `everything-claude-code`（可复用模式）。  
 3. 最后按任务挑选专项技能（UI、记忆、自动化）。
+
+## 6) 本轮新增进阶路线（2026Q1）
+
+针对“长任务稳定、模型兜底、可观测、可验收、安全治理”，新增一份可执行学习与落地清单：
+
+- [2026Q1_进阶学习路线.md](2026Q1_进阶学习路线.md)
+
+核心新增主题：
+
+- LiteLLM 路由/fallback（多模型高可用）
+- Langfuse（链路与成本可观测）
+- Promptfoo（评测与回归门禁）
+- Letta memory blocks（组织化记忆建模）
+- OWASP/NIST（Agent 安全治理基线）

@@ -185,6 +185,7 @@ openclaw gateway
 - [OpenClaw文档](https://docs.openclaw.ai)
 - [飞书配置指南](https://docs.openclaw.ai/channels/feishu)
 - [公共知识库（外部优质资源索引）](knowledge/README.md)
+- [Yoyoo进阶学习路线（2026Q1）](knowledge/2026Q1_进阶学习路线.md)
 
 ## License
 
