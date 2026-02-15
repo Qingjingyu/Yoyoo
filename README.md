@@ -19,6 +19,8 @@
 - 🚀 **LLMOps 基线内置** - QMD/LiteLLM/Langfuse/Promptfoo 自动安装
 - 🐦 **X 抓取内置** - x-fetcher 默认可用
 - 🟢 **公众号学习内置** - 微信公众号搜索与正文抓取默认可用
+- 🧭 **Steer 队列默认开启** - 长任务中可实时插话调整方向
+- 🛡️ **运行时防自杀硬化** - 安装时自动备份配置并执行基础巡检
 
 ## 快速开始
 
@@ -54,6 +56,9 @@ bash install.sh --rollback
 - 自动执行 LLMOps 基线安装（LiteLLM/Promptfoo）
 - 内置 X 抓取：`~/.openclaw/skills/x-fetcher/fetch_x.py`
 - 内置公众号学习：`~/.openclaw/skills/wechat-learning/wechat_search.py`
+- 默认开启：`messages.queue.mode = "steer"`
+- 内置硬化脚本：`~/.openclaw/workspace/bootstrap/harden_runtime.sh`
+- 内置实战手册：`~/.openclaw/workspace/ops/OPENCLAW_REAL_WORK_PLAYBOOK.md`
 - 能力文档与脚本：`~/.openclaw/workspace/ops/` 与 `~/.openclaw/workspace/bootstrap/`
 
 ### 5. 配置
@@ -148,7 +153,7 @@ openclaw gateway
 - 群里不回：检查平台侧事件订阅是否开启、群策略是否允许。  
 - 通道配置改完后：重启网关再测一次。
 
-## 安装脚本能力（v1.0.4）
+## 安装脚本能力（v1.0.5）
 
 | 命令 | 作用 |
 |------|------|
@@ -161,6 +166,7 @@ openclaw gateway
 ```bash
 bash ~/.openclaw/workspace/bootstrap/enable_qmd.sh
 bash ~/.openclaw/workspace/bootstrap/enable_llmops.sh
+bash ~/.openclaw/workspace/bootstrap/harden_runtime.sh
 ```
 
 安装成功后会生成安装清单：

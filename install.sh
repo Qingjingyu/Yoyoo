@@ -8,7 +8,7 @@ WORKSPACE_DIR="${OPENCLAW_HOME}/workspace"
 SKILLS_DIR="${OPENCLAW_HOME}/skills"
 BACKUP_ROOT="${OPENCLAW_HOME}/.yoyoo-backup"
 MANIFEST_FILE="${WORKSPACE_DIR}/manifest.json"
-BASELINE_VERSION="1.0.4"
+BASELINE_VERSION="1.0.5"
 PLATFORM=""
 
 log() {
@@ -178,6 +178,11 @@ write_default_openclaw_config() {
         "configPath": "~/.openclaw/workspace/ops/promptfooconfig.yaml"
       }
     }
+  },
+  "messages": {
+    "queue": {
+      "mode": "steer"
+    }
   }
 }
 EOF
@@ -229,6 +234,42 @@ bash ~/.openclaw/workspace/bootstrap/enable_llmops.sh
 ```
 
 脚本只负责安装与模板提示，不会覆盖你现有业务配置。
+EOF
+
+  cat > "${WORKSPACE_DIR}/ops/OPENCLAW_REAL_WORK_PLAYBOOK.md" <<'EOF'
+# OpenClaw 真干活实战手册（Yoyoo 内置）
+
+## 1) 基础硬件建议
+- 云服务器优先，建议 4G 起步，推荐 8G+。
+- 低内存会导致浏览器层和长任务频繁失败。
+
+## 2) 模型策略
+- 日常任务走低成本模型，复杂任务切高能力模型。
+- 目标：按任务分级，不要全程最高配烧钱。
+
+## 3) 搜索/浏览四层能力
+- L0：搜索 + 抓取（低成本、高频）
+- L1：无头浏览器（JS 页面）
+- L2：有头浏览器（登录/点击/表单）
+- L3：截图+视觉（兜底）
+
+## 4) 文件回传
+- 优先自动同步/挂载方案，保证“结果可回收”。
+- 成果必须回写到标准目录，避免只留在远端临时路径。
+
+## 5) 人格与入职
+- 用 SOUL/USER/TOOLS/MEMORY 明确身份、边界、风格。
+- 新员工先读组织资料再接任务。
+
+## 6) 日常高频命令
+- `/status`：看当前状态
+- `/stop`：中断卡住任务
+- `/model`：切模型
+- `/compact`：压上下文
+
+## 7) 防止“自我改死”
+- 配置变更先备份，再校验，再重启。
+- 避免让执行体直接批量改核心配置并自动重启。
 EOF
 
   cat > "${WORKSPACE_DIR}/bootstrap/enable_qmd.sh" <<'EOF'
@@ -312,6 +353,47 @@ TIPS
 EOF
   chmod +x "${WORKSPACE_DIR}/bootstrap/enable_llmops.sh"
 
+  cat > "${WORKSPACE_DIR}/bootstrap/harden_runtime.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+OPENCLAW_HOME="${OPENCLAW_HOME:-$HOME/.openclaw}"
+CFG="${OPENCLAW_HOME}/openclaw.json"
+SNAP_DIR="${OPENCLAW_HOME}/snapshots"
+mkdir -p "${SNAP_DIR}"
+
+echo "[Yoyoo] Runtime hardening start..."
+
+if [[ -f "${CFG}" ]]; then
+  cp "${CFG}" "${SNAP_DIR}/openclaw.json.$(date +%Y%m%d_%H%M%S).bak"
+  echo "[Yoyoo] backup config done"
+fi
+
+if command -v python3 >/dev/null 2>&1 && [[ -f "${CFG}" ]]; then
+  CFG_PATH="${CFG}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+cfg = Path(os.environ["CFG_PATH"])
+data = json.loads(cfg.read_text(encoding="utf-8"))
+messages = data.setdefault("messages", {})
+queue = messages.setdefault("queue", {})
+queue["mode"] = "steer"
+cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print("[Yoyoo] ensured messages.queue.mode=steer")
+PY
+fi
+
+if command -v openclaw >/dev/null 2>&1; then
+  openclaw doctor --fix || true
+  openclaw gateway status || true
+fi
+
+echo "[Yoyoo] Runtime hardening done."
+EOF
+  chmod +x "${WORKSPACE_DIR}/bootstrap/harden_runtime.sh"
+
   log "已写入运行时能力包与 LLMOps 启用脚本"
 }
 
@@ -364,7 +446,7 @@ write_manifest() {
   "openclaw_home": "${OPENCLAW_HOME}",
   "openclaw_version": "${openclaw_ver}",
   "bun_version": "${bun_ver}",
-  "features": ["install", "check", "rollback", "manifest", "baseline-runtime-pack", "qmd-autoinstall", "llmops-autoinstall", "x-fetcher", "wechat-learning"]
+  "features": ["install", "check", "rollback", "manifest", "baseline-runtime-pack", "qmd-autoinstall", "llmops-autoinstall", "x-fetcher", "wechat-learning", "steer-default", "runtime-hardening"]
 }
 EOF
   log "已写入 manifest: ${MANIFEST_FILE}"
@@ -379,8 +461,10 @@ run_check() {
     "${WORKSPACE_DIR}/MEMORY.md"
     "${WORKSPACE_DIR}/onboarding/NEW_EMPLOYEE_7D.md"
     "${WORKSPACE_DIR}/ops/LLMOPS_QUICKSTART.md"
+    "${WORKSPACE_DIR}/ops/OPENCLAW_REAL_WORK_PLAYBOOK.md"
     "${WORKSPACE_DIR}/bootstrap/enable_qmd.sh"
     "${WORKSPACE_DIR}/bootstrap/enable_llmops.sh"
+    "${WORKSPACE_DIR}/bootstrap/harden_runtime.sh"
     "${SKILLS_DIR}/yoyoo-memory/SKILL.md"
     "${SKILLS_DIR}/yoyoo-workflow/SKILL.md"
     "${SKILLS_DIR}/x-fetcher/SKILL.md"
@@ -469,6 +553,7 @@ run_install() {
   write_baseline_runtime_pack
   install_qmd_builtin
   install_llmops_builtin
+  "${WORKSPACE_DIR}/bootstrap/harden_runtime.sh" || true
   write_manifest
   run_check
 
