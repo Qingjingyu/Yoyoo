@@ -68,6 +68,8 @@ bash install.sh --rollback
 }
 ```
 
+> 说明：`channels` 里通常只先开一个通道（飞书或钉钉），跑通后再加第二个。
+
 ### 5. 初始化身份
 
 编辑 workspace 文件：
@@ -86,6 +88,52 @@ nano ~/.openclaw/workspace/USER.md
 ```bash
 openclaw gateway
 ```
+
+### 7. 通过飞书/钉钉使用（推荐）
+
+一般用户不直接在终端里操作，而是通过 IM（飞书/钉钉）对话使用 Yoyoo。
+
+1. 在平台创建机器人应用并拿到凭证  
+2. 写入 `~/.openclaw/openclaw.json` 的对应通道配置  
+3. 启动 `openclaw gateway`  
+4. 在群聊或私聊 @机器人发送消息测试
+
+---
+
+最小化通道配置示例（按需二选一）：
+
+```json
+{
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "connectionMode": "websocket",
+      "dmPolicy": "open",
+      "groupPolicy": "open",
+      "requireMention": false,
+      "appId": "你的飞书 App ID",
+      "appSecret": "你的飞书 App Secret"
+    },
+    "dingtalk": {
+      "enabled": false,
+      "clientId": "你的钉钉 Client ID",
+      "clientSecret": "你的钉钉 Client Secret",
+      "robotCode": "你的钉钉 Robot Code",
+      "corpId": "你的钉钉 Corp ID",
+      "agentId": "你的钉钉 Agent ID"
+    }
+  }
+}
+```
+
+---
+
+快速排障：
+
+- 收不到回复：先检查 `openclaw gateway` 是否在运行。  
+- 401/鉴权失败：优先检查模型 key 与通道凭证是否填错、是否有空格换行。  
+- 群里不回：检查平台侧事件订阅是否开启、群策略是否允许。  
+- 通道配置改完后：重启网关再测一次。
 
 ## 安装脚本能力（v1.0.1）
 
@@ -108,6 +156,13 @@ openclaw gateway
 1. 创建飞书应用：https://open.feishu.com/
 2. 获取 App ID 和 App Secret
 3. 配置事件订阅（长连接）
+
+### 钉钉配置
+
+1. 创建钉钉应用：https://open-dev.dingtalk.com/
+2. 获取 `Client ID` / `Client Secret` / `Robot Code` / `Corp ID` / `Agent ID`
+3. 在 `openclaw.json` 中填写 `channels.dingtalk` 配置并启用
+4. 重启网关后在群聊 @机器人测试
 
 ### 模型配置
 
