@@ -26,6 +26,8 @@
 | [claude-code-skills](https://github.com/daymade/claude-code-skills) | 垂直技能市场 | 按需安装专项能力 |
 | [superpowers](https://github.com/obra/superpowers) | TDD/原子任务方法论 | 约束研发质量与流程 |
 | [skills.sh](https://skills.sh/) | 技能聚合入口 | 技能发现与安装导航 |
+| [Jane-xiaoer/x-fetcher](https://github.com/Jane-xiaoer/x-fetcher) | X(Twitter) 内容抓取 | 社媒情报输入能力 |
+| [wechat-article-exporter](https://github.com/wechat-article/wechat-article-exporter) | 微信公众号搜索与批量导出 | 公众号学习/归档增强 |
 
 ## 3) 官方入口与学习站（必收藏）
 

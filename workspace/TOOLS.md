@@ -11,3 +11,5 @@ _记录你的工具配置_
 - yoyoo-workflow: 工作流
 - yoyoo-debug: 系统调试
 - yoyoo-knowledge: 知识增强
+- x-fetcher: X(Twitter) 内容抓取
+- wechat-learning: 微信公众号搜索与正文学习

@@ -8,7 +8,7 @@ WORKSPACE_DIR="${OPENCLAW_HOME}/workspace"
 SKILLS_DIR="${OPENCLAW_HOME}/skills"
 BACKUP_ROOT="${OPENCLAW_HOME}/.yoyoo-backup"
 MANIFEST_FILE="${WORKSPACE_DIR}/manifest.json"
-BASELINE_VERSION="1.0.3"
+BASELINE_VERSION="1.0.4"
 PLATFORM=""
 
 log() {
@@ -292,6 +292,7 @@ echo "[Yoyoo] Enable LLMOps toolkit..."
 
 if command -v python3 >/dev/null 2>&1; then
   python3 -m pip install --user --upgrade litellm || true
+  python3 -m pip install --user --upgrade requests || true
 else
   echo "[Yoyoo] python3 missing: skip litellm install"
 fi
@@ -363,7 +364,7 @@ write_manifest() {
   "openclaw_home": "${OPENCLAW_HOME}",
   "openclaw_version": "${openclaw_ver}",
   "bun_version": "${bun_ver}",
-  "features": ["install", "check", "rollback", "manifest", "baseline-runtime-pack", "qmd-autoinstall", "llmops-autoinstall"]
+  "features": ["install", "check", "rollback", "manifest", "baseline-runtime-pack", "qmd-autoinstall", "llmops-autoinstall", "x-fetcher", "wechat-learning"]
 }
 EOF
   log "已写入 manifest: ${MANIFEST_FILE}"
@@ -382,6 +383,10 @@ run_check() {
     "${WORKSPACE_DIR}/bootstrap/enable_llmops.sh"
     "${SKILLS_DIR}/yoyoo-memory/SKILL.md"
     "${SKILLS_DIR}/yoyoo-workflow/SKILL.md"
+    "${SKILLS_DIR}/x-fetcher/SKILL.md"
+    "${SKILLS_DIR}/x-fetcher/fetch_x.py"
+    "${SKILLS_DIR}/wechat-learning/SKILL.md"
+    "${SKILLS_DIR}/wechat-learning/wechat_search.py"
     "${MANIFEST_FILE}"
   )
 
