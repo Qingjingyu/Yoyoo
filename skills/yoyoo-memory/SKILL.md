@@ -166,3 +166,65 @@ function writeMemory(content) {
 
 - 记忆配置: [references/config.md](references/config.md)
 - 同步脚本: [references/sync.md](references/sync.md)
+
+## 记忆迁移功能
+
+### 一键导出记忆
+
+当需要迁移或备份时，执行以下命令导出所有记忆：
+
+```bash
+# 创建记忆备份
+mkdir -p ~/.openclaw/workspace/memory-backup
+cp ~/.openclaw/workspace/MEMORY.md ~/.openclaw/workspace/memory-backup/
+cp -r ~/.openclaw/workspace/memory/ ~/.openclaw/workspace/memory-backup/
+
+# 打包备份
+cd ~/.openclaw/workspace
+zip -r memory-backup.zip memory-backup
+```
+
+### 一键导入记忆
+
+将备份文件复制到新服务器后：
+
+```bash
+# 解压备份
+unzip memory-backup.zip
+
+# 恢复记忆
+cp memory-backup/MEMORY.md ~/.openclaw/workspace/
+cp -r memory-backup/memory/ ~/.openclaw/workspace/
+
+# 重启Gateway使生效
+openclaw gateway restart
+```
+
+### 自动同步（可选）
+
+在 `~/.openclaw/openclaw.json` 中配置定时同步：
+
+```json
+{
+  "memory": {
+    "sync": {
+      "enabled": true,
+      "intervalMinutes": 30,
+      "remotePath": "user@server:/path/to/memory/"
+    }
+  }
+}
+```
+
+### 使用场景
+
+1. **服务器迁移** - 导出旧服务器记忆，导入新服务器
+2. **新员工入职** - 将核心记忆模板给新AI员工
+3. **多设备同步** - 手机/电脑/服务器记忆保持一致
+4. **备份恢复** - 误操作后恢复记忆
+
+### 注意事项
+
+- 导出时排除临时文件和缓存
+- 导入前建议先备份当前记忆
+- 敏感信息请单独加密处理
