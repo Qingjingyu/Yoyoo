@@ -8,7 +8,7 @@ WORKSPACE_DIR="${OPENCLAW_HOME}/workspace"
 SKILLS_DIR="${OPENCLAW_HOME}/skills"
 BACKUP_ROOT="${OPENCLAW_HOME}/.yoyoo-backup"
 MANIFEST_FILE="${WORKSPACE_DIR}/manifest.json"
-BASELINE_VERSION="1.0.2"
+BASELINE_VERSION="1.0.3"
 PLATFORM=""
 
 log() {
@@ -184,7 +184,7 @@ EOF
   log "已生成默认 openclaw.json（含 QMD/LiteLLM/Langfuse/Promptfoo 模板）"
 }
 
-write_baseline_learning_pack() {
+write_baseline_runtime_pack() {
   mkdir -p "${WORKSPACE_DIR}/onboarding" "${WORKSPACE_DIR}/ops" "${WORKSPACE_DIR}/bootstrap"
 
   cat > "${WORKSPACE_DIR}/onboarding/NEW_EMPLOYEE_7D.md" <<'EOF'
@@ -259,7 +259,25 @@ fi
 if grep -q '"backend"[[:space:]]*:[[:space:]]*"qmd"' "${CFG}"; then
   echo "[Yoyoo] qmd backend already configured."
 else
-  echo "[Yoyoo] please set memory.backend=qmd manually in ${CFG}."
+  if command -v python3 >/dev/null 2>&1; then
+    CFG_PATH="${CFG}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+cfg = Path(os.environ["CFG_PATH"])
+data = json.loads(cfg.read_text(encoding="utf-8"))
+memory = data.setdefault("memory", {})
+memory["backend"] = "qmd"
+qmd = memory.setdefault("qmd", {})
+limits = qmd.setdefault("limits", {})
+limits.setdefault("timeoutMs", 8000)
+cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print("[Yoyoo] updated openclaw.json memory.backend=qmd")
+PY
+  else
+    echo "[Yoyoo] WARN: python3 missing, cannot auto patch ${CFG}"
+  fi
 fi
 
 echo "[Yoyoo] QMD check done."
@@ -293,7 +311,41 @@ TIPS
 EOF
   chmod +x "${WORKSPACE_DIR}/bootstrap/enable_llmops.sh"
 
-  log "已写入新员工学习包与 LLMOps 启用脚本"
+  log "已写入运行时能力包与 LLMOps 启用脚本"
+}
+
+install_qmd_builtin() {
+  local qmd_script
+  qmd_script="${WORKSPACE_DIR}/bootstrap/enable_qmd.sh"
+  log "内置能力：自动启用 QMD..."
+
+  if [[ ! -x "${qmd_script}" ]]; then
+    log "WARN: 未找到 ${qmd_script}，跳过 QMD 自动启用"
+    return 0
+  fi
+
+  if ! "${qmd_script}"; then
+    log "WARN: QMD 自动启用失败。可手动执行：bash ${qmd_script}"
+    return 0
+  fi
+  log "QMD 已内置启用"
+}
+
+install_llmops_builtin() {
+  local llmops_script
+  llmops_script="${WORKSPACE_DIR}/bootstrap/enable_llmops.sh"
+  log "内置能力：自动安装 LLMOps 基线..."
+
+  if [[ ! -x "${llmops_script}" ]]; then
+    log "WARN: 未找到 ${llmops_script}，跳过 LLMOps 自动安装"
+    return 0
+  fi
+
+  if ! "${llmops_script}"; then
+    log "WARN: LLMOps 自动安装失败。可手动执行：bash ${llmops_script}"
+    return 0
+  fi
+  log "LLMOps 基线已内置"
 }
 
 write_manifest() {
@@ -311,7 +363,7 @@ write_manifest() {
   "openclaw_home": "${OPENCLAW_HOME}",
   "openclaw_version": "${openclaw_ver}",
   "bun_version": "${bun_ver}",
-  "features": ["install", "check", "rollback", "manifest", "baseline-learning-pack", "qmd", "llmops"]
+  "features": ["install", "check", "rollback", "manifest", "baseline-runtime-pack", "qmd-autoinstall", "llmops-autoinstall"]
 }
 EOF
   log "已写入 manifest: ${MANIFEST_FILE}"
@@ -409,7 +461,9 @@ run_install() {
   install_openclaw_if_missing
   sync_templates
   write_default_openclaw_config
-  write_baseline_learning_pack
+  write_baseline_runtime_pack
+  install_qmd_builtin
+  install_llmops_builtin
   write_manifest
   run_check
 
