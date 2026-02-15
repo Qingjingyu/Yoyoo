@@ -18,17 +18,32 @@
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 一键安装基础包
 
 ```bash
-# 安装 Bun
-curl -fsSL https://bun.sh/install | bash
+# 克隆仓库
+git clone https://github.com/Qingjingyu/Yoyoo.git
+cd Yoyoo
 
-# 安装 OpenClaw
-curl -fsSL https://openclaw.ai/install.sh | bash
+# 执行安装（默认等价于 --install）
+bash install.sh
 ```
 
-### 2. 配置
+### 2. 安装后自检（推荐）
+
+```bash
+bash install.sh --check
+```
+
+### 3. 失败回滚
+
+安装脚本会在每次覆盖前自动创建快照（`~/.openclaw/.yoyoo-backup/`）：
+
+```bash
+bash install.sh --rollback
+```
+
+### 4. 配置
 
 编辑 `~/.openclaw/openclaw.json`：
 
@@ -53,7 +68,7 @@ curl -fsSL https://openclaw.ai/install.sh | bash
 }
 ```
 
-### 3. 初始化身份
+### 5. 初始化身份
 
 编辑 workspace 文件：
 
@@ -66,10 +81,24 @@ nano ~/.openclaw/workspace/IDENTITY.md
 nano ~/.openclaw/workspace/USER.md
 ```
 
-### 4. 启动
+### 6. 启动
 
 ```bash
 openclaw gateway
+```
+
+## 安装脚本能力（v1.0.1）
+
+| 命令 | 作用 |
+|------|------|
+| `bash install.sh` | 安装基础包（Bun/OpenClaw/skills/workspace） |
+| `bash install.sh --check` | 检查基础包完整性与关键文件 |
+| `bash install.sh --rollback` | 回滚到最近一次安装前快照 |
+
+安装成功后会生成安装清单：
+
+```text
+~/.openclaw/workspace/manifest.json
 ```
 
 ## 配置说明
