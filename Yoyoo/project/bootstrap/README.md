@@ -151,6 +151,7 @@ bash Yoyoo/project/bootstrap/hire_employee_from_git.sh
 
 `hire_employee_from_git.sh` inherits the same isolation defaults and exports `YOYOO_HOME` + `OPENCLAW_PORT` automatically.
 It now auto-stashes local runtime changes by default before pull (`YOYOO_GIT_AUTO_STASH=1`).
+Default branch ref is now `master` (`GIT_REF` can still be overridden manually).
 
 ## Recommended: Safe Hire Wrapper
 

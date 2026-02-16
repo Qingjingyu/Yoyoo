@@ -217,6 +217,19 @@ bash ~/.openclaw/workspace/bootstrap/harden_runtime.sh
 - [飞书配置指南](https://docs.openclaw.ai/channels/feishu)
 - [公共知识库（外部优质资源索引）](knowledge/README.md)
 - [Yoyoo进阶学习路线（2026Q1）](knowledge/2026Q1_进阶学习路线.md)
+- [运维手册](docs/OPERATIONS.md)
+- [升级策略](docs/UPGRADE_POLICY.md)
+- [员工模板](docs/EMPLOYEE_TEMPLATE.md)
+
+## 工程治理（P0-P3）
+
+- CI 质量闸门：`.github/workflows/quality-gate.yml`
+- 安全扫描：`.github/workflows/security-gitleaks.yml`
+- 发布流程：`.github/workflows/release.yml`（tag `v*` 自动发布）
+- 预检脚本：`scripts/preflight.sh`
+- 发布后巡检：`scripts/post_deploy_check.sh`
+- 一键回滚：`scripts/rollback_to_tag.sh`
+- 主分支保护脚本：`scripts/set_branch_protection.sh`
 
 ## License
 
