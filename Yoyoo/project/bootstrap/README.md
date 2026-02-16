@@ -2,6 +2,16 @@
 
 This folder defines Yoyoo 1.0.1 employee activation baseline.
 
+## Zero-Config Entry (Recommended)
+
+For end users, run from repo root:
+
+```bash
+bash install.sh
+```
+
+It will prompt for `MINIMAX_API_KEY` (if not set), then activate CEO + CTO automatically.
+
 ## Goal
 Any new employee activated from Git should get the same default stack:
 - OpenClaw

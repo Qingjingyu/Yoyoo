@@ -28,6 +28,8 @@ Yoyoo AI 基础包安装脚本
 
 可选环境变量:
   OPENCLAW_HOME=~/.openclaw   # OpenClaw 数据目录（默认 ~/.openclaw）
+  MINIMAX_API_KEY=xxx         # 自动激活 CEO+CTO 时使用
+  YOYOO_SKIP_AUTO_ACTIVATE=1  # 仅安装基础包，不自动激活 CEO+CTO
 USAGE
 }
 
@@ -538,6 +540,53 @@ run_rollback() {
   log "回滚完成"
 }
 
+ensure_minimax_api_key() {
+  if [[ -n "${MINIMAX_API_KEY:-}" ]]; then
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    log "未检测到 MINIMAX_API_KEY 且当前非交互终端，跳过自动激活 CEO+CTO"
+    return 1
+  fi
+  printf "[Yoyoo] 请输入 MiniMax API Key（用于自动激活 CEO+CTO）: "
+  read -r MINIMAX_API_KEY
+  if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
+    log "未输入 API Key，跳过自动激活 CEO+CTO"
+    return 1
+  fi
+  return 0
+}
+
+auto_activate_ceo_cto() {
+  local activate_script
+  if [[ "${YOYOO_SKIP_AUTO_ACTIVATE:-0}" == "1" ]]; then
+    log "YOYOO_SKIP_AUTO_ACTIVATE=1，跳过自动激活 CEO+CTO"
+    return 0
+  fi
+
+  activate_script="${SCRIPT_DIR}/Yoyoo/project/bootstrap/activate_ceo_cto.sh"
+  if [[ ! -x "${activate_script}" ]]; then
+    log "未找到激活脚本，跳过自动激活: ${activate_script}"
+    return 0
+  fi
+
+  if ! ensure_minimax_api_key; then
+    return 0
+  fi
+
+  log "正在自动激活 CEO + CTO..."
+  if [[ "$(id -u)" -ne 0 ]]; then
+    if command -v sudo >/dev/null 2>&1; then
+      sudo env MINIMAX_API_KEY="${MINIMAX_API_KEY}" bash "${activate_script}"
+    else
+      log "当前不是 root 且没有 sudo，跳过自动激活 CEO+CTO"
+      return 0
+    fi
+  else
+    MINIMAX_API_KEY="${MINIMAX_API_KEY}" bash "${activate_script}"
+  fi
+}
+
 run_install() {
   detect_platform
   log "=========================================="
@@ -556,15 +605,14 @@ run_install() {
   "${WORKSPACE_DIR}/bootstrap/harden_runtime.sh" || true
   write_manifest
   run_check
+  auto_activate_ceo_cto
 
   log ""
   log "=========================================="
   log "   安装完成"
   log "=========================================="
-  log "接下来请："
-  log "1) 编辑 ${WORKSPACE_DIR}/IDENTITY.md"
-  log "2) 编辑 ${OPENCLAW_HOME}/openclaw.json 添加 API Key"
-  log "3) 运行 openclaw gateway 启动"
+  log "当前默认流程：安装即自动激活 CEO+CTO。"
+  log "如需仅安装基础包，可使用 YOYOO_SKIP_AUTO_ACTIVATE=1 bash install.sh"
 }
 
 main() {

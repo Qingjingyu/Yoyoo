@@ -35,6 +35,8 @@ cd Yoyoo
 bash install.sh
 ```
 
+`install.sh` 会自动询问（或读取）`MINIMAX_API_KEY`，并直接激活 CEO(`:18789`) + CTO(`:18794`)。
+
 ### 2. 安装后自检（推荐）
 
 ```bash
