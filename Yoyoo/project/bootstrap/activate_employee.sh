@@ -15,6 +15,7 @@ YOYOO_ENABLE_QMD="${YOYOO_ENABLE_QMD:-1}"
 YOYOO_ENABLE_BASE_SKILLS="${YOYOO_ENABLE_BASE_SKILLS:-1}"
 YOYOO_DEFAULT_MODEL="${YOYOO_DEFAULT_MODEL:-MiniMax-M2.1}"
 YOYOO_FORCE_OPENCLAW_INSTALL="${YOYOO_FORCE_OPENCLAW_INSTALL:-0}"
+YOYOO_OPENCLAW_VERSION="${YOYOO_OPENCLAW_VERSION:-2026.2.15}"
 YOYOO_BASELINE_VERSION="${YOYOO_BASELINE_VERSION:-1.0.1}"
 YOYOO_ENABLE_BACKEND_KERNEL="${YOYOO_ENABLE_BACKEND_KERNEL:-1}"
 YOYOO_BACKEND_PORT="${YOYOO_BACKEND_PORT:-}"
@@ -424,8 +425,19 @@ fi
 install_base_packages "${PKG_MANAGER}"
 install_nodejs_if_missing "${PKG_MANAGER}"
 
-if [[ "${YOYOO_FORCE_OPENCLAW_INSTALL}" == "1" ]] || ! command -v openclaw >/dev/null 2>&1; then
-  npm i -g openclaw@latest >/tmp/yoyoo_bootstrap_openclaw_install.log 2>&1
+OPENCLAW_CURRENT_VERSION=""
+if command -v openclaw >/dev/null 2>&1; then
+  OPENCLAW_CURRENT_VERSION="$(openclaw --version 2>/dev/null | head -n 1 | tr -d '\r' | xargs || true)"
+fi
+
+if [[ "${YOYOO_FORCE_OPENCLAW_INSTALL}" == "1" ]] || [[ "${OPENCLAW_CURRENT_VERSION}" != "${YOYOO_OPENCLAW_VERSION}" ]]; then
+  npm i -g "openclaw@${YOYOO_OPENCLAW_VERSION}" >/tmp/yoyoo_bootstrap_openclaw_install.log 2>&1
+fi
+
+OPENCLAW_CURRENT_VERSION="$(openclaw --version 2>/dev/null | head -n 1 | tr -d '\r' | xargs || true)"
+if [[ "${OPENCLAW_CURRENT_VERSION}" != "${YOYOO_OPENCLAW_VERSION}" ]]; then
+  echo "OpenClaw version mismatch: current=${OPENCLAW_CURRENT_VERSION:-unknown}, expected=${YOYOO_OPENCLAW_VERSION}" >&2
+  exit 1
 fi
 
 mkdir -p "${YOYOO_HOME}/agents/main/agent" "${YOYOO_WORKSPACE}" "$(dirname "${YOYOO_BACKEND_MEMORY_FILE}")"

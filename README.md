@@ -36,6 +36,7 @@ bash install.sh
 ```
 
 `install.sh` 会自动询问（或读取）`MINIMAX_API_KEY`，并直接激活 CEO(`:18789`) + CTO(`:18794`)。
+并且默认固定 OpenClaw 版本为 `2026.2.15`（Yoyoo 1.0 基线），避免版本漂移导致兼容性问题。
 
 ### 2. 安装后自检（推荐）
 
