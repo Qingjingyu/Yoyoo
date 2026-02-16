@@ -37,6 +37,7 @@ YOYOO_LINUX_USER="${YOYOO_LINUX_USER:-}"
 YOYOO_LINUX_GROUP="${YOYOO_LINUX_GROUP:-}"
 YOYOO_RUNTIME_HOME="${YOYOO_RUNTIME_HOME:-}"
 YOYOO_WORKSPACE="${YOYOO_WORKSPACE:-}"
+OPENCLAW_BIN="${OPENCLAW_BIN:-}"
 
 if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
   echo "MINIMAX_API_KEY is required" >&2
@@ -191,7 +192,7 @@ Environment="OPENCLAW_STATE_DIR=${YOYOO_HOME}"
 Environment="OPENCLAW_PROFILE=${YOYOO_PROFILE}"
 Environment="OPENCLAW_GATEWAY_PORT=${OPENCLAW_PORT}"
 Environment="OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}"
-ExecStart=/usr/bin/openclaw gateway run --port ${OPENCLAW_PORT} --token ${OPENCLAW_GATEWAY_TOKEN} --bind loopback
+ExecStart=${OPENCLAW_BIN} gateway run --port ${OPENCLAW_PORT} --token ${OPENCLAW_GATEWAY_TOKEN} --bind loopback
 Restart=always
 RestartSec=2
 
@@ -437,6 +438,12 @@ fi
 OPENCLAW_CURRENT_VERSION="$(openclaw --version 2>/dev/null | head -n 1 | tr -d '\r' | xargs || true)"
 if [[ "${OPENCLAW_CURRENT_VERSION}" != "${YOYOO_OPENCLAW_VERSION}" ]]; then
   echo "OpenClaw version mismatch: current=${OPENCLAW_CURRENT_VERSION:-unknown}, expected=${YOYOO_OPENCLAW_VERSION}" >&2
+  exit 1
+fi
+
+OPENCLAW_BIN="$(command -v openclaw || true)"
+if [[ -z "${OPENCLAW_BIN}" ]]; then
+  echo "openclaw binary not found in PATH after install." >&2
   exit 1
 fi
 

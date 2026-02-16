@@ -24,10 +24,11 @@ Usage:
   bash $(basename "$0") [role] [employee_key]
 
 Roles:
-  ops | rd-director | rd-engineer
+  ops | cto | rd-director | rd-engineer
 
 Examples:
   bash $(basename "$0") ops
+  bash $(basename "$0") cto
   bash $(basename "$0") ops xiaoguang-ops
   MINIMAX_API_KEY='xxx' bash $(basename "$0") rd-director
 USAGE
@@ -78,6 +79,18 @@ resolve_role_defaults() {
       if [[ "${EMPLOYEE_KEY}" == "ops" ]]; then
         YOYOO_HOME="/root/.openclaw-ops"
         OPENCLAW_PORT="18790"
+      else
+        YOYOO_HOME="/srv/yoyoo/${EMPLOYEE_KEY}/state"
+        OPENCLAW_PORT="$(find_free_port)"
+      fi
+      YOYOO_PROFILE="yoyoo-${EMPLOYEE_KEY}"
+      OPENCLAW_SYSTEMD_UNIT="openclaw-gateway-${EMPLOYEE_KEY}.service"
+      YOYOO_EXPECT_FEISHU="0"
+      ;;
+    cto)
+      if [[ "${EMPLOYEE_KEY}" == "cto" ]]; then
+        YOYOO_HOME="/root/.openclaw-cto"
+        OPENCLAW_PORT="18794"
       else
         YOYOO_HOME="/srv/yoyoo/${EMPLOYEE_KEY}/state"
         OPENCLAW_PORT="$(find_free_port)"

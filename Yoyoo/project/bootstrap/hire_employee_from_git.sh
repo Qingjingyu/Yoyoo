@@ -4,7 +4,7 @@ set -euo pipefail
 # Pull Yoyoo repo and activate one employee profile.
 
 GIT_URL="${GIT_URL:-git@github.com:Qingjingyu/Yoyoo.git}"
-GIT_REF="${GIT_REF:-release/yoyoo-1.0-rc1}"
+GIT_REF="${GIT_REF:-master}"
 RUNTIME_DIR="${RUNTIME_DIR:-/opt/yoyoo-runtime}"
 YOYOO_ROLE="${YOYOO_ROLE:-ceo}"
 YOYOO_EMPLOYEE_KEY="${YOYOO_EMPLOYEE_KEY:-${YOYOO_ROLE}}"
@@ -18,6 +18,7 @@ role_default_home() {
   case "$1" in
     ceo) echo "/root/.openclaw" ;;
     ops) echo "/root/.openclaw-ops" ;;
+    cto) echo "/root/.openclaw-cto" ;;
     rd-director) echo "/root/.openclaw-rd-director" ;;
     rd-engineer) echo "/root/.openclaw-rd-engineer" ;;
     *)
@@ -31,6 +32,7 @@ role_default_port() {
   case "$1" in
     ceo) echo "18789" ;;
     ops) echo "18790" ;;
+    cto) echo "18794" ;;
     rd-director) echo "18791" ;;
     rd-engineer) echo "18793" ;;
     *)
