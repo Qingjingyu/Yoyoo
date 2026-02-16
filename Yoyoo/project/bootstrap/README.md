@@ -48,9 +48,16 @@ bash Yoyoo/project/bootstrap/activate_ceo_cto.sh
 This script activates:
 - CEO: `/root/.openclaw` on `:18789`
 - CTO: `/root/.openclaw-cto` on `:18794`
+- Team mode defaults:
+  - CEO is primary dialogue entry.
+  - CTO is execution owner.
+  - CEO/CTO share core memory (`MEMORY.md + memory/`) to avoid session split.
+  - Default task routing policy is written to `TEAM_ROUTING.md`.
 
 Optional:
 - `YOYOO_RUN_ACCEPTANCE=0` to skip acceptance check.
+- `YOYOO_TEAM_SHARED_MEMORY=0` to disable shared memory wiring.
+- `YOYOO_TEAM_SHARED_USER=0` to keep `USER.md` independent.
 
 Package manager support in `activate_employee.sh`:
 - Debian/Ubuntu: `apt-get`

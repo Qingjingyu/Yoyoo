@@ -38,6 +38,26 @@ bash install.sh
 `install.sh` 会自动询问（或读取）`MINIMAX_API_KEY`，并直接激活 CEO(`:18789`) + CTO(`:18794`)。
 并且默认固定 OpenClaw 版本为 `2026.2.15`（Yoyoo 1.0 基线），避免版本漂移导致兼容性问题。
 
+### 默认团队模式（安装即有）
+
+- 默认安装即双实例团队：CEO（沟通/验收）+ CTO（执行/交付）。
+- 默认优先与 CEO 对话，CTO 负责执行层任务。
+- 任务分流：
+  - 小任务：CEO 直做或临时子代理。
+  - 中/大任务：CEO 分派 CTO 主导执行。
+- 默认软上限：40 子代理（会按机器资源自动降级使用）。
+- CEO/CTO 默认共享核心记忆（`MEMORY.md + memory/`），避免“群聊记得、私聊忘了”。
+
+可选开关：
+
+```bash
+# 关闭 CEO/CTO 共享记忆
+YOYOO_TEAM_SHARED_MEMORY=0 bash install.sh
+
+# 不共享 USER.md（仅共享 MEMORY.md + memory/）
+YOYOO_TEAM_SHARED_USER=0 bash install.sh
+```
+
 ### 2. 安装后自检（推荐）
 
 ```bash
