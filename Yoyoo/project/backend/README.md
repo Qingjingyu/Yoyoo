@@ -30,13 +30,27 @@ backend/
 
 ```bash
 cd Yoyoo/project/backend
-python3 -m venv .venv
-source .venv/bin/activate
+python3.11 -m venv .venv311
+source .venv311/bin/activate
 make install
 make dev
 ```
 
 Service runs at `http://127.0.0.1:8000`.
+
+If `make install` fails due editable-install/build backend issues, use fallback install:
+
+```bash
+export PIP_INDEX_URL="https://pypi.org/simple"
+pip install -U pip setuptools wheel
+pip install \
+  "fastapi>=0.115,<1.0" \
+  "uvicorn[standard]>=0.32,<1.0" \
+  "pydantic>=2.8,<3.0" \
+  "httpx>=0.28,<1.0" \
+  "pytest>=8.3,<9.0" \
+  "ruff>=0.8,<1.0"
+```
 
 ## Useful Commands
 
