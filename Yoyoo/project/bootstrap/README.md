@@ -20,9 +20,27 @@ On server (root):
 git clone -b release/yoyoo-1.0-rc1 git@github.com:Qingjingyu/Yoyoo.git
 cd Yoyoo
 export MINIMAX_API_KEY='your_key'
-export YOYOO_ROLE='ceo'   # ceo | ops | rd-director | rd-engineer
+export YOYOO_ROLE='ceo'   # ceo | ops | cto | rd-director(legacy) | rd-engineer
 bash Yoyoo/project/bootstrap/activate_employee.sh
 ```
+
+## One-Click: Activate CEO + CTO
+
+Use this when you want the default dual-agent setup in one command:
+
+```bash
+git clone -b release/yoyoo-1.0-rc1 git@github.com:Qingjingyu/Yoyoo.git
+cd Yoyoo
+export MINIMAX_API_KEY='your_key'
+bash Yoyoo/project/bootstrap/activate_ceo_cto.sh
+```
+
+This script activates:
+- CEO: `/root/.openclaw` on `:18789`
+- CTO: `/root/.openclaw-cto` on `:18794`
+
+Optional:
+- `YOYOO_RUN_ACCEPTANCE=0` to skip acceptance check.
 
 Package manager support in `activate_employee.sh`:
 - Debian/Ubuntu: `apt-get`
@@ -62,6 +80,7 @@ Employee activation now defaults to isolated OpenClaw instances by role, to avoi
 
 - `ceo` -> `YOYOO_HOME=/root/.openclaw`, `OPENCLAW_PORT=18789`
 - `ops` -> `YOYOO_HOME=/root/.openclaw-ops`, `OPENCLAW_PORT=18790`
+- `cto` -> `YOYOO_HOME=/root/.openclaw-cto`, `OPENCLAW_PORT=18794`
 - `rd-director` -> `YOYOO_HOME=/root/.openclaw-rd-director`, `OPENCLAW_PORT=18791`
 - `rd-engineer` -> `YOYOO_HOME=/root/.openclaw-rd-engineer`, `OPENCLAW_PORT=18793`
 
@@ -93,7 +112,7 @@ For custom employee keys, prefer `hire_employee_from_git.sh` / `hire_employee_sa
 If you directly call `activate_employee.sh`, set `OPENCLAW_PORT` explicitly to avoid port collisions.
 
 Mapping:
-- role default key (`ceo`, `ops`, `rd-director`, `rd-engineer`) keeps legacy paths/ports for compatibility.
+- role default key (`ceo`, `ops`, `cto`, `rd-director`, `rd-engineer`) keeps legacy paths/ports for compatibility.
 - custom `employee_key` uses isolated runtime root:
   - `YOYOO_HOME=/srv/yoyoo/<employee_key>/state`
   - `YOYOO_WORKSPACE=/srv/yoyoo/<employee_key>/workspace`
@@ -142,6 +161,7 @@ What it guarantees:
 
 Supported roles:
 - `ops`
+- `cto`
 - `rd-director`
 - `rd-engineer`
 
@@ -188,6 +208,7 @@ Checks included:
 
 ## Files
 - `activate_employee.sh`: one-step activation.
+- `activate_ceo_cto.sh`: one-step activation for CEO + CTO dual-agent baseline.
 - `qmd_enable.sh`: enable QMD memory backend.
 - `install_base_skills.sh`: install default skills.
 - `setup_guard.sh`: install doctor timer + backup timer + git snapshot timer + rollback helper.
