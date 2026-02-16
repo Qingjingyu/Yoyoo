@@ -506,7 +506,11 @@ fi
 install -m 600 "${CONFIG_MERGED_FILE}" "${OPENCLAW_CONFIG_FILE}"
 install -m 600 "${OPENCLAW_CONFIG_FILE}" "${OPENCLAW_GOLDEN_CONFIG_FILE}"
 
-cp -f "${SCRIPT_DIR}/profiles/${YOYOO_ROLE}/"*.md "${YOYOO_WORKSPACE}/"
+if compgen -G "${SCRIPT_DIR}/profiles/${YOYOO_ROLE}/*.md" >/dev/null 2>&1; then
+  cp -f "${SCRIPT_DIR}/profiles/${YOYOO_ROLE}/"*.md "${YOYOO_WORKSPACE}/"
+else
+  echo "[Yoyoo] WARN: role profile templates not found for ${YOYOO_ROLE} under ${SCRIPT_DIR}/profiles; keep existing workspace identity files." >&2
+fi
 mkdir -p "${YOYOO_WORKSPACE}/memory"
 today_file="${YOYOO_WORKSPACE}/memory/$(date +%F).md"
 if [[ ! -f "${today_file}" ]]; then
