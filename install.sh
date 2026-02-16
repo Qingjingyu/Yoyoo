@@ -30,6 +30,8 @@ Yoyoo AI 基础包安装脚本
   OPENCLAW_HOME=~/.openclaw   # OpenClaw 数据目录（默认 ~/.openclaw）
   MINIMAX_API_KEY=xxx         # 自动激活 CEO+CTO 时使用
   YOYOO_SKIP_AUTO_ACTIVATE=1  # 仅安装基础包，不自动激活 CEO+CTO
+  YOYOO_SKIP_OPENCLAW_UPDATE=1 # 跳过 OpenClaw 自动升级
+  YOYOO_OPENCLAW_CHANNEL=stable # OpenClaw 更新通道: stable|beta|dev
 USAGE
 }
 
@@ -98,6 +100,48 @@ install_openclaw_if_missing() {
   log "正在安装 OpenClaw..."
   ensure_cmd curl
   curl -fsSL https://openclaw.ai/install.sh | bash
+}
+
+upgrade_openclaw_if_possible() {
+  if [[ "${YOYOO_SKIP_OPENCLAW_UPDATE:-0}" == "1" ]]; then
+    log "YOYOO_SKIP_OPENCLAW_UPDATE=1，跳过 OpenClaw 自动升级"
+    return 0
+  fi
+
+  if ! command -v openclaw >/dev/null 2>&1; then
+    log "OpenClaw 不存在，跳过升级"
+    return 0
+  fi
+
+  local channel tag tmp_cfg
+  channel="${YOYOO_OPENCLAW_CHANNEL:-stable}"
+  tag="latest"
+  if [[ "${channel}" == "beta" ]]; then
+    tag="beta"
+  fi
+
+  log "正在升级 OpenClaw（channel=${channel}）..."
+
+  # Use a temporary minimal config to avoid old/broken local config blocking updates.
+  tmp_cfg="$(mktemp)"
+  printf '{}\n' > "${tmp_cfg}"
+  if OPENCLAW_CONFIG_PATH="${tmp_cfg}" openclaw update --yes --channel "${channel}" --no-restart >/tmp/yoyoo_openclaw_update.log 2>&1; then
+    rm -f "${tmp_cfg}"
+    log "OpenClaw 升级完成: $(openclaw --version 2>/dev/null | head -n 1 || echo unknown)"
+    return 0
+  fi
+  rm -f "${tmp_cfg}"
+
+  log "OpenClaw update 失败，尝试 npm 兜底升级..."
+  if command -v npm >/dev/null 2>&1; then
+    if npm install -g "openclaw@${tag}" >/tmp/yoyoo_openclaw_update_fallback.log 2>&1; then
+      log "OpenClaw npm 兜底升级成功: $(openclaw --version 2>/dev/null | head -n 1 || echo unknown)"
+      return 0
+    fi
+  fi
+
+  log "WARN: OpenClaw 自动升级失败，继续安装流程。可手动执行: openclaw update --yes --channel ${channel}"
+  return 0
 }
 
 sync_templates() {
@@ -597,6 +641,7 @@ run_install() {
   maybe_backup_existing
   install_bun_if_missing
   install_openclaw_if_missing
+  upgrade_openclaw_if_possible
   sync_templates
   write_default_openclaw_config
   write_baseline_runtime_pack
