@@ -1,7 +1,7 @@
 # Yoyoo AI - 多员工AI协作系统
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.0.5-blue" alt="Version">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-green" alt="Platform">
   <img src="https://img.shields.io/badge/AI-MiniMax-orange" alt="Model">
 </p>

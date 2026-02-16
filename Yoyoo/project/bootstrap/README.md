@@ -27,7 +27,7 @@ Any new employee activated from Git should get the same default stack:
 On server (root):
 
 ```bash
-git clone -b release/yoyoo-1.0-rc1 git@github.com:Qingjingyu/Yoyoo.git
+git clone -b master git@github.com:Qingjingyu/Yoyoo.git
 cd Yoyoo
 export MINIMAX_API_KEY='your_key'
 export YOYOO_ROLE='ceo'   # ceo | ops | cto | rd-director(legacy) | rd-engineer
@@ -39,7 +39,7 @@ bash Yoyoo/project/bootstrap/activate_employee.sh
 Use this when you want the default dual-agent setup in one command:
 
 ```bash
-git clone -b release/yoyoo-1.0-rc1 git@github.com:Qingjingyu/Yoyoo.git
+git clone -b master git@github.com:Qingjingyu/Yoyoo.git
 cd Yoyoo
 export MINIMAX_API_KEY='your_key'
 bash Yoyoo/project/bootstrap/activate_ceo_cto.sh
