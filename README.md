@@ -58,6 +58,12 @@ YOYOO_TEAM_SHARED_MEMORY=0 bash install.sh
 YOYOO_TEAM_SHARED_USER=0 bash install.sh
 ```
 
+本地已运行单实例并要迁移到 CEO+CTO 双实例时，可用：
+
+```bash
+bash scripts/local_sync_ceo_cto_shared_memory.sh
+```
+
 ### 2. 安装后自检（推荐）
 
 ```bash
