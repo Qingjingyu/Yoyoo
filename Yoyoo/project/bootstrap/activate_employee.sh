@@ -43,7 +43,7 @@ if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
 fi
 
 case "${YOYOO_ROLE}" in
-  ceo|ops|rd-director|rd-engineer) ;;
+  ceo|ops|cto|rd-director|rd-engineer) ;;
   *)
     echo "Unsupported YOYOO_ROLE: ${YOYOO_ROLE}" >&2
     exit 1
@@ -54,6 +54,7 @@ role_default_home() {
   case "$1" in
     ceo) echo "/root/.openclaw" ;;
     ops) echo "/root/.openclaw-ops" ;;
+    cto) echo "/root/.openclaw-cto" ;;
     rd-director) echo "/root/.openclaw-rd-director" ;;
     rd-engineer) echo "/root/.openclaw-rd-engineer" ;;
     *) return 1 ;;
@@ -64,6 +65,7 @@ role_default_port() {
   case "$1" in
     ceo) echo "18789" ;;
     ops) echo "18790" ;;
+    cto) echo "18794" ;;
     rd-director) echo "18791" ;;
     rd-engineer) echo "18793" ;;
     *) return 1 ;;
@@ -74,6 +76,7 @@ role_default_backend_port() {
   case "$1" in
     ceo) echo "8000" ;;
     ops) echo "8001" ;;
+    cto) echo "8004" ;;
     rd-director) echo "8002" ;;
     rd-engineer) echo "8003" ;;
     *) return 1 ;;
@@ -84,6 +87,7 @@ role_default_backend_service() {
   case "$1" in
     ceo) echo "yoyoo-backend-ceo.service" ;;
     ops) echo "yoyoo-backend-ops.service" ;;
+    cto) echo "yoyoo-backend-cto.service" ;;
     rd-director) echo "yoyoo-backend-rd-director.service" ;;
     rd-engineer) echo "yoyoo-backend-rd-engineer.service" ;;
     *) return 1 ;;
@@ -181,6 +185,7 @@ Group=${YOYOO_LINUX_GROUP}
 UMask=0077
 WorkingDirectory=${YOYOO_RUNTIME_HOME}
 Environment="HOME=${YOYOO_RUNTIME_HOME}"
+Environment="PATH=/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="OPENCLAW_STATE_DIR=${YOYOO_HOME}"
 Environment="OPENCLAW_PROFILE=${YOYOO_PROFILE}"
 Environment="OPENCLAW_GATEWAY_PORT=${OPENCLAW_PORT}"
@@ -424,6 +429,9 @@ if [[ "${YOYOO_FORCE_OPENCLAW_INSTALL}" == "1" ]] || ! command -v openclaw >/dev
 fi
 
 mkdir -p "${YOYOO_HOME}/agents/main/agent" "${YOYOO_WORKSPACE}" "$(dirname "${YOYOO_BACKEND_MEMORY_FILE}")"
+# QMD runtime defaults to ~/.openclaw/workspace-<profile>. Ensure it exists
+# even when employee state dir is isolated (for example /root/.openclaw-cto).
+mkdir -p "/root/.openclaw/workspace-${YOYOO_PROFILE}" "/root/.openclaw/workspace-${YOYOO_PROFILE}/memory"
 
 if [[ -z "${OPENCLAW_GATEWAY_TOKEN}" ]] && [[ -f "${OPENCLAW_CONFIG_FILE}" ]]; then
   OPENCLAW_GATEWAY_TOKEN="$(jq -r '.gateway.auth.token // empty' "${OPENCLAW_CONFIG_FILE}" 2>/dev/null || true)"

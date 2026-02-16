@@ -6,6 +6,7 @@ set -euo pipefail
 YOYOO_HOME="${YOYOO_HOME:-/root/.openclaw}"
 OPENCLAW_CONFIG="${YOYOO_HOME}/openclaw.json"
 QMD_TIMEOUT_MS="${QMD_TIMEOUT_MS:-8000}"
+QMD_COMMAND_PATH="${QMD_COMMAND_PATH:-/usr/local/bin/qmd}"
 
 if [[ ! -f "${OPENCLAW_CONFIG}" ]]; then
   echo "openclaw config not found: ${OPENCLAW_CONFIG}" >&2
@@ -20,6 +21,12 @@ if ! command -v qmd >/dev/null 2>&1; then
   bun install -g github:tobi/qmd >/tmp/yoyoo_qmd_install.log 2>&1 || true
 fi
 
+if [[ ! -x "${QMD_COMMAND_PATH}" ]]; then
+  if command -v qmd >/dev/null 2>&1; then
+    QMD_COMMAND_PATH="$(command -v qmd)"
+  fi
+fi
+
 python3 - <<PY
 import json
 from pathlib import Path
@@ -29,6 +36,7 @@ obj = json.loads(cfg_path.read_text(encoding="utf-8"))
 mem = obj.setdefault("memory", {})
 mem["backend"] = "qmd"
 qmd = mem.setdefault("qmd", {})
+qmd["command"] = "${QMD_COMMAND_PATH}"
 limits = qmd.setdefault("limits", {})
 limits["timeoutMs"] = int("${QMD_TIMEOUT_MS}")
 cfg_path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
