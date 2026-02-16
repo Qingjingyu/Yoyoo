@@ -32,6 +32,8 @@ Yoyoo AI 基础包安装脚本
   MINIMAX_API_KEY=xxx         # 自动激活 CEO+CTO 时使用
   YOYOO_SKIP_AUTO_ACTIVATE=1  # 仅安装基础包，不自动激活 CEO+CTO
   YOYOO_OPENCLAW_VERSION=2026.2.15 # 固定 OpenClaw 版本（Yoyoo 1.0 默认）
+  YOYOO_TEAM_SHARED_MEMORY=1  # CEO/CTO 共享 MEMORY.md + memory/
+  YOYOO_TEAM_SHARED_USER=1    # CEO/CTO 共享 USER.md
 USAGE
 }
 
@@ -144,8 +146,28 @@ sync_templates() {
   log "正在安装 Skills..."
   cp -a "${SCRIPT_DIR}/skills/." "${SKILLS_DIR}/"
 
-  log "正在复制 workspace 模板..."
-  cp -a "${SCRIPT_DIR}/workspace/." "${WORKSPACE_DIR}/"
+  log "正在合并 workspace 模板（保护现有记忆与身份文件）..."
+  mkdir -p "${WORKSPACE_DIR}" "${WORKSPACE_DIR}/memory"
+
+  local protected_files=(
+    "AGENTS.md"
+    "SOUL.md"
+    "USER.md"
+    "IDENTITY.md"
+    "MEMORY.md"
+    "TOOLS.md"
+    "HEARTBEAT.md"
+  )
+  local file
+  for file in "${protected_files[@]}"; do
+    if [[ ! -f "${WORKSPACE_DIR}/${file}" ]] && [[ -f "${SCRIPT_DIR}/workspace/${file}" ]]; then
+      cp -f "${SCRIPT_DIR}/workspace/${file}" "${WORKSPACE_DIR}/${file}"
+    fi
+  done
+
+  if [[ -d "${SCRIPT_DIR}/workspace/memory" ]]; then
+    cp -an "${SCRIPT_DIR}/workspace/memory/." "${WORKSPACE_DIR}/memory/" 2>/dev/null || true
+  fi
 }
 
 write_default_openclaw_config() {
@@ -614,7 +636,11 @@ auto_activate_ceo_cto() {
   log "正在自动激活 CEO + CTO..."
   if [[ "$(id -u)" -ne 0 ]]; then
     if command -v sudo >/dev/null 2>&1; then
-      sudo env MINIMAX_API_KEY="${MINIMAX_API_KEY}" bash "${activate_script}"
+      sudo env \
+        MINIMAX_API_KEY="${MINIMAX_API_KEY}" \
+        YOYOO_TEAM_SHARED_MEMORY="${YOYOO_TEAM_SHARED_MEMORY:-1}" \
+        YOYOO_TEAM_SHARED_USER="${YOYOO_TEAM_SHARED_USER:-1}" \
+        bash "${activate_script}"
     else
       log "当前不是 root 且没有 sudo，跳过自动激活 CEO+CTO"
       return 0
