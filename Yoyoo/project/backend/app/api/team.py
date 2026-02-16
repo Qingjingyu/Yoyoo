@@ -10,6 +10,8 @@ from app.schemas import (
     TeamTaskCreateRequest,
     TeamTaskCreateResponse,
     TeamTaskDetailResponse,
+    TeamTaskProgressRequest,
+    TeamTaskProgressResponse,
     TeamTaskResultRequest,
     TeamTaskResultResponse,
 )
@@ -39,7 +41,30 @@ def create_task(req: TeamTaskCreateRequest, request: Request) -> TeamTaskCreateR
         task_id=card.task_id,
         status=card.status,
         owner_role=card.owner_role,
-        reply=f"CEO 已分发任务给 {card.owner_role}，task_id={card.task_id}",
+        reply=f"CEO 已派单给 CTO（{card.owner_role}），task_id={card.task_id}。后续进度将由 CEO 汇报。",
+    )
+
+
+@router.post("/tasks/{task_id}/progress", response_model=TeamTaskProgressResponse)
+def submit_progress(
+    task_id: str,
+    req: TeamTaskProgressRequest,
+    request: Request,
+) -> TeamTaskProgressResponse:
+    container = _get_container(request)
+    result = container.ceo_dispatcher.report_progress(
+        task_id=task_id,
+        role=req.role,
+        stage=req.stage,
+        detail=req.detail,
+        evidence=[TaskEvidence(source=item.source, content=item.content) for item in req.evidence],
+    )
+    return TeamTaskProgressResponse(
+        ok=result.ok,
+        task_id=result.task_id,
+        status=result.status,
+        reply=result.reply,
+        next_step=result.next_step,
     )
 
 
@@ -85,4 +110,5 @@ def get_task(task_id: str, request: Request) -> TeamTaskDetailResponse:
         status=card.status,
         created_at=card.created_at.isoformat(),
         updated_at=card.updated_at.isoformat(),
+        timeline=container.ceo_dispatcher.get_task_timeline(task_id=task_id),
     )

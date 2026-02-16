@@ -704,6 +704,96 @@ class MemoryService:
     def get_task_record(self, *, task_id: str) -> TaskRecord | None:
         return self._tasks.get(task_id)
 
+    def append_task_timeline_event(
+        self,
+        *,
+        task_id: str,
+        event_type: str,
+        actor: str,
+        detail: str,
+        role: str | None = None,
+        stage: str | None = None,
+        source: str = "yoyoo",
+        evidence: list[dict[str, Any]] | None = None,
+    ) -> TaskRecord | None:
+        record = self._tasks.get(task_id)
+        if record is None:
+            return None
+        now = datetime.now(UTC)
+        payload: dict[str, Any] = {
+            "type": "timeline",
+            "event_type": event_type.strip().lower() or "update",
+            "actor": actor.strip() or "Yoyoo",
+            "detail": detail.strip()[:2000],
+            "source": source.strip() or "yoyoo",
+            "timestamp": now.isoformat(),
+        }
+        if role:
+            payload["role"] = role.strip().upper()
+        if stage:
+            payload["stage"] = stage.strip().lower()
+        if evidence:
+            payload["evidence"] = [
+                {
+                    "source": str(item.get("source") or "").strip(),
+                    "content": str(item.get("content") or "").strip(),
+                }
+                for item in evidence
+                if str(item.get("source") or "").strip()
+                and str(item.get("content") or "").strip()
+            ]
+        record.evidence_structured.append(payload)
+        record.updated_at = now
+        self._save_to_disk()
+        return record
+
+    def read_task_timeline(self, *, task_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        record = self._tasks.get(task_id)
+        if record is None:
+            return []
+        events: list[dict[str, Any]] = [
+            {
+                "timestamp": record.created_at.isoformat(),
+                "actor": "CEO",
+                "event": "task_created",
+                "detail": "已创建任务并进入协作流程。",
+                "role": "CEO",
+                "stage": "created",
+            }
+        ]
+        for item in record.evidence_structured:
+            if not isinstance(item, dict):
+                continue
+            item_type = str(item.get("type") or "").strip().lower()
+            if item_type == "timeline":
+                events.append(
+                    {
+                        "timestamp": str(item.get("timestamp") or record.updated_at.isoformat()),
+                        "actor": str(item.get("actor") or "Yoyoo"),
+                        "event": str(item.get("event_type") or "update"),
+                        "detail": str(item.get("detail") or ""),
+                        "role": str(item.get("role") or ""),
+                        "stage": str(item.get("stage") or ""),
+                        "source": str(item.get("source") or ""),
+                        "evidence": item.get("evidence") or [],
+                    }
+                )
+            elif item_type == "heartbeat":
+                events.append(
+                    {
+                        "timestamp": str(item.get("timestamp") or record.updated_at.isoformat()),
+                        "actor": "CTO",
+                        "event": "heartbeat",
+                        "detail": str(item.get("value") or ""),
+                        "role": "CTO",
+                        "stage": "running",
+                        "source": str(item.get("source") or "yoyoo"),
+                        "evidence": [],
+                    }
+                )
+        events.sort(key=lambda x: str(x.get("timestamp") or ""))
+        return events[-max(1, limit) :]
+
     def touch_task_heartbeat(self, *, task_id: str, note: str | None = None) -> TaskRecord | None:
         record = self._tasks.get(task_id)
         if record is None:

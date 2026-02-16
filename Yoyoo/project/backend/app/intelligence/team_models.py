@@ -53,3 +53,11 @@ class AcceptanceResult(BaseModel):
     corrected: bool = False
     reply: str = Field(min_length=1)
     next_step: str | None = None
+
+
+class TaskProgressResult(BaseModel):
+    ok: bool
+    task_id: str
+    status: Literal["running", "review", "done", "failed"]
+    reply: str = Field(min_length=1)
+    next_step: str | None = None

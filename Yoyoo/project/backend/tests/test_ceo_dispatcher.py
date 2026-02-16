@@ -71,3 +71,30 @@ def test_ceo_dispatcher_accepts_with_evidence_and_syncs_to_ceo_memory() -> None:
     assert result.status == "done"
     assert ceo_records
     assert ceo_records[-1]["task_id"] == card.task_id
+
+
+def test_ceo_dispatcher_progress_is_visible_in_timeline() -> None:
+    memory = MemoryService()
+    dispatcher = CEODispatcher(memory_service=memory)
+    card = dispatcher.create_task(
+        user_id="u_progress",
+        conversation_id="api:u_progress",
+        channel="api",
+        project_key="general",
+        request_text="请执行一次部署并持续汇报",
+        trace_id="trace_ceo_dispatch_4",
+    )
+
+    progress = dispatcher.report_progress(
+        task_id=card.task_id,
+        role="OPS",
+        stage="executing",
+        detail="正在发布镜像并检查健康状态",
+        evidence=[TaskEvidence(source="log", content="deploy started")],
+    )
+    timeline = dispatcher.get_task_timeline(task_id=card.task_id)
+
+    assert progress.ok is True
+    assert progress.status == "running"
+    assert any(item.get("event") == "dispatched" for item in timeline)
+    assert any(item.get("event") == "progress" for item in timeline)

@@ -38,6 +38,22 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert create_body["owner_role"] in {"OPS", "ENG", "QA", "MEM", "INNO", "CH"}
 
     task_id = create_body["task_id"]
+    progress_resp = client.post(
+        f"/api/v1/team/tasks/{task_id}/progress",
+        json={
+            "role": create_body["owner_role"],
+            "stage": "executing",
+            "detail": "CTO 正在执行部署步骤",
+            "evidence": [{"source": "log", "content": "step-1 start"}],
+        },
+    )
+    progress_body = progress_resp.json()
+
+    assert progress_resp.status_code == 200
+    assert progress_body["ok"] is True
+    assert progress_body["status"] == "running"
+    assert "CEO 汇报" in progress_body["reply"]
+
     result_resp = client.post(
         f"/api/v1/team/tasks/{task_id}/result",
         json={
@@ -58,6 +74,9 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert query_resp.status_code == 200
     assert query_body["task_id"] == task_id
     assert query_body["status"] == "done"
+    assert isinstance(query_body["timeline"], list)
+    assert any(item.get("event") == "dispatched" for item in query_body["timeline"])
+    assert any(item.get("event") == "progress" for item in query_body["timeline"])
 
 
 def test_team_mode_api_result_without_evidence_goes_review() -> None:

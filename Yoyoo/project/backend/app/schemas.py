@@ -110,6 +110,21 @@ class TeamTaskResultResponse(BaseModel):
     next_step: str | None = None
 
 
+class TeamTaskProgressRequest(BaseModel):
+    role: str = Field(min_length=2, max_length=32)
+    stage: str = Field(default="executing", min_length=2, max_length=32)
+    detail: str = Field(min_length=1, max_length=2000)
+    evidence: list[TeamEvidenceItem] = Field(default_factory=list)
+
+
+class TeamTaskProgressResponse(BaseModel):
+    ok: bool
+    task_id: str
+    status: str
+    reply: str
+    next_step: str | None = None
+
+
 class TeamTaskDetailResponse(BaseModel):
     task_id: str
     title: str
@@ -118,3 +133,4 @@ class TeamTaskDetailResponse(BaseModel):
     status: str
     created_at: str
     updated_at: str
+    timeline: list[dict[str, object]] = Field(default_factory=list)

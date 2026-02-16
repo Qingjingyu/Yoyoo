@@ -4,7 +4,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.intelligence.memory import MemoryService
-from app.intelligence.team_models import AcceptanceResult, TaskCard, TaskEvidence
+from app.intelligence.team_models import (
+    AcceptanceResult,
+    TaskCard,
+    TaskEvidence,
+    TaskProgressResult,
+)
 from app.services.executor_adapter import ExecutorAdapter
 
 _ROLE_RULES: list[tuple[str, tuple[str, ...]]] = [
@@ -52,14 +57,107 @@ class CEODispatcher:
             rollback_template=["回退到上一稳定状态"],
         )
         self._memory.update_task_record(task_id=task.task_id, status="running")
+        dispatch_detail = f"CEO 已派单给 CTO（{owner_role}）开始执行。"
+        self._memory.append_task_timeline_event(
+            task_id=task.task_id,
+            event_type="dispatched",
+            actor="CEO",
+            role="CEO",
+            stage="assigned",
+            detail=dispatch_detail,
+            source="ceo_dispatcher",
+        )
         self._memory.upsert_team_task_meta(
             task_id=task.task_id,
             owner_role=owner_role,
             title=self._make_title(request_text),
             objective=request_text,
             status="running",
+            next_step=f"等待 CTO（{owner_role}）回报首个进度。",
+        )
+        self._memory.sync_department_to_ceo(
+            role="CEO",
+            patch={
+                "task_id": task.task_id,
+                "summary": dispatch_detail,
+                "event_type": "dispatched",
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
         )
         return self.get_task(task.task_id)
+
+    def report_progress(
+        self,
+        *,
+        task_id: str,
+        role: str,
+        stage: str,
+        detail: str,
+        evidence: list[TaskEvidence],
+    ) -> TaskProgressResult:
+        task = self._memory.get_task_record(task_id=task_id)
+        if task is None:
+            return TaskProgressResult(
+                ok=False,
+                task_id=task_id,
+                status="failed",
+                reply=f"任务不存在：{task_id}",
+            )
+
+        normalized_role = (role or "").strip().upper() or "CTO"
+        normalized_stage = self._normalize_stage(stage=stage)
+        detail_text = (detail or "").strip()
+        if not detail_text:
+            detail_text = "CTO 已更新进度。"
+
+        evidence_payload = [
+            {"source": item.source, "content": item.content}
+            for item in evidence
+        ]
+        self._memory.append_task_timeline_event(
+            task_id=task_id,
+            event_type="progress",
+            actor="CTO",
+            role=normalized_role,
+            stage=normalized_stage,
+            detail=detail_text,
+            source="cto_report",
+            evidence=evidence_payload,
+        )
+        self._memory.touch_task_heartbeat(
+            task_id=task_id,
+            note=f"{normalized_role}:{normalized_stage} {detail_text}",
+        )
+        self._memory.upsert_team_task_meta(
+            task_id=task_id,
+            owner_role=normalized_role,
+            title=self._make_title(task.request_text),
+            objective=task.request_text,
+            status="running",
+            next_step=f"CTO 正在{self._stage_cn(normalized_stage)}：{detail_text[:60]}",
+        )
+        ceo_summary = (
+            f"CEO 汇报：CTO（{normalized_role}）进度[{self._stage_cn(normalized_stage)}] "
+            f"{detail_text}"
+        )
+        self._memory.sync_department_to_ceo(
+            role=normalized_role,
+            patch={
+                "task_id": task_id,
+                "summary": ceo_summary,
+                "event_type": "progress",
+                "stage": normalized_stage,
+                "evidence": evidence_payload,
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        return TaskProgressResult(
+            ok=True,
+            task_id=task_id,
+            status="running",
+            reply=ceo_summary,
+            next_step="继续执行并在关键节点回报。",
+        )
 
     def accept_result(
         self,
@@ -87,6 +185,16 @@ class CEODispatcher:
         evidence_lines = [f"{item.source}: {item.content}" for item in evidence]
 
         if error:
+            self._memory.append_task_timeline_event(
+                task_id=task_id,
+                event_type="failed",
+                actor="CTO",
+                role=role,
+                stage="failed",
+                detail=f"执行失败：{error}",
+                source="cto_submit",
+                evidence=[{"source": "error", "content": error}],
+            )
             self._memory.update_task_record(
                 task_id=task_id,
                 status="failed",
@@ -112,6 +220,15 @@ class CEODispatcher:
             )
 
         if not evidence:
+            self._memory.append_task_timeline_event(
+                task_id=task_id,
+                event_type="review_required",
+                actor="CEO",
+                role="CEO",
+                stage="review",
+                detail="结果缺少证据，已要求 CTO 补证。",
+                source="ceo_acceptance",
+            )
             self._memory.update_task_record(
                 task_id=task_id,
                 status="completed_with_warnings",
@@ -135,6 +252,16 @@ class CEODispatcher:
                 next_step="请补充日志、命令输出或截图后再提交。",
             )
 
+        self._memory.append_task_timeline_event(
+            task_id=task_id,
+            event_type="completed",
+            actor="CEO",
+            role="CEO",
+            stage="done",
+            detail="CEO 验收通过，任务完成。",
+            source="ceo_acceptance",
+            evidence=[{"source": item.source, "content": item.content} for item in evidence],
+        )
         self._memory.update_task_record(
             task_id=task_id,
             status="completed",
@@ -166,6 +293,9 @@ class CEODispatcher:
             reply="CEO 验收通过，任务已完成并入总记忆。",
             next_step="可继续下一个任务。",
         )
+
+    def get_task_timeline(self, *, task_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        return self._memory.read_task_timeline(task_id=task_id, limit=limit)
 
     def get_task(self, task_id: str) -> TaskCard:
         record = self._memory.get_task_record(task_id=task_id)
@@ -214,6 +344,33 @@ class CEODispatcher:
             "timeout": "failed",
         }
         return mapping.get(normalized, "pending")
+
+    def _normalize_stage(self, *, stage: str) -> str:
+        normalized = (stage or "").strip().lower()
+        allowed = {
+            "queued",
+            "assigned",
+            "planning",
+            "executing",
+            "blocked",
+            "review",
+            "done",
+        }
+        if normalized in allowed:
+            return normalized
+        return "executing"
+
+    def _stage_cn(self, stage: str) -> str:
+        mapping = {
+            "queued": "排队中",
+            "assigned": "已接单",
+            "planning": "规划中",
+            "executing": "执行中",
+            "blocked": "阻塞中",
+            "review": "验收中",
+            "done": "已完成",
+        }
+        return mapping.get(stage, "执行中")
 
     def execute_via_provider(
         self,
