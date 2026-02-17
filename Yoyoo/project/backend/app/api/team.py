@@ -41,7 +41,11 @@ def create_task(req: TeamTaskCreateRequest, request: Request) -> TeamTaskCreateR
         task_id=card.task_id,
         status=card.status,
         owner_role=card.owner_role,
-        reply=f"CEO 已派单给 CTO（{card.owner_role}），task_id={card.task_id}。后续进度将由 CEO 汇报。",
+        eta_minutes=card.eta_minutes,
+        reply=(
+            f"CEO 已接单并派发 CTO（{card.owner_role}），task_id={card.task_id}。"
+            f"预计 {card.eta_minutes or 20} 分钟给阶段结果，90 秒内首个进度回报。"
+        ),
     )
 
 
@@ -108,6 +112,7 @@ def get_task(task_id: str, request: Request) -> TeamTaskDetailResponse:
         objective=card.objective,
         owner_role=card.owner_role,
         status=card.status,
+        eta_minutes=card.eta_minutes,
         created_at=card.created_at.isoformat(),
         updated_at=card.updated_at.isoformat(),
         timeline=container.ceo_dispatcher.get_task_timeline(task_id=task_id),

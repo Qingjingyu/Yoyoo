@@ -8,6 +8,7 @@ from typing import Any
 class ExecutorResult:
     ok: bool
     reply: str
+    provider: str = "mock"
     error: str | None = None
     evidence: list[dict[str, Any]] | None = None
 
@@ -15,7 +16,26 @@ class ExecutorResult:
 class ExecutorAdapter:
     """Execution adapter placeholder for Yoyoo 1.0 backend tests."""
 
-    def execute(self, *, task_id: str, instruction: str) -> ExecutorResult:
-        del task_id, instruction
-        return ExecutorResult(ok=True, reply="mock execution completed", evidence=[])
-
+    def execute(
+        self,
+        *,
+        task_id: str | None = None,
+        instruction: str | None = None,
+        user_id: str | None = None,
+        conversation_id: str | None = None,
+        message: str | None = None,
+        route_model: str | None = None,
+        channel: str | None = None,
+        trace_id: str | None = None,
+        preferred_provider: str | None = None,
+    ) -> ExecutorResult:
+        del task_id, user_id, conversation_id, route_model, channel, trace_id
+        task_text = (instruction or message or "").strip()
+        if not task_text:
+            task_text = "empty_instruction"
+        return ExecutorResult(
+            ok=True,
+            reply=f"mock execution completed: {task_text[:80]}",
+            provider=preferred_provider or "mock",
+            evidence=[{"source": "executor_adapter", "content": "mock"}],
+        )

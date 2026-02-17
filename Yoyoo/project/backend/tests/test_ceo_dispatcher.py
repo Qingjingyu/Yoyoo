@@ -19,6 +19,7 @@ def test_ceo_dispatcher_routes_role_and_creates_task() -> None:
     assert card.task_id.startswith("task_")
     assert card.owner_role == "OPS"
     assert card.status == "running"
+    assert card.eta_minutes == 45
 
 
 def test_ceo_dispatcher_marks_review_when_evidence_missing() -> None:

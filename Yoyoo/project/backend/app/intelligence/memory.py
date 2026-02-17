@@ -862,17 +862,20 @@ class MemoryService:
         title: str,
         objective: str,
         status: str,
+        eta_minutes: int | None = None,
         risk: str | None = None,
         next_step: str | None = None,
     ) -> None:
         now = datetime.now(UTC).isoformat()
         current = self._team_task_meta.get(task_id, {})
+        normalized_eta = eta_minutes if eta_minutes is not None else current.get("eta_minutes")
         self._team_task_meta[task_id] = {
             "task_id": task_id,
             "owner_role": owner_role.strip().upper() or "ENG",
             "title": title.strip(),
             "objective": objective.strip(),
             "status": status.strip().lower(),
+            "eta_minutes": normalized_eta,
             "risk": risk,
             "next_step": next_step,
             "created_at": current.get("created_at", now),

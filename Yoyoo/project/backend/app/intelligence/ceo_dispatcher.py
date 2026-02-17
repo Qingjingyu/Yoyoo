@@ -44,6 +44,7 @@ class CEODispatcher:
         trace_id: str,
     ) -> TaskCard:
         owner_role = self.route_role(request_text=request_text)
+        eta_minutes = self._estimate_eta_minutes(request_text=request_text)
         task = self._memory.create_task_record(
             conversation_id=conversation_id,
             user_id=user_id,
@@ -57,7 +58,10 @@ class CEODispatcher:
             rollback_template=["回退到上一稳定状态"],
         )
         self._memory.update_task_record(task_id=task.task_id, status="running")
-        dispatch_detail = f"CEO 已派单给 CTO（{owner_role}）开始执行。"
+        dispatch_detail = (
+            f"CEO 已派单给 CTO（{owner_role}）开始执行。"
+            f"预计 {eta_minutes} 分钟给出阶段性结果，90 秒内首个进度回报。"
+        )
         self._memory.append_task_timeline_event(
             task_id=task.task_id,
             event_type="dispatched",
@@ -73,13 +77,15 @@ class CEODispatcher:
             title=self._make_title(request_text),
             objective=request_text,
             status="running",
-            next_step=f"等待 CTO（{owner_role}）回报首个进度。",
+            eta_minutes=eta_minutes,
+            next_step=f"等待 CTO（{owner_role}）90 秒内回报首个进度。",
         )
         self._memory.sync_department_to_ceo(
             role="CEO",
             patch={
                 "task_id": task.task_id,
                 "summary": dispatch_detail,
+                "eta_minutes": eta_minutes,
                 "event_type": "dispatched",
                 "updated_at": datetime.now(UTC).isoformat(),
             },
@@ -315,6 +321,7 @@ class CEODispatcher:
             checkpoints=["执行结果必须附证据"],
             risk=str(meta.get("risk") or "") or None,
             next_step=str(meta.get("next_step") or "") or None,
+            eta_minutes=self._safe_eta_minutes(meta.get("eta_minutes")),
             updated_at=record.updated_at,
             created_at=record.created_at,
         )
@@ -331,6 +338,27 @@ class CEODispatcher:
         if len(compact) <= 36:
             return compact
         return f"{compact[:33]}..."
+
+    def _estimate_eta_minutes(self, *, request_text: str) -> int:
+        message = (request_text or "").strip().lower()
+        if any(token in message for token in ("部署", "上线", "迁移", "重构", "架构", "全量", "多阶段")):
+            return 45
+        if any(token in message for token in ("联调", "修复", "优化", "测试", "脚本", "接口")):
+            return 20
+        if len(message) > 120:
+            return 20
+        return 8
+
+    def _safe_eta_minutes(self, value: Any) -> int | None:
+        if value is None:
+            return None
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed <= 0:
+            return None
+        return min(parsed, 1440)
 
     def _to_team_status(self, status: str) -> str:
         normalized = status.strip().lower()
