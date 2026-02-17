@@ -14,6 +14,8 @@ from app.schemas import (
     TeamTaskProgressResponse,
     TeamTaskResultRequest,
     TeamTaskResultResponse,
+    TeamWatchdogScanRequest,
+    TeamWatchdogScanResponse,
 )
 
 router = APIRouter(prefix="/api/v1/team", tags=["team"])
@@ -36,11 +38,14 @@ def create_task(req: TeamTaskCreateRequest, request: Request) -> TeamTaskCreateR
         request_text=req.message,
         trace_id=trace_id,
     )
+    meta = container.memory_service.get_team_task_meta(task_id=card.task_id) or {}
     return TeamTaskCreateResponse(
         ok=True,
         task_id=card.task_id,
         status=card.status,
         owner_role=card.owner_role,
+        cto_lane=str(meta.get("cto_lane") or "ENG"),
+        execution_mode=str(meta.get("execution_mode") or "subagent"),
         eta_minutes=card.eta_minutes,
         reply=(
             f"CEO 已接单并派发 CTO（{card.owner_role}），task_id={card.task_id}。"
@@ -106,14 +111,29 @@ def get_task(task_id: str, request: Request) -> TeamTaskDetailResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"task not found: {task_id}",
         ) from exc
+    meta = container.memory_service.get_team_task_meta(task_id=task_id) or {}
     return TeamTaskDetailResponse(
         task_id=card.task_id,
         title=card.title,
         objective=card.objective,
         owner_role=card.owner_role,
         status=card.status,
+        cto_lane=str(meta.get("cto_lane") or "ENG"),
+        execution_mode=str(meta.get("execution_mode") or "subagent"),
         eta_minutes=card.eta_minutes,
         created_at=card.created_at.isoformat(),
         updated_at=card.updated_at.isoformat(),
         timeline=container.ceo_dispatcher.get_task_timeline(task_id=task_id),
     )
+
+
+@router.post("/watchdog/scan", response_model=TeamWatchdogScanResponse)
+def scan_watchdog(req: TeamWatchdogScanRequest, request: Request) -> TeamWatchdogScanResponse:
+    container = _get_container(request)
+    result = container.ceo_dispatcher.watchdog_scan(
+        stale_progress_sec=req.stale_progress_sec,
+        stale_degrade_sec=req.stale_degrade_sec,
+        max_scan=req.max_scan,
+        min_repeat_sec=req.min_repeat_sec,
+    )
+    return TeamWatchdogScanResponse(**result)

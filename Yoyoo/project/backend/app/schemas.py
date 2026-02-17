@@ -86,6 +86,8 @@ class TeamTaskCreateResponse(BaseModel):
     task_id: str
     status: str
     owner_role: str
+    cto_lane: str | None = None
+    execution_mode: str | None = None
     eta_minutes: int | None = None
     reply: str
 
@@ -132,7 +134,27 @@ class TeamTaskDetailResponse(BaseModel):
     objective: str
     owner_role: str
     status: str
+    cto_lane: str | None = None
+    execution_mode: str | None = None
     eta_minutes: int | None = None
     created_at: str
     updated_at: str
     timeline: list[dict[str, object]] = Field(default_factory=list)
+
+
+class TeamWatchdogScanRequest(BaseModel):
+    stale_progress_sec: int = Field(default=90, ge=30, le=3600)
+    stale_degrade_sec: int = Field(default=300, ge=60, le=7200)
+    max_scan: int = Field(default=200, ge=1, le=5000)
+    min_repeat_sec: int = Field(default=120, ge=30, le=3600)
+
+
+class TeamWatchdogScanResponse(BaseModel):
+    ok: bool
+    scanned: int
+    nudged: int
+    degraded: int
+    changed: bool
+    task_ids: list[str] = Field(default_factory=list)
+    stale_progress_sec: int
+    stale_degrade_sec: int

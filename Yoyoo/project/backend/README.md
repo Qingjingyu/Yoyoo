@@ -103,6 +103,13 @@ Guard behavior (production defaults):
 - `GET /api/v1/ops/failures`: failed task attribution + prevention suggestions (default recent 24h, with 7d baseline summary)
 - `POST /api/v1/chat`: mock chat endpoint
 - `POST /api/v1/dingtalk/events`: DingTalk event ingress endpoint (MVP loop)
+- `POST /api/v1/team/tasks`: CEO 接单并只派单给 CTO（CEO 不直接执行）
+  - 返回 `cto_lane` 与 `execution_mode`（`subagent` / `employee_instance`）
+- `POST /api/v1/team/tasks/{task_id}/progress`: 仅接受 CTO 进度回报，CEO 转述给用户
+- `POST /api/v1/team/tasks/{task_id}/result`: 仅接受 CTO 结果提交，CEO 验收并汇报
+- `GET /api/v1/team/tasks/{task_id}`: 查询任务卡与阶段时间线
+  - 明细包含 `cto_lane` 与 `execution_mode`
+- `POST /api/v1/team/watchdog/scan`: 后端主动扫描卡住任务（超时催办/降级）
 - `GET /api/v1/tasks/{conversation_id}`: query task ledger for a conversation
 - `GET /api/v1/traces/{trace_id}`: query trace-linked events and tasks
 - `POST /api/v1/tasks/{task_id}/feedback`: submit human feedback (`good`/`bad`) for learning
@@ -135,6 +142,11 @@ P1 upgrades:
 - P3-C planning upgrade: template task decomposition, default evidence collection, read-only-first guard for risky tasks.
 - P4 human feedback loop: manual `good/bad` feedback updates scoped learning and strategy cards.
 - P4.1 weighted feedback: feedback uses time-decayed weight, so recent evaluations affect planning more.
+
+Team mode default routing:
+- CEO responsibilities: intake, dispatch, progress follow-up, user reporting.
+- CTO responsibilities: all execution (small task via subagent, large task via employee instance).
+- Non-CTO progress/result submissions are rejected by API.
 
 Environment options:
 
