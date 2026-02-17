@@ -142,6 +142,26 @@ class TeamTaskDetailResponse(BaseModel):
     timeline: list[dict[str, object]] = Field(default_factory=list)
 
 
+class TeamTaskListItem(BaseModel):
+    task_id: str
+    title: str
+    objective: str
+    owner_role: str
+    status: str
+    cto_lane: str | None = None
+    execution_mode: str | None = None
+    eta_minutes: int | None = None
+    created_at: str
+    updated_at: str
+
+
+class TeamTaskListResponse(BaseModel):
+    ok: bool
+    user_id: str
+    total: int
+    items: list[TeamTaskListItem] = Field(default_factory=list)
+
+
 class TeamWatchdogScanRequest(BaseModel):
     stale_progress_sec: int = Field(default=90, ge=30, le=3600)
     stale_degrade_sec: int = Field(default=300, ge=60, le=7200)
