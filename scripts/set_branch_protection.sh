@@ -2,7 +2,6 @@
 set -euo pipefail
 
 BRANCH="${1:-master}"
-REQUIRED_CHECKS='["quality-gate / shell-and-policy","quality-gate / backend-tests","security-gitleaks / gitleaks"]'
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "gh CLI is required." >&2
@@ -48,4 +47,3 @@ gh api -X PUT "repos/${repo}/branches/${BRANCH}/protection" \
 EOF
 
 echo "[branch-protection] applied."
-
