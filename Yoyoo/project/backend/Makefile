@@ -1,5 +1,5 @@
 PYTHON ?= python3.11
-VENV ?= .venv311
+VENV ?= $(firstword $(wildcard .venv .venv311) .venv311)
 PIP := $(VENV)/bin/pip
 PYTEST := $(VENV)/bin/pytest
 RUFF := $(VENV)/bin/ruff
@@ -23,4 +23,3 @@ lint:
 
 format:
 	$(RUFF) format .
-
