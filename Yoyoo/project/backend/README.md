@@ -104,6 +104,7 @@ Guard behavior (production defaults):
 - `POST /api/v1/team/tasks/{task_id}/result`: 仅接受 CTO 结果提交，CEO 验收并汇报
 - `GET /api/v1/team/tasks/{task_id}`: 查询任务卡与阶段时间线
   - 明细包含 `cto_lane` 与 `execution_mode`
+- `GET /api/v1/team/tasks?user_id=...`: 按用户查询任务列表（支持 `channel`/`limit`）
 - `POST /api/v1/team/watchdog/scan`: 后端主动扫描卡住任务（超时催办/降级）
 - `GET /api/v1/tasks/{conversation_id}`: query task ledger for a conversation
 - `GET /api/v1/traces/{trace_id}`: query trace-linked events and tasks

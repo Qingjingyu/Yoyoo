@@ -386,6 +386,7 @@
         identity: null,
         tasks: new Map(),
         selectedTaskId: null,
+        lastListFetchAt: 0,
       };
 
       const $ = (id) => document.getElementById(id);
@@ -480,6 +481,23 @@
             .join("") || `<div class="timeline-item"><div class="meta">暂无时间线</div></div>`;
       }
 
+      async function loadUserTasks(force = false) {
+        if (!state.userId) return;
+        const now = Date.now();
+        if (!force && now - state.lastListFetchAt < 12000) return;
+        const data = await callApi(
+          `/api/v1/team/tasks?user_id=${encodeURIComponent(state.userId)}&channel=web&limit=60`,
+        );
+        for (const item of data.items || []) {
+          const existing = state.tasks.get(item.task_id) || {};
+          state.tasks.set(item.task_id, { ...existing, ...item });
+        }
+        state.lastListFetchAt = now;
+        if (!state.selectedTaskId && state.tasks.size > 0) {
+          state.selectedTaskId = Array.from(state.tasks.keys())[0];
+        }
+      }
+
       async function refreshHealth() {
         try {
           const data = await callApi("/healthz");
@@ -492,8 +510,14 @@
       }
 
       async function refreshTasks() {
+        if (!state.userId) return;
+        await loadUserTasks();
         const ids = Array.from(state.tasks.keys());
-        if (!ids.length) return;
+        if (!ids.length) {
+          renderBoard();
+          renderDetail();
+          return;
+        }
         await Promise.all(
           ids.map(async (taskId) => {
             try {
@@ -536,6 +560,7 @@
           state.selectedTaskId = created.task_id;
           const detail = await callApi(`/api/v1/team/tasks/${created.task_id}`);
           state.tasks.set(created.task_id, detail);
+          state.lastListFetchAt = 0;
           renderBoard();
           renderDetail();
           $("taskText").value = "";
@@ -580,6 +605,7 @@
           state.identity = parsed.identity;
           setLoggedIn(true);
           renderSession();
+          await loadUserTasks(true);
           for (const taskId of parsed.tasks || []) {
             try {
               const detail = await callApi(`/api/v1/team/tasks/${taskId}`);
@@ -609,7 +635,13 @@
           setLoggedIn(true);
           renderSession();
           setAlert($("loginMsg"), "");
-          saveSession();
+          loadUserTasks(true)
+            .then(() => {
+              renderBoard();
+              renderDetail();
+              saveSession();
+            })
+            .catch((err) => setAlert($("loginMsg"), err.message, "error"));
         };
         $("logoutBtn").onclick = () => {
           localStorage.removeItem("yoyoo_web_session");
