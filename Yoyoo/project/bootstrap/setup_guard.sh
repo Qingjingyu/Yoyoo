@@ -31,6 +31,10 @@ YOYOO_BACKUP_KEEP="${YOYOO_BACKUP_KEEP:-432}"
 YOYOO_GIT_SNAPSHOT_INTERVAL_MIN="${YOYOO_GIT_SNAPSHOT_INTERVAL_MIN:-5}"
 YOYOO_SNAPSHOT_REPO_DIR="${YOYOO_SNAPSHOT_REPO_DIR:-${YOYOO_RUNTIME_HOME}/asset-history.git}"
 YOYOO_SNAPSHOT_BRANCH="${YOYOO_SNAPSHOT_BRANCH:-main}"
+YOYOO_TASK_WATCHDOG_SCRIPT="${YOYOO_TASK_WATCHDOG_SCRIPT:-${SCRIPT_DIR}/task_progress_watchdog.sh}"
+YOYOO_MEMORY_FILE="${YOYOO_MEMORY_FILE:-${YOYOO_BACKEND_MEMORY_FILE:-${YOYOO_RUNTIME_HOME}/backend/yoyoo_memory.json}}"
+YOYOO_STALE_PROGRESS_SEC="${YOYOO_STALE_PROGRESS_SEC:-90}"
+YOYOO_STALE_DEGRADE_SEC="${YOYOO_STALE_DEGRADE_SEC:-300}"
 
 sanitize_key() {
   local raw="$1"
@@ -75,6 +79,7 @@ DOCTOR_SCRIPT_RUNTIME="/usr/local/bin/yoyoo-openclaw-doctor-${YOYOO_EMPLOYEE_KEY
 BACKUP_SCRIPT_RUNTIME="/usr/local/bin/yoyoo-asset-backup-${YOYOO_EMPLOYEE_KEY}.sh"
 SNAPSHOT_SCRIPT_RUNTIME="/usr/local/bin/yoyoo-asset-snapshot-${YOYOO_EMPLOYEE_KEY}.sh"
 ROLLBACK_SCRIPT_RUNTIME="/usr/local/bin/yoyoo-asset-rollback-${YOYOO_EMPLOYEE_KEY}.sh"
+TASK_WATCHDOG_SCRIPT_RUNTIME="/usr/local/bin/yoyoo-task-watchdog-${YOYOO_EMPLOYEE_KEY}.sh"
 
 DOCTOR_SERVICE="/etc/systemd/system/yoyoo-openclaw-doctor-${YOYOO_EMPLOYEE_KEY}.service"
 DOCTOR_TIMER="/etc/systemd/system/yoyoo-openclaw-doctor-${YOYOO_EMPLOYEE_KEY}.timer"
@@ -82,6 +87,8 @@ BACKUP_SERVICE="/etc/systemd/system/yoyoo-asset-backup-${YOYOO_EMPLOYEE_KEY}.ser
 BACKUP_TIMER="/etc/systemd/system/yoyoo-asset-backup-${YOYOO_EMPLOYEE_KEY}.timer"
 SNAPSHOT_SERVICE="/etc/systemd/system/yoyoo-asset-snapshot-${YOYOO_EMPLOYEE_KEY}.service"
 SNAPSHOT_TIMER="/etc/systemd/system/yoyoo-asset-snapshot-${YOYOO_EMPLOYEE_KEY}.timer"
+TASK_WATCHDOG_SERVICE="/etc/systemd/system/yoyoo-task-watchdog-${YOYOO_EMPLOYEE_KEY}.service"
+TASK_WATCHDOG_TIMER="/etc/systemd/system/yoyoo-task-watchdog-${YOYOO_EMPLOYEE_KEY}.timer"
 
 cat > "${DOCTOR_SCRIPT_RUNTIME}" <<SH
 #!/usr/bin/env bash
@@ -197,6 +204,17 @@ git_cmd commit -m "\${msg}" >/tmp/yoyoo_asset_snapshot_${YOYOO_EMPLOYEE_KEY}.log
 git_cmd update-ref "refs/heads/\${BRANCH}" HEAD >/dev/null 2>&1 || true
 SH
 chmod +x "${SNAPSHOT_SCRIPT_RUNTIME}"
+
+cat > "${TASK_WATCHDOG_SCRIPT_RUNTIME}" <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+export YOYOO_MEMORY_FILE='${YOYOO_MEMORY_FILE}'
+export YOYOO_BACKEND_MEMORY_FILE='${YOYOO_MEMORY_FILE}'
+export YOYOO_STALE_PROGRESS_SEC='${YOYOO_STALE_PROGRESS_SEC}'
+export YOYOO_STALE_DEGRADE_SEC='${YOYOO_STALE_DEGRADE_SEC}'
+exec bash '${YOYOO_TASK_WATCHDOG_SCRIPT}'
+SH
+chmod +x "${TASK_WATCHDOG_SCRIPT_RUNTIME}"
 
 cat > "${ROLLBACK_SCRIPT_RUNTIME}" <<SH
 #!/usr/bin/env bash
@@ -341,10 +359,34 @@ Unit=$(basename "${SNAPSHOT_SERVICE}")
 WantedBy=timers.target
 UNIT
 
+cat > "${TASK_WATCHDOG_SERVICE}" <<UNIT
+[Unit]
+Description=Yoyoo task watchdog (${YOYOO_EMPLOYEE_KEY})
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=${TASK_WATCHDOG_SCRIPT_RUNTIME}
+UNIT
+
+cat > "${TASK_WATCHDOG_TIMER}" <<UNIT
+[Unit]
+Description=Run Yoyoo task watchdog every 1 minute (${YOYOO_EMPLOYEE_KEY})
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=1min
+Unit=$(basename "${TASK_WATCHDOG_SERVICE}")
+
+[Install]
+WantedBy=timers.target
+UNIT
+
 systemctl daemon-reload
 systemctl enable --now "$(basename "${DOCTOR_TIMER}")" >/tmp/yoyoo_guard_enable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1
 systemctl enable --now "$(basename "${BACKUP_TIMER}")" >/tmp/yoyoo_asset_backup_enable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1
 systemctl enable --now "$(basename "${SNAPSHOT_TIMER}")" >/tmp/yoyoo_asset_snapshot_enable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1
+systemctl enable --now "$(basename "${TASK_WATCHDOG_TIMER}")" >/tmp/yoyoo_task_watchdog_enable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1
 
 echo "Guard setup complete:"
 echo "  employee=${YOYOO_EMPLOYEE_KEY}"
@@ -353,4 +395,5 @@ echo "  gateway_port=${OPENCLAW_PORT}"
 echo "  doctor_timer=$(basename "${DOCTOR_TIMER}")"
 echo "  backup_timer=$(basename "${BACKUP_TIMER}")"
 echo "  snapshot_timer=$(basename "${SNAPSHOT_TIMER}")"
+echo "  task_watchdog_timer=$(basename "${TASK_WATCHDOG_TIMER}")"
 echo "  rollback_helper=${ROLLBACK_SCRIPT_RUNTIME}"
