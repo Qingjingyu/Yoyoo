@@ -865,19 +865,23 @@ class MemoryService:
         eta_minutes: int | None = None,
         risk: str | None = None,
         next_step: str | None = None,
+        cto_lane: str | None = None,
+        execution_mode: str | None = None,
     ) -> None:
         now = datetime.now(UTC).isoformat()
         current = self._team_task_meta.get(task_id, {})
         normalized_eta = eta_minutes if eta_minutes is not None else current.get("eta_minutes")
         self._team_task_meta[task_id] = {
             "task_id": task_id,
-            "owner_role": owner_role.strip().upper() or "ENG",
+            "owner_role": owner_role.strip().upper() or "CTO",
             "title": title.strip(),
             "objective": objective.strip(),
             "status": status.strip().lower(),
             "eta_minutes": normalized_eta,
             "risk": risk,
             "next_step": next_step,
+            "cto_lane": (cto_lane or current.get("cto_lane") or "ENG"),
+            "execution_mode": (execution_mode or current.get("execution_mode") or "subagent"),
             "created_at": current.get("created_at", now),
             "updated_at": now,
         }
@@ -2679,10 +2683,12 @@ class MemoryService:
                     continue
                 self._team_task_meta[task_id] = {
                     "task_id": task_id,
-                    "owner_role": str(raw_item.get("owner_role") or "ENG"),
+                    "owner_role": str(raw_item.get("owner_role") or "CTO"),
                     "title": str(raw_item.get("title") or ""),
                     "objective": str(raw_item.get("objective") or ""),
                     "status": str(raw_item.get("status") or "pending"),
+                    "cto_lane": str(raw_item.get("cto_lane") or "ENG"),
+                    "execution_mode": str(raw_item.get("execution_mode") or "subagent"),
                     "risk": (
                         str(raw_item.get("risk"))
                         if raw_item.get("risk") is not None

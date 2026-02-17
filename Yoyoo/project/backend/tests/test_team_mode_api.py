@@ -1,4 +1,5 @@
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -35,7 +36,9 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert create_resp.status_code == 200
     assert create_body["ok"] is True
     assert create_body["task_id"].startswith("task_")
-    assert create_body["owner_role"] in {"OPS", "ENG", "QA", "MEM", "INNO", "CH"}
+    assert create_body["owner_role"] == "CTO"
+    assert create_body["cto_lane"] is not None
+    assert create_body["execution_mode"] in {"subagent", "employee_instance"}
     assert isinstance(create_body["eta_minutes"], int)
     assert create_body["eta_minutes"] > 0
     assert "已接单" in create_body["reply"]
@@ -55,7 +58,7 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert progress_resp.status_code == 200
     assert progress_body["ok"] is True
     assert progress_body["status"] == "running"
-    assert "CEO 汇报" in progress_body["reply"]
+    assert "CEO 阶段汇报" in progress_body["reply"]
 
     result_resp = client.post(
         f"/api/v1/team/tasks/{task_id}/result",
@@ -77,6 +80,8 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert query_resp.status_code == 200
     assert query_body["task_id"] == task_id
     assert query_body["status"] == "done"
+    assert query_body["cto_lane"] is not None
+    assert query_body["execution_mode"] in {"subagent", "employee_instance"}
     assert isinstance(query_body["eta_minutes"], int)
     assert isinstance(query_body["timeline"], list)
     assert any(item.get("event") == "dispatched" for item in query_body["timeline"])
@@ -108,3 +113,80 @@ def test_team_mode_api_result_without_evidence_goes_review() -> None:
     assert result_resp.status_code == 200
     assert result_resp.json()["status"] == "review"
     assert "missing_evidence" in result_resp.json()["issues"]
+
+
+def test_team_mode_api_rejects_non_cto_submit() -> None:
+    create_resp = client.post(
+        "/api/v1/team/tasks",
+        json={
+            "user_id": "u_team3",
+            "message": "请执行一次发布并汇报",
+            "channel": "api",
+            "project_key": "proj_team3",
+        },
+    )
+    task_id = create_resp.json()["task_id"]
+
+    progress_resp = client.post(
+        f"/api/v1/team/tasks/{task_id}/progress",
+        json={
+            "role": "OPS",
+            "stage": "executing",
+            "detail": "非 CTO 回报",
+            "evidence": [],
+        },
+    )
+    result_resp = client.post(
+        f"/api/v1/team/tasks/{task_id}/result",
+        json={
+            "role": "QA",
+            "reply": "非 CTO 提交",
+            "evidence": [{"source": "log", "content": "n/a"}],
+        },
+    )
+
+    assert progress_resp.status_code == 200
+    assert progress_resp.json()["ok"] is False
+    assert progress_resp.json()["status"] == "failed"
+
+    assert result_resp.status_code == 200
+    assert result_resp.json()["ok"] is False
+    assert result_resp.json()["status"] == "failed"
+    assert "invalid_executor_role" in result_resp.json()["issues"]
+
+
+def test_team_mode_api_watchdog_scan() -> None:
+    create_resp = client.post(
+        "/api/v1/team/tasks",
+        json={
+            "user_id": "u_watchdog",
+            "message": "请执行部署并持续汇报",
+            "channel": "api",
+            "project_key": "proj_watchdog",
+        },
+    )
+    task_id = create_resp.json()["task_id"]
+    record = app.state.container.memory_service.get_task_record(task_id=task_id)
+    assert record is not None
+
+    now = datetime.now(UTC)
+    record.updated_at = now - timedelta(seconds=130)
+    record.last_heartbeat_at = now - timedelta(seconds=130)
+
+    watchdog_resp = client.post(
+        "/api/v1/team/watchdog/scan",
+        json={
+            "stale_progress_sec": 90,
+            "stale_degrade_sec": 300,
+            "max_scan": 100,
+            "min_repeat_sec": 30,
+        },
+    )
+    watchdog_body = watchdog_resp.json()
+    assert watchdog_resp.status_code == 200
+    assert watchdog_body["ok"] is True
+    assert watchdog_body["nudged"] >= 1
+
+    detail_resp = client.get(f"/api/v1/team/tasks/{task_id}")
+    detail_body = detail_resp.json()
+    assert any(item.get("event") == "nudge" for item in detail_body["timeline"])
