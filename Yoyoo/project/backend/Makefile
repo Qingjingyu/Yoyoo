@@ -5,7 +5,7 @@ PYTEST := $(VENV)/bin/pytest
 RUFF := $(VENV)/bin/ruff
 UVICORN := $(VENV)/bin/uvicorn
 
-.PHONY: install dev test lint format
+.PHONY: install dev test lint format release-check release-prod-check
 
 install:
 	$(PYTHON) -m venv $(VENV)
@@ -23,3 +23,7 @@ lint:
 
 format:
 	$(RUFF) format .
+
+release-check: lint test
+
+release-prod-check: release-check
