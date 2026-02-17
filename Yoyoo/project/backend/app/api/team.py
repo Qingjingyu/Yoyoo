@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from app.container import ServiceContainer
 from app.intelligence.team_models import TaskEvidence
@@ -10,6 +10,8 @@ from app.schemas import (
     TeamTaskCreateRequest,
     TeamTaskCreateResponse,
     TeamTaskDetailResponse,
+    TeamTaskListItem,
+    TeamTaskListResponse,
     TeamTaskProgressRequest,
     TeamTaskProgressResponse,
     TeamTaskResultRequest,
@@ -23,6 +25,13 @@ router = APIRouter(prefix="/api/v1/team", tags=["team"])
 
 def _get_container(request: Request) -> ServiceContainer:
     return request.app.state.container
+
+
+def _fallback_title(request_text: str) -> str:
+    text = (request_text or "").strip()
+    if not text:
+        return "未命名任务"
+    return text[:32] + ("..." if len(text) > 32 else "")
 
 
 @router.post("/tasks", response_model=TeamTaskCreateResponse)
@@ -124,6 +133,44 @@ def get_task(task_id: str, request: Request) -> TeamTaskDetailResponse:
         created_at=card.created_at.isoformat(),
         updated_at=card.updated_at.isoformat(),
         timeline=container.ceo_dispatcher.get_task_timeline(task_id=task_id),
+    )
+
+
+@router.get("/tasks", response_model=TeamTaskListResponse)
+def list_tasks(
+    request: Request,
+    user_id: str = Query(min_length=1, max_length=64),
+    channel: str | None = Query(default=None, min_length=2, max_length=32),
+    limit: int = Query(default=30, ge=1, le=200),
+) -> TeamTaskListResponse:
+    container = _get_container(request)
+    records = container.memory_service.recent_tasks_for_user(
+        user_id=user_id,
+        channel=channel,
+        limit=limit,
+    )
+    items: list[TeamTaskListItem] = []
+    for record in records:
+        meta = container.memory_service.get_team_task_meta(task_id=record.task_id) or {}
+        items.append(
+            TeamTaskListItem(
+                task_id=record.task_id,
+                title=str(meta.get("title") or _fallback_title(record.request_text)),
+                objective=str(meta.get("objective") or record.request_text),
+                owner_role=str(meta.get("owner_role") or "CTO"),
+                status=str(meta.get("status") or record.status or "planned"),
+                cto_lane=str(meta.get("cto_lane") or "ENG"),
+                execution_mode=str(meta.get("execution_mode") or "subagent"),
+                eta_minutes=meta.get("eta_minutes"),
+                created_at=record.created_at.isoformat(),
+                updated_at=record.updated_at.isoformat(),
+            )
+        )
+    return TeamTaskListResponse(
+        ok=True,
+        user_id=user_id,
+        total=len(items),
+        items=items,
     )
 
 

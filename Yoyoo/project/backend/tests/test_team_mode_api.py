@@ -190,3 +190,35 @@ def test_team_mode_api_watchdog_scan() -> None:
     detail_resp = client.get(f"/api/v1/team/tasks/{task_id}")
     detail_body = detail_resp.json()
     assert any(item.get("event") == "nudge" for item in detail_body["timeline"])
+
+
+def test_team_mode_api_list_tasks_for_user() -> None:
+    for idx in range(2):
+        client.post(
+            "/api/v1/team/tasks",
+            json={
+                "user_id": "u_list",
+                "message": f"请执行列表测试任务-{idx}",
+                "channel": "web",
+                "project_key": "proj_list",
+            },
+        )
+    client.post(
+        "/api/v1/team/tasks",
+        json={
+            "user_id": "u_other",
+            "message": "这条不应出现在 u_list 列表中",
+            "channel": "web",
+            "project_key": "proj_other",
+        },
+    )
+
+    list_resp = client.get("/api/v1/team/tasks", params={"user_id": "u_list", "channel": "web"})
+    body = list_resp.json()
+
+    assert list_resp.status_code == 200
+    assert body["ok"] is True
+    assert body["user_id"] == "u_list"
+    assert body["total"] >= 2
+    assert all(item["task_id"].startswith("task_") for item in body["items"])
+    assert all(item["owner_role"] == "CTO" for item in body["items"])
