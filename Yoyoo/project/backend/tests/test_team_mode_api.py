@@ -36,6 +36,9 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert create_body["ok"] is True
     assert create_body["task_id"].startswith("task_")
     assert create_body["owner_role"] in {"OPS", "ENG", "QA", "MEM", "INNO", "CH"}
+    assert isinstance(create_body["eta_minutes"], int)
+    assert create_body["eta_minutes"] > 0
+    assert "已接单" in create_body["reply"]
 
     task_id = create_body["task_id"]
     progress_resp = client.post(
@@ -74,6 +77,7 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert query_resp.status_code == 200
     assert query_body["task_id"] == task_id
     assert query_body["status"] == "done"
+    assert isinstance(query_body["eta_minutes"], int)
     assert isinstance(query_body["timeline"], list)
     assert any(item.get("event") == "dispatched" for item in query_body["timeline"])
     assert any(item.get("event") == "progress" for item in query_body["timeline"])

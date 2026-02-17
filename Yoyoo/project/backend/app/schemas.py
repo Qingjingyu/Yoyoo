@@ -86,6 +86,7 @@ class TeamTaskCreateResponse(BaseModel):
     task_id: str
     status: str
     owner_role: str
+    eta_minutes: int | None = None
     reply: str
 
 
@@ -131,6 +132,7 @@ class TeamTaskDetailResponse(BaseModel):
     objective: str
     owner_role: str
     status: str
+    eta_minutes: int | None = None
     created_at: str
     updated_at: str
     timeline: list[dict[str, object]] = Field(default_factory=list)

@@ -32,6 +32,7 @@ class TaskCard(BaseModel):
     evidence: list[TaskEvidence] = Field(default_factory=list)
     risk: str | None = Field(default=None, max_length=500)
     next_step: str | None = Field(default=None, max_length=500)
+    eta_minutes: int | None = Field(default=None, ge=1, le=1440)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
