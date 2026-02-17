@@ -56,19 +56,13 @@ pip install \
 ## Useful Commands
 
 ```bash
+make install # install dependencies
+make dev     # run backend on :8000
 make test   # run pytest
 make lint   # run ruff
 make format # format with ruff
-make baseline      # replay frozen regression chat cases
-make archive-memory # archive/compact old terminal tasks from memory
-make memory-maintenance # archive + daily eval + strategy rebalance
-make daily-eval    # daily quality eval + auto strategy rebalance
-make smoke-full-stack # local bridge/backend smoke checks
-make release-check # lint + test + baseline gate
-make release-prod-check # release-check + maintenance dry-run + smoke
-make yyos-check # verify local yyos CLI is available
-make yyos-bootstrap # run YYOS bootstrap checks from ../..../YYOS
-make skill-audit # audit installed skills with allowlist/blocklist
+make release-check      # lint + test
+make release-prod-check # same as release-check for current bootstrap
 ```
 
 ## DingTalk Runtime Guard
