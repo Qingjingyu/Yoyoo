@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Yoyoo 独立 Web</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+    />
+    <style>
+      :root {
+        --bg: #f4f6ef;
+        --surface: #ffffff;
+        --ink: #192018;
+        --muted: #596252;
+        --line: #d8dfd3;
+        --primary: #146f4b;
+        --primary-strong: #0f5c3d;
+        --accent: #f08f2e;
+        --danger: #c03636;
+        --ok: #1f8f50;
+        --shadow: 0 14px 42px rgba(22, 35, 22, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Noto Sans SC", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 6% 4%, #dfead5 0, transparent 36%),
+          radial-gradient(circle at 94% 16%, #ffe8c3 0, transparent 36%),
+          linear-gradient(180deg, #f8fbf4 0, #f1f4ec 100%);
+        min-height: 100vh;
+      }
+
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 28px 20px 40px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: 52px;
+        letter-spacing: 1.8px;
+        line-height: 1;
+      }
+
+      .brand p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .pill {
+        font-size: 12px;
+        font-weight: 700;
+        color: #0f3f2a;
+        background: #dff2e7;
+        border: 1px solid #b8dfca;
+        border-radius: 999px;
+        padding: 6px 12px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 16px;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+
+      .login {
+        padding: 18px;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+
+      input,
+      textarea,
+      select,
+      button {
+        font: inherit;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: #fff;
+        color: var(--ink);
+      }
+
+      textarea {
+        min-height: 108px;
+        resize: vertical;
+      }
+
+      .btn {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.2s ease;
+      }
+
+      .btn-primary {
+        color: #fff;
+        background: var(--primary);
+      }
+
+      .btn-primary:hover {
+        background: var(--primary-strong);
+      }
+
+      .btn-ghost {
+        background: #fff;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .stack {
+        display: grid;
+        gap: 12px;
+      }
+
+      .panel {
+        padding: 18px;
+      }
+
+      .panel-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .kpi {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .kpi-item {
+        border: 1px dashed var(--line);
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .kpi-item .v {
+        font-size: 24px;
+        font-weight: 700;
+      }
+
+      .kpi-item .l {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .task-list {
+        max-height: 350px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+
+      .task-item {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+      }
+
+      .task-item:last-child {
+        border-bottom: 0;
+      }
+
+      .task-item.active {
+        background: #edf6f0;
+      }
+
+      .task-item .id {
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .status {
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .status.done {
+        color: var(--ok);
+      }
+
+      .status.failed,
+      .status.review {
+        color: var(--danger);
+      }
+
+      .status.running {
+        color: var(--accent);
+      }
+
+      .timeline {
+        max-height: 360px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 6px 0;
+      }
+
+      .timeline-item {
+        padding: 10px 12px;
+        border-left: 3px solid #d7e8dc;
+        margin: 6px 10px;
+        background: #fcfdfb;
+      }
+
+      .timeline-item .event {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .timeline-item .meta {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .tag {
+        display: inline-block;
+        border-radius: 999px;
+        border: 1px solid #cce3d5;
+        padding: 2px 8px;
+        font-size: 11px;
+        margin-right: 4px;
+        background: #eff8f2;
+      }
+
+      .alert {
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+      }
+
+      .alert.error {
+        background: #ffe6e6;
+        color: #7c2222;
+        border: 1px solid #f4bcbc;
+      }
+
+      .alert.ok {
+        background: #e7f7ef;
+        color: #145f37;
+        border: 1px solid #b7e6cc;
+      }
+
+      @media (max-width: 980px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="brand">
+        <div>
+          <h1>YOYOO WEB</h1>
+          <p>独立 Web 控制台：董事长入口（CEO 对话 + CTO 执行进度）</p>
+        </div>
+        <span class="pill" id="healthPill">后端检查中...</span>
+      </header>
+
+      <section class="grid">
+        <aside class="stack">
+          <div class="card login" id="loginCard">
+            <h2>登录</h2>
+            <label for="identityInput">邮箱或手机号</label>
+            <input id="identityInput" placeholder="例如：you@company.com / 138****0000" />
+            <div style="height: 10px"></div>
+            <button class="btn btn-primary" id="loginBtn">进入 Yoyoo</button>
+            <div id="loginMsg" class="alert hidden"></div>
+          </div>
+
+          <div class="card panel hidden" id="sessionCard">
+            <div class="panel-top">
+              <h2>当前会话</h2>
+              <button class="btn btn-ghost" id="logoutBtn">退出</button>
+            </div>
+            <div id="sessionText" style="font-size: 13px; color: var(--muted)"></div>
+          </div>
+
+          <div class="card panel hidden" id="newTaskCard">
+            <h2>发布新任务</h2>
+            <label for="taskText">对 CEO 说</label>
+            <textarea id="taskText" placeholder="例：开发官网首页，先给信息架构和里程碑。"></textarea>
+            <div style="height: 10px"></div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="createTaskBtn">创建任务</button>
+              <button class="btn btn-ghost" id="watchdogBtn">触发巡检</button>
+            </div>
+            <div id="taskMsg" class="alert hidden"></div>
+          </div>
+        </aside>
+
+        <main class="stack">
+          <div class="card panel hidden" id="boardCard">
+            <div class="panel-top">
+              <h2>任务看板</h2>
+              <button class="btn btn-ghost" id="refreshBtn">手动刷新</button>
+            </div>
+            <div class="kpi">
+              <div class="kpi-item">
+                <div class="v" id="kpiTotal">0</div>
+                <div class="l">总任务</div>
+              </div>
+              <div class="kpi-item">
+                <div class="v" id="kpiRunning">0</div>
+                <div class="l">执行中</div>
+              </div>
+              <div class="kpi-item">
+                <div class="v" id="kpiDone">0</div>
+                <div class="l">已完成</div>
+              </div>
+            </div>
+            <div id="taskList" class="task-list"></div>
+          </div>
+
+          <div class="card panel hidden" id="detailCard">
+            <h2>任务详情</h2>
+            <div id="detailMeta" style="font-size: 13px; color: var(--muted); margin-bottom: 10px"></div>
+            <div id="timeline" class="timeline"></div>
+          </div>
+        </main>
+      </section>
+    </div>
+
+    <script>
+      const state = {
+        userId: null,
+        identity: null,
+        tasks: new Map(),
+        selectedTaskId: null,
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      function setAlert(el, text, type = "ok") {
+        if (!text) {
+          el.classList.add("hidden");
+          el.textContent = "";
+          return;
+        }
+        el.className = `alert ${type}`;
+        el.textContent = text;
+      }
+
+      function normalizeUserId(identity) {
+        const raw = (identity || "").trim().toLowerCase();
+        const safe = raw.replace(/[^a-z0-9]/g, "_").slice(0, 32) || `guest_${Date.now()}`;
+        return `u_${safe}`;
+      }
+
+      async function callApi(path, options = {}) {
+        const resp = await fetch(path, {
+          headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+          ...options,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(data.detail || `请求失败 (${resp.status})`);
+        }
+        return data;
+      }
+
+      function renderSession() {
+        if (!state.userId) return;
+        $("sessionText").textContent = `身份：${state.identity} | user_id：${state.userId}`;
+      }
+
+      function renderBoard() {
+        const list = Array.from(state.tasks.values()).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+        $("kpiTotal").textContent = String(list.length);
+        $("kpiRunning").textContent = String(list.filter((x) => x.status === "running").length);
+        $("kpiDone").textContent = String(list.filter((x) => x.status === "done").length);
+
+        const html = list
+          .map((item) => {
+            const active = item.task_id === state.selectedTaskId ? "active" : "";
+            return `
+            <div class="task-item ${active}" data-task="${item.task_id}">
+              <div><strong>${item.title || "未命名任务"}</strong></div>
+              <div class="id">${item.task_id}</div>
+              <div style="margin-top:4px;">
+                <span class="tag">CTO:${item.owner_role || "CTO"}</span>
+                <span class="tag">模式:${item.execution_mode || "-"}</span>
+                <span class="tag">Lane:${item.cto_lane || "-"}</span>
+              </div>
+              <div class="status ${item.status || ""}" style="margin-top:4px;">${item.status || "unknown"}</div>
+            </div>`;
+          })
+          .join("");
+
+        $("taskList").innerHTML = html || `<div class="task-item">还没有任务，先在左侧发布一个。</div>`;
+        for (const el of $("taskList").querySelectorAll(".task-item[data-task]")) {
+          el.onclick = () => {
+            state.selectedTaskId = el.dataset.task;
+            renderBoard();
+            renderDetail();
+          };
+        }
+      }
+
+      function renderDetail() {
+        const task = state.tasks.get(state.selectedTaskId);
+        if (!task) {
+          $("detailMeta").textContent = "请选择一个任务。";
+          $("timeline").innerHTML = "";
+          return;
+        }
+        $("detailMeta").innerHTML = `
+          task_id=${task.task_id} · 状态=${task.status} · ETA=${task.eta_minutes || "-"} 分钟
+          <br>目标：${task.objective || "-"}
+        `;
+        $("timeline").innerHTML =
+          (task.timeline || [])
+            .map(
+              (x) => `
+                <div class="timeline-item">
+                  <div class="event">${x.event || "event"} · ${x.role || "-"}</div>
+                  <div class="meta">${x.ts || "-"} ${x.detail ? `· ${x.detail}` : ""}</div>
+                </div>
+              `,
+            )
+            .join("") || `<div class="timeline-item"><div class="meta">暂无时间线</div></div>`;
+      }
+
+      async function refreshHealth() {
+        try {
+          const data = await callApi("/healthz");
+          $("healthPill").textContent = data.ok ? "后端在线" : "后端异常";
+          $("healthPill").style.background = data.ok ? "#dff2e7" : "#ffe8d9";
+        } catch (_) {
+          $("healthPill").textContent = "后端不可用";
+          $("healthPill").style.background = "#ffe8d9";
+        }
+      }
+
+      async function refreshTasks() {
+        const ids = Array.from(state.tasks.keys());
+        if (!ids.length) return;
+        await Promise.all(
+          ids.map(async (taskId) => {
+            try {
+              const detail = await callApi(`/api/v1/team/tasks/${taskId}`);
+              state.tasks.set(taskId, detail);
+            } catch (_) {
+              // keep stale data
+            }
+          }),
+        );
+        renderBoard();
+        renderDetail();
+      }
+
+      function setLoggedIn(loggedIn) {
+        $("loginCard").classList.toggle("hidden", loggedIn);
+        $("sessionCard").classList.toggle("hidden", !loggedIn);
+        $("newTaskCard").classList.toggle("hidden", !loggedIn);
+        $("boardCard").classList.toggle("hidden", !loggedIn);
+        $("detailCard").classList.toggle("hidden", !loggedIn);
+      }
+
+      async function createTask() {
+        const text = $("taskText").value.trim();
+        if (!text) {
+          setAlert($("taskMsg"), "请先输入任务内容。", "error");
+          return;
+        }
+        try {
+          setAlert($("taskMsg"), "CEO 正在接单...", "ok");
+          const created = await callApi("/api/v1/team/tasks", {
+            method: "POST",
+            body: JSON.stringify({
+              user_id: state.userId,
+              message: text,
+              channel: "web",
+              project_key: "web_console",
+            }),
+          });
+          state.selectedTaskId = created.task_id;
+          const detail = await callApi(`/api/v1/team/tasks/${created.task_id}`);
+          state.tasks.set(created.task_id, detail);
+          renderBoard();
+          renderDetail();
+          $("taskText").value = "";
+          setAlert($("taskMsg"), created.reply || `任务已创建：${created.task_id}`, "ok");
+        } catch (err) {
+          setAlert($("taskMsg"), err.message, "error");
+        }
+      }
+
+      async function runWatchdog() {
+        try {
+          const res = await callApi("/api/v1/team/watchdog/scan", {
+            method: "POST",
+            body: JSON.stringify({
+              stale_progress_sec: 90,
+              stale_degrade_sec: 300,
+              max_scan: 200,
+              min_repeat_sec: 120,
+            }),
+          });
+          setAlert($("taskMsg"), `巡检完成：nudged=${res.nudged} degraded=${res.degraded}`, "ok");
+          await refreshTasks();
+        } catch (err) {
+          setAlert($("taskMsg"), `巡检失败：${err.message}`, "error");
+        }
+      }
+
+      function saveSession() {
+        localStorage.setItem(
+          "yoyoo_web_session",
+          JSON.stringify({ userId: state.userId, identity: state.identity, tasks: Array.from(state.tasks.keys()) }),
+        );
+      }
+
+      async function restoreSession() {
+        const raw = localStorage.getItem("yoyoo_web_session");
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (!parsed.userId || !parsed.identity) return;
+          state.userId = parsed.userId;
+          state.identity = parsed.identity;
+          setLoggedIn(true);
+          renderSession();
+          for (const taskId of parsed.tasks || []) {
+            try {
+              const detail = await callApi(`/api/v1/team/tasks/${taskId}`);
+              state.tasks.set(taskId, detail);
+            } catch (_) {
+              // ignore invalid old tasks
+            }
+          }
+          const first = Array.from(state.tasks.keys())[0];
+          state.selectedTaskId = first || null;
+          renderBoard();
+          renderDetail();
+        } catch (_) {
+          // ignore broken session data
+        }
+      }
+
+      function bindEvents() {
+        $("loginBtn").onclick = () => {
+          const identity = $("identityInput").value.trim();
+          if (!identity) {
+            setAlert($("loginMsg"), "请输入邮箱或手机号。", "error");
+            return;
+          }
+          state.identity = identity;
+          state.userId = normalizeUserId(identity);
+          setLoggedIn(true);
+          renderSession();
+          setAlert($("loginMsg"), "");
+          saveSession();
+        };
+        $("logoutBtn").onclick = () => {
+          localStorage.removeItem("yoyoo_web_session");
+          window.location.reload();
+        };
+        $("createTaskBtn").onclick = createTask;
+        $("watchdogBtn").onclick = runWatchdog;
+        $("refreshBtn").onclick = refreshTasks;
+      }
+
+      async function boot() {
+        bindEvents();
+        await refreshHealth();
+        await restoreSession();
+        setInterval(refreshHealth, 10000);
+        setInterval(async () => {
+          await refreshTasks();
+          saveSession();
+        }, 6000);
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
