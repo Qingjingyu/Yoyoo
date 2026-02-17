@@ -37,6 +37,7 @@ make dev
 ```
 
 Service runs at `http://127.0.0.1:8000`.
+Independent Web console (MVP) is available at `http://127.0.0.1:8000/web/`.
 
 If `make install` fails due editable-install/build backend issues, use fallback install:
 
