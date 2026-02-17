@@ -223,6 +223,9 @@ Checks included:
 - Recent critical log signatures:
   - `No API key found for provider "anthropic"`
   - `unknown option '--model'`
+- Task progress watchdog (new):
+  - default nudge: no progress for 90s
+  - default degrade: no progress for 300s (mark failed + require reassignment)
 
 ## Files
 - `activate_employee.sh`: one-step activation.
@@ -230,6 +233,7 @@ Checks included:
 - `qmd_enable.sh`: enable QMD memory backend.
 - `install_base_skills.sh`: install default skills.
 - `setup_guard.sh`: install doctor timer + backup timer + git snapshot timer + rollback helper.
+- `task_progress_watchdog.sh`: detect stalled running tasks and auto nudge/degrade.
 - `hire_employee_from_git.sh`: pull repo and activate employee.
 - `hire_employee_safe.sh`: safe role-isolated hire + CEO/non-CEO health verification.
 - `acceptance_check.sh`: one-click acceptance checks (probe/session/auth/log signatures).
