@@ -61,8 +61,33 @@ make dev     # run backend on :8000
 make test   # run pytest
 make lint   # run ruff
 make format # format with ruff
+make load-test  # run bridge concurrent load test
+make ops-report # generate ops markdown/json daily report
 make release-check      # lint + test
 make release-prod-check # same as release-check for current bootstrap
+```
+
+Load test / report output:
+- `data/benchmarks/bridge_load_*.json`
+- `data/reports/ops_daily_*.md`
+- `data/reports/ops_daily_*.json`
+
+Manual run (optional):
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/bridge_load_test.py \
+  --base-url http://127.0.0.1:8000 --total 30 --concurrency 10
+
+PYTHONPATH=. .venv/bin/python scripts/ops_daily_report.py \
+  --base-url http://127.0.0.1:8000 --window-hours 24 --baseline-hours 168
+```
+
+Preflight (brain-first skill checklist):
+
+```bash
+cd Yoyoo/project/backend
+PATH="$(pwd)/.venv/bin:$PATH" PYTHONPATH=. \
+  bash /Users/subai/.codex/skills/yoyoo-brain-dev/scripts/yoyoo_preflight.sh .
 ```
 
 ## DingTalk Runtime Guard
@@ -93,19 +118,28 @@ Guard behavior (production defaults):
 ## Current APIs
 
 - `GET /healthz`: service health check
+- `POST /api/v1/auth/send-code`: 发送验证码（手机号/邮箱）
+- `POST /api/v1/auth/verify-code`: 验证码登录并签发会话 token
+- `GET /api/v1/auth/session/me`: 校验当前会话 token
 - `GET /api/v1/ops/health`: ops snapshot + alert evaluation
 - `GET /api/v1/ops/alerts`: alert-only view
 - `GET /api/v1/ops/failures`: failed task attribution + prevention suggestions (default recent 24h, with 7d baseline summary)
+- `GET /api/v1/ops/eval/quality`: 质量评测基线（成功率/证据覆盖/自动纠偏率/重试率）
+- `GET /api/v1/ops/executor`: 执行适配器诊断（bridge 配置、当前重试策略、策略来源）
 - `POST /api/v1/chat`: mock chat endpoint
 - `POST /api/v1/dingtalk/events`: DingTalk event ingress endpoint (MVP loop)
 - `POST /api/v1/team/tasks`: CEO 接单并只派单给 CTO（CEO 不直接执行）
   - 返回 `cto_lane` 与 `execution_mode`（`subagent` / `employee_instance`）
+- `POST /api/v1/team/tasks/{task_id}/run`: 触发任务执行（支持重试、续跑）
 - `POST /api/v1/team/tasks/{task_id}/progress`: 仅接受 CTO 进度回报，CEO 转述给用户
 - `POST /api/v1/team/tasks/{task_id}/result`: 仅接受 CTO 结果提交，CEO 验收并汇报
+  - 返回 `corrected` 与 `rework_count`，用于标记是否触发过自动返工
 - `GET /api/v1/team/tasks/{task_id}`: 查询任务卡与阶段时间线
-  - 明细包含 `cto_lane` 与 `execution_mode`
+  - 明细包含 `cto_lane`、`execution_mode`、`rework_count`
 - `GET /api/v1/team/tasks?user_id=...`: 按用户查询任务列表（支持 `channel`/`limit`）
+  - 列表项包含 `rework_count`，便于前端直接展示返工次数
 - `POST /api/v1/team/watchdog/scan`: 后端主动扫描卡住任务（超时催办/降级）
+- `POST /api/v1/team/watchdog/recover`: 后端恢复卡住/失败任务（按尝试上限续跑）
 - `GET /api/v1/tasks/{conversation_id}`: query task ledger for a conversation
 - `GET /api/v1/traces/{trace_id}`: query trace-linked events and tasks
 - `POST /api/v1/tasks/{task_id}/feedback`: submit human feedback (`good`/`bad`) for learning
@@ -143,6 +177,13 @@ Team mode default routing:
 - CEO responsibilities: intake, dispatch, progress follow-up, user reporting.
 - CTO responsibilities: all execution (small task via subagent, large task via employee instance).
 - Non-CTO progress/result submissions are rejected by API.
+- Acceptance fallback:
+  - 当 CTO 提交 `error` 或 `evidence=[]` 时，CEO 自动返工一次（`corrected=true`，状态转为 `review/running`）。
+  - 自动返工次数耗尽后，执行错误进入 `failed`，缺证据进入 `review`（等待人工补证）。
+- Recoverable execution:
+  - `run` 接口支持按 `max_attempts` 自动重试，并持久化 `execution_attempts/resume_count`。
+  - `recover` 接口可批量扫描 stale 任务并续跑，避免长任务断档。
+  - 同任务执行引入 lease 防并发（锁被占用时返回 `task_locked`），避免重复执行互相覆盖。
 
 Environment options:
 
@@ -157,6 +198,12 @@ export OPENCLAW_BRIDGE_URL="http://127.0.0.1:18080/bridge/chat"
 export OPENCLAW_BRIDGE_TOKEN="optional-token"
 export OPENCLAW_BRIDGE_RETRIES="0"
 export OPENCLAW_BRIDGE_TIMEOUT_SEC="20"
+export OPENCLAW_RETRY_TIMEOUT="2"
+export OPENCLAW_RETRY_NETWORK="1"
+export OPENCLAW_RETRY_LOCK="1"
+export OPENCLAW_RETRY_SERVER="1"
+export OPENCLAW_RETRY_RATE_LIMIT="2"
+export OPENCLAW_RETRY_UNKNOWN="0"
 export OPENCLAW_BRIDGE_SESSION_STRATEGY="conversation"
 export OPENCLAW_BRIDGE_SESSION_LOCK_RETRIES="1"
 export OPENCLAW_LOCAL_EXEC="1"
@@ -238,6 +285,16 @@ Execution routing priority:
 6) If session lock (`*.jsonl.lock`) appears, adapter/bridge retries once with a new session id.
 7) Otherwise -> fallback to local mock chat reply.
 
+Executor retry policy layers:
+1) classify bridge failures into `timeout/network/lock/server/rate_limit/auth/http/unknown`.
+2) retry by category with independent budgets (`OPENCLAW_RETRY_*` env).
+3) auth/http errors default to no retry; timeout/network/rate-limit are retryable by default.
+
+Task concurrency lease:
+- `run/recover` acquires a per-task lease before execution.
+- If lease is held by another worker, API returns `task_locked`.
+- Lease metadata is persisted in memory storage to survive process restarts.
+
 YYOS integration behavior:
 1) On task requests, Yoyoo optionally calls local `yyos --json` for orchestration hints.
 2) Yoyoo only consumes hint fields (`stage`, `risk_level`, `decision`, `skills`) and keeps final planning authority.
@@ -298,16 +355,26 @@ Retry policy supports hot reload from JSON file (`OPENCLAW_RETRY_POLICY_FILE`):
 
 ```json
 {
-  "rules": {
-    "local:timeout": {
-      "run_recovery_probe": true,
-      "allow_ssh_fallback": true
-    },
-    "ssh:timeout": {
-      "ssh_retries": 2
-    }
+  "executor_retry_policy": {
+    "timeout": 2,
+    "network": 1,
+    "lock": 1,
+    "server": 1,
+    "rate_limit": 2,
+    "unknown": 0
   }
 }
+```
+
+Notes:
+- policy file reload interval is controlled by `OPENCLAW_RETRY_POLICY_RELOAD_SEC` (seconds).
+- `auth/http` categories remain non-retry by default to avoid invalid-credential loops.
+
+Bridge E2E smoke (backend + bridge already running):
+
+```bash
+cd Yoyoo/project/backend
+bash scripts/e2e_bridge_smoke.sh
 ```
 
 Server troubleshooting (OpenClaw):
@@ -389,3 +456,4 @@ export DINGTALK_SIGNATURE_SECRET="your-secret"
 - Task responses include observability fields: `strategy_cards`, `execution_quality_score`, `execution_quality_issues`, `execution_corrected`.
 - `/api/v1/tasks/{conversation_id}` and `/api/v1/traces/{trace_id}` include task quality and correction metadata.
 - Task query responses also include feedback fields: `human_feedback`, `feedback_note`, `feedback_updated_at`.
+- Team mode result/detail/list responses include `rework_count` for acceptance observability.
