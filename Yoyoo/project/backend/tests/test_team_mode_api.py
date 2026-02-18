@@ -239,6 +239,20 @@ def test_team_mode_api_list_tasks_for_user() -> None:
     assert all("rework_count" in item for item in body["items"])
 
 
+def test_team_mode_api_runtime_health_endpoint() -> None:
+    resp = client.get("/api/v1/team/runtime/health")
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert "backend_version" in body
+    assert isinstance(body.get("watchdog"), dict)
+    assert isinstance(body.get("executor"), dict)
+    assert isinstance(body.get("memory"), dict)
+    assert isinstance(body.get("router"), dict)
+    assert "timestamp" in body
+
+
 def test_team_mode_api_route_by_binding_and_filter_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
