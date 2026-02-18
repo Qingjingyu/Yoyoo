@@ -19,6 +19,7 @@ import {
     buildConversationTitleFromMessage,
     createConversationMessage,
     fetchConversationMessagesFromServer,
+    getCurrentUserId,
     getConversationMessages,
     patchConversationState,
     PersistedConversationMessage,
@@ -28,6 +29,7 @@ import {
     updateConversationMessage,
     updateConversationMessageStatus,
 } from "@/lib/chat-storage";
+import { TaskItem } from "@/types/workspace";
 
 type WorkspacePanel = "chat" | "tasks" | "files";
 
@@ -40,6 +42,8 @@ const WorkspacePage = () => {
     const [localMessages, setLocalMessages] = useState<
         PersistedConversationMessage[]
     >([]);
+    const [backendTasks, setBackendTasks] = useState<TaskItem[]>([]);
+    const [backendTimeline, setBackendTimeline] = useState<TimelineEvent[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const abortRef = useRef<AbortController | null>(null);
     const [search, setSearch] = useState<string>("");
@@ -47,6 +51,33 @@ const WorkspacePage = () => {
         () => getWorkspaceConversation(conv),
         [conv]
     );
+
+    const loadBackendTaskCenter = async () => {
+        try {
+            const userId = getCurrentUserId();
+            const response = await fetch(
+                `/api/chat/tasks?userId=${encodeURIComponent(
+                    userId
+                )}&conversationId=${encodeURIComponent(conv)}`,
+                { cache: "no-store" }
+            );
+            if (!response.ok) {
+                setBackendTasks([]);
+                setBackendTimeline([]);
+                return;
+            }
+            const data = (await response.json()) as {
+                ok?: boolean;
+                tasks?: TaskItem[];
+                timeline?: TimelineEvent[];
+            };
+            setBackendTasks(Array.isArray(data.tasks) ? data.tasks : []);
+            setBackendTimeline(Array.isArray(data.timeline) ? data.timeline : []);
+        } catch {
+            setBackendTasks([]);
+            setBackendTimeline([]);
+        }
+    };
 
     useEffect(() => {
         const local = getConversationMessages(conv);
@@ -59,6 +90,7 @@ const WorkspacePage = () => {
                 }
             })
             .catch(() => null);
+        loadBackendTaskCenter().catch(() => null);
     }, [conv]);
 
     const mergedMessages = useMemo<PersistedConversationMessage[]>(
@@ -179,6 +211,7 @@ const WorkspacePage = () => {
             content: finalContent,
             status: "sent",
         }).catch(() => null);
+        loadBackendTaskCenter().catch(() => null);
         setIsGenerating(false);
         abortRef.current = null;
     };
@@ -235,18 +268,19 @@ const WorkspacePage = () => {
         abortRef.current?.abort();
     };
 
+    const activeTasks = backendTasks.length > 0 ? backendTasks : workspaceData.tasks;
     const rootTasks = useMemo(
-        () => workspaceData.tasks.filter((item) => !item.parentTaskId),
-        [workspaceData.tasks]
+        () => activeTasks.filter((item) => !item.parentTaskId),
+        [activeTasks]
     );
     const childTasks = useMemo(
-        () => workspaceData.tasks.filter((item) => item.parentTaskId),
-        [workspaceData.tasks]
+        () => activeTasks.filter((item) => item.parentTaskId),
+        [activeTasks]
     );
 
     const timelineItems = useMemo<TimelineEvent[]>(
-        () => workspaceData.timeline,
-        [workspaceData.timeline]
+        () => (backendTimeline.length > 0 ? backendTimeline : workspaceData.timeline),
+        [backendTimeline, workspaceData.timeline]
     );
 
     const filteredArtifacts = useMemo(() => {
