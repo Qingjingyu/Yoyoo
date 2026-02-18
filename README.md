@@ -6,7 +6,17 @@
   <img src="https://img.shields.io/badge/AI-MiniMax-orange" alt="Model">
 </p>
 
-> 开箱即用、零门槛的AI产品
+> 开箱即用、零门槛的 AI 员工系统（Yoyoo）
+
+## 当前推荐架构（2026-02）
+
+- **运行内核**：OpenClaw（支持 QMD、Skills、多通道）
+- **组织形态（推荐）**：`单 Gateway + 多 Agent 路由`
+  - CEO：对话入口、任务分发、验收汇报
+  - CTO：执行负责人（必要时拉起子代理）
+- **兼容形态（可选）**：CEO + CTO 双实例隔离部署（更重，但隔离更强）
+
+> 说明：仓库目前同时支持“单实例多 Agent 路由”与“双实例”两种模式。默认安装脚本仍以双实例基线为主，便于开箱即用。
 
 ## 特性
 
@@ -36,7 +46,13 @@ bash install.sh
 ```
 
 `install.sh` 会自动询问（或读取）`MINIMAX_API_KEY`，并直接激活 CEO(`:18789`) + CTO(`:18794`)。
-并且默认固定 OpenClaw 版本为 `2026.2.15`（Yoyoo 1.0 基线），避免版本漂移导致兼容性问题。
+默认固定 OpenClaw 版本为 `2026.2.15`（Yoyoo 1.0 稳定基线），避免版本漂移导致兼容性问题。
+
+如需使用更新版本（例如 `2026.2.17`）：
+
+```bash
+YOYOO_OPENCLAW_VERSION=2026.2.17 bash install.sh
+```
 
 ### 默认团队模式（安装即有）
 
@@ -189,6 +205,11 @@ openclaw gateway
 | `bash install.sh` | 安装基础包（Bun/OpenClaw/skills/workspace） |
 | `bash install.sh --check` | 检查基础包完整性与关键文件 |
 | `bash install.sh --rollback` | 回滚到最近一次安装前快照 |
+
+## 版本与主线说明
+
+- GitHub `master` 为主线发布分支（受保护，必须通过 PR 合并）。
+- 最近一次主线发布补充说明见：`RELEASE_NOTES_v1.0.5.md`。
 
 如需重跑内置能力，可手动执行：
 
