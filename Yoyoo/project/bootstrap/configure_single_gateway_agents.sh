@@ -26,11 +26,14 @@ oc() {
 has_agent() {
   local target="$1"
   if command -v python3 >/dev/null 2>&1; then
-    oc agents list --json | python3 - "$target" <<'PY'
+    local agents_json
+    agents_json="$(oc agents list --json 2>/dev/null || echo '[]')"
+    python3 - "$target" "$agents_json" <<'PY'
 import json
 import sys
 target = sys.argv[1]
-agents = json.load(sys.stdin)
+raw = sys.argv[2]
+agents = json.loads(raw)
 print("1" if any((a or {}).get("id") == target for a in agents) else "0")
 PY
     return 0
@@ -113,4 +116,3 @@ main() {
 }
 
 main "$@"
-
