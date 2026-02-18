@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -7,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from app.container import ServiceContainer
 from app.intelligence.team_models import TaskEvidence
 from app.schemas import (
+    TeamRuntimeHealthResponse,
     TeamTaskCreateRequest,
     TeamTaskCreateResponse,
     TeamTaskDetailResponse,
@@ -257,3 +259,18 @@ def recover_watchdog(
         max_attempts=req.max_attempts,
     )
     return TeamWatchdogRecoverResponse(**result)
+
+
+@router.get("/runtime/health", response_model=TeamRuntimeHealthResponse)
+def runtime_health(request: Request) -> TeamRuntimeHealthResponse:
+    container = _get_container(request)
+    watchdog = getattr(request.app.state, "watchdog_state", {}) or {}
+    return TeamRuntimeHealthResponse(
+        ok=True,
+        backend_version=str(getattr(request.app, "version", "unknown")),
+        watchdog=watchdog if isinstance(watchdog, dict) else {"raw": watchdog},
+        executor=container.ceo_dispatcher.executor_diagnostics(),
+        memory=container.memory_service.persistence_diagnostics(),
+        router=container.agent_router.diagnostics(),
+        timestamp=datetime.now(UTC).isoformat(),
+    )

@@ -230,6 +230,16 @@ class TeamWatchdogRecoverResponse(BaseModel):
     details: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class TeamRuntimeHealthResponse(BaseModel):
+    ok: bool
+    backend_version: str
+    watchdog: dict[str, Any] = Field(default_factory=dict)
+    executor: dict[str, Any] = Field(default_factory=dict)
+    memory: dict[str, Any] = Field(default_factory=dict)
+    router: dict[str, Any] = Field(default_factory=dict)
+    timestamp: str
+
+
 class AuthSendCodeRequest(BaseModel):
     login_type: Literal["phone", "email"]
     identifier: str = Field(min_length=3, max_length=128)
