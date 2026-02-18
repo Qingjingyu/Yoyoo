@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -79,6 +79,9 @@ class TeamTaskCreateRequest(BaseModel):
     conversation_id: str | None = Field(default=None, max_length=128)
     channel: str = Field(default="api", min_length=2, max_length=32)
     project_key: str = Field(default="general", min_length=2, max_length=64)
+    agent_id: str | None = Field(default=None, min_length=2, max_length=32)
+    peer_kind: str | None = Field(default=None, min_length=2, max_length=32)
+    peer_id: str | None = Field(default=None, min_length=2, max_length=128)
 
 
 class TeamTaskCreateResponse(BaseModel):
@@ -86,6 +89,9 @@ class TeamTaskCreateResponse(BaseModel):
     task_id: str
     status: str
     owner_role: str
+    resolved_agent_id: str
+    memory_scope: str
+    routing_reason: str | None = None
     cto_lane: str | None = None
     execution_mode: str | None = None
     eta_minutes: int | None = None
@@ -108,6 +114,8 @@ class TeamTaskResultResponse(BaseModel):
     ok: bool
     task_id: str
     status: str
+    corrected: bool = False
+    rework_count: int | None = None
     issues: list[str] = Field(default_factory=list)
     reply: str
     next_step: str | None = None
@@ -133,10 +141,13 @@ class TeamTaskDetailResponse(BaseModel):
     title: str
     objective: str
     owner_role: str
+    agent_id: str
+    memory_scope: str
     status: str
     cto_lane: str | None = None
     execution_mode: str | None = None
     eta_minutes: int | None = None
+    rework_count: int | None = None
     created_at: str
     updated_at: str
     timeline: list[dict[str, object]] = Field(default_factory=list)
@@ -147,10 +158,13 @@ class TeamTaskListItem(BaseModel):
     title: str
     objective: str
     owner_role: str
+    agent_id: str
+    memory_scope: str
     status: str
     cto_lane: str | None = None
     execution_mode: str | None = None
     eta_minutes: int | None = None
+    rework_count: int | None = None
     created_at: str
     updated_at: str
 
@@ -178,3 +192,74 @@ class TeamWatchdogScanResponse(BaseModel):
     task_ids: list[str] = Field(default_factory=list)
     stale_progress_sec: int
     stale_degrade_sec: int
+
+
+class TeamTaskRunRequest(BaseModel):
+    max_attempts: int = Field(default=2, ge=1, le=10)
+    resume: bool = True
+
+
+class TeamTaskRunResponse(BaseModel):
+    ok: bool
+    task_id: str
+    status: str
+    attempts_used: int
+    max_attempts: int
+    resumed: bool = False
+    provider: str | None = None
+    corrected: bool = False
+    issues: list[str] = Field(default_factory=list)
+    reply: str
+    next_step: str | None = None
+
+
+class TeamWatchdogRecoverRequest(BaseModel):
+    max_scan: int = Field(default=50, ge=1, le=500)
+    stale_seconds: int = Field(default=120, ge=30, le=7200)
+    max_attempts: int = Field(default=2, ge=1, le=10)
+
+
+class TeamWatchdogRecoverResponse(BaseModel):
+    ok: bool
+    scanned: int
+    resumed: int
+    completed: int
+    failed: int
+    skipped: int
+    changed: bool
+    details: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AuthSendCodeRequest(BaseModel):
+    login_type: Literal["phone", "email"]
+    identifier: str = Field(min_length=3, max_length=128)
+
+
+class AuthSendCodeResponse(BaseModel):
+    ok: bool
+    message: str
+    cooldown_sec: int
+    expires_at: str
+    dev_code: str | None = None
+
+
+class AuthVerifyCodeRequest(BaseModel):
+    login_type: Literal["phone", "email"]
+    identifier: str = Field(min_length=3, max_length=128)
+    verification_code: str = Field(min_length=6, max_length=6)
+
+
+class AuthVerifyCodeResponse(BaseModel):
+    ok: bool
+    token: str
+    token_type: str = "Bearer"
+    expires_at: str
+    user_id: str
+    identity: str
+
+
+class AuthSessionMeResponse(BaseModel):
+    ok: bool
+    user_id: str
+    identity: str
+    expires_at: str

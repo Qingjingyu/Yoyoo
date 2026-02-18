@@ -37,6 +37,8 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert create_body["ok"] is True
     assert create_body["task_id"].startswith("task_")
     assert create_body["owner_role"] == "CTO"
+    assert create_body["resolved_agent_id"] == "ceo"
+    assert create_body["memory_scope"] == "agent:ceo"
     assert create_body["cto_lane"] is not None
     assert create_body["execution_mode"] in {"subagent", "employee_instance"}
     assert isinstance(create_body["eta_minutes"], int)
@@ -80,6 +82,8 @@ def test_team_mode_api_create_submit_and_query() -> None:
     assert query_resp.status_code == 200
     assert query_body["task_id"] == task_id
     assert query_body["status"] == "done"
+    assert query_body["agent_id"] == "ceo"
+    assert query_body["memory_scope"] == "agent:ceo"
     assert query_body["cto_lane"] is not None
     assert query_body["execution_mode"] in {"subagent", "employee_instance"}
     assert isinstance(query_body["eta_minutes"], int)
@@ -111,8 +115,17 @@ def test_team_mode_api_result_without_evidence_goes_review() -> None:
     )
 
     assert result_resp.status_code == 200
-    assert result_resp.json()["status"] == "review"
-    assert "missing_evidence" in result_resp.json()["issues"]
+    body = result_resp.json()
+    assert body["status"] == "review"
+    assert body["corrected"] is True
+    assert body["rework_count"] == 1
+    assert "missing_evidence" in body["issues"]
+    assert "auto_rework_once" in body["issues"]
+
+    detail_resp = client.get(f"/api/v1/team/tasks/{task_id}")
+    detail_body = detail_resp.json()
+    assert detail_resp.status_code == 200
+    assert detail_body["rework_count"] == 1
 
 
 def test_team_mode_api_rejects_non_cto_submit() -> None:
@@ -222,3 +235,81 @@ def test_team_mode_api_list_tasks_for_user() -> None:
     assert body["total"] >= 2
     assert all(item["task_id"].startswith("task_") for item in body["items"])
     assert all(item["owner_role"] == "CTO" for item in body["items"])
+    assert all(item["agent_id"] == "ceo" for item in body["items"])
+    assert all("rework_count" in item for item in body["items"])
+
+
+def test_team_mode_api_route_by_binding_and_filter_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "YOYOO_AGENT_BINDINGS_JSON",
+        '[{"agentId":"writer","match":{"channel":"feishu","peer":{"kind":"group","id":"oc_writer"}}}]',
+    )
+    app.state.container = build_container()
+
+    create_resp = client.post(
+        "/api/v1/team/tasks",
+        json={
+            "user_id": "u_writer",
+            "message": "请产出一篇运营文案",
+            "channel": "feishu",
+            "project_key": "proj_writer",
+            "peer_kind": "group",
+            "peer_id": "oc_writer",
+        },
+    )
+    create_body = create_resp.json()
+    assert create_resp.status_code == 200
+    assert create_body["resolved_agent_id"] == "writer"
+    assert create_body["memory_scope"] == "agent:writer"
+
+    list_resp = client.get(
+        "/api/v1/team/tasks",
+        params={"user_id": "u_writer", "channel": "feishu", "agent_id": "writer"},
+    )
+    list_body = list_resp.json()
+    assert list_resp.status_code == 200
+    assert list_body["total"] >= 1
+    assert all(item["agent_id"] == "writer" for item in list_body["items"])
+
+    monkeypatch.delenv("YOYOO_AGENT_BINDINGS_JSON", raising=False)
+    app.state.container = build_container()
+
+
+def test_team_mode_api_run_task_and_recover() -> None:
+    create_resp = client.post(
+        "/api/v1/team/tasks",
+        json={
+            "user_id": "u_run",
+            "message": "请执行一次任务并回传结果",
+            "channel": "api",
+            "project_key": "proj_run",
+        },
+    )
+    task_id = create_resp.json()["task_id"]
+
+    run_resp = client.post(
+        f"/api/v1/team/tasks/{task_id}/run",
+        json={"max_attempts": 2, "resume": True},
+    )
+    run_body = run_resp.json()
+    assert run_resp.status_code == 200
+    assert run_body["task_id"] == task_id
+    assert run_body["status"] in {"done", "review", "failed"}
+    assert run_body["attempts_used"] >= 1
+
+    record = app.state.container.memory_service.get_task_record(task_id=task_id)
+    assert record is not None
+    record.updated_at = datetime.now(UTC) - timedelta(seconds=300)
+    record.last_heartbeat_at = datetime.now(UTC) - timedelta(seconds=300)
+    record.status = "running"
+
+    recover_resp = client.post(
+        "/api/v1/team/watchdog/recover",
+        json={"max_scan": 50, "stale_seconds": 120, "max_attempts": 2},
+    )
+    recover_body = recover_resp.json()
+    assert recover_resp.status_code == 200
+    assert recover_body["ok"] is True
+    assert "details" in recover_body

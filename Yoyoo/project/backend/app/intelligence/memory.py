@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -37,6 +37,8 @@ class TaskRecord:
     plan_steps: list[str]
     verification_checks: list[str]
     rollback_template: list[str]
+    agent_id: str = "ceo"
+    memory_scope: str = "agent:ceo"
     status: str = "planned"
     executor_reply: str | None = None
     executor_error: str | None = None
@@ -157,6 +159,7 @@ class MemoryService:
             lambda: deque(maxlen=500)
         )
         self._team_task_meta: dict[str, dict[str, Any]] = {}
+        self._task_leases: dict[str, dict[str, Any]] = {}
         self._storage_path = storage_path
         self._last_load_source = "memory_not_configured"
         self._recovery_count = 0
@@ -252,6 +255,8 @@ class MemoryService:
         user_id: str,
         channel: str = "api",
         project_key: str = "general",
+        agent_id: str = "ceo",
+        memory_scope: str | None = None,
         trace_id: str,
         request_text: str,
         route_model: str,
@@ -261,12 +266,16 @@ class MemoryService:
     ) -> TaskRecord:
         now = datetime.now(UTC)
         task_id = f"task_{now.strftime('%Y%m%d%H%M%S')}_{uuid4().hex[:8]}"
+        normalized_agent_id = self._normalize_agent_id(agent_id)
+        normalized_memory_scope = (memory_scope or "").strip() or f"agent:{normalized_agent_id}"
         record = TaskRecord(
             task_id=task_id,
             conversation_id=conversation_id,
             user_id=user_id,
             channel=channel,
             project_key=project_key,
+            agent_id=normalized_agent_id,
+            memory_scope=normalized_memory_scope,
             trace_id=trace_id,
             request_text=request_text,
             route_model=route_model,
@@ -704,6 +713,126 @@ class MemoryService:
     def get_task_record(self, *, task_id: str) -> TaskRecord | None:
         return self._tasks.get(task_id)
 
+    def acquire_task_lease(
+        self,
+        *,
+        task_id: str,
+        holder: str,
+        ttl_sec: int = 120,
+    ) -> dict[str, Any]:
+        now = datetime.now(UTC)
+        bounded_ttl = max(int(ttl_sec), 30)
+        expires_at = now + timedelta(seconds=bounded_ttl)
+        normalized_holder = (holder or "").strip() or "yoyoo"
+        current = self._task_leases.get(task_id)
+        if isinstance(current, dict):
+            current_holder = str(current.get("holder") or "").strip() or "unknown"
+            current_expires_at = self._parse_optional_datetime(current.get("expires_at"))
+            if (
+                current_holder
+                and current_holder != normalized_holder
+                and current_expires_at is not None
+                and current_expires_at > now
+            ):
+                return {
+                    "acquired": False,
+                    "task_id": task_id,
+                    "holder": current_holder,
+                    "expires_at": current_expires_at.isoformat(),
+                    "reason": "lease_held_by_other",
+                }
+
+        self._task_leases[task_id] = {
+            "task_id": task_id,
+            "holder": normalized_holder,
+            "acquired_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        self._save_to_disk()
+        return {
+            "acquired": True,
+            "task_id": task_id,
+            "holder": normalized_holder,
+            "expires_at": expires_at.isoformat(),
+        }
+
+    def refresh_task_lease(
+        self,
+        *,
+        task_id: str,
+        holder: str,
+        ttl_sec: int = 120,
+    ) -> bool:
+        current = self._task_leases.get(task_id)
+        if not isinstance(current, dict):
+            return False
+        normalized_holder = (holder or "").strip() or "yoyoo"
+        current_holder = str(current.get("holder") or "").strip() or "unknown"
+        if current_holder != normalized_holder:
+            return False
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(seconds=max(int(ttl_sec), 30))
+        current["expires_at"] = expires_at.isoformat()
+        current["updated_at"] = now.isoformat()
+        self._save_to_disk()
+        return True
+
+    def release_task_lease(
+        self,
+        *,
+        task_id: str,
+        holder: str | None = None,
+        force: bool = False,
+    ) -> bool:
+        current = self._task_leases.get(task_id)
+        if not isinstance(current, dict):
+            return False
+        if not force:
+            expected_holder = (holder or "").strip()
+            current_holder = str(current.get("holder") or "").strip()
+            if expected_holder and expected_holder != current_holder:
+                return False
+        del self._task_leases[task_id]
+        self._save_to_disk()
+        return True
+
+    def list_task_leases(self, *, include_expired: bool = False) -> list[dict[str, Any]]:
+        now = datetime.now(UTC)
+        leases: list[dict[str, Any]] = []
+        changed = False
+        for task_id, raw in list(self._task_leases.items()):
+            if not isinstance(raw, dict):
+                del self._task_leases[task_id]
+                changed = True
+                continue
+            expires_at = self._parse_optional_datetime(raw.get("expires_at"))
+            is_expired = expires_at is None or expires_at <= now
+            if is_expired and not include_expired:
+                del self._task_leases[task_id]
+                changed = True
+                continue
+            leases.append(
+                {
+                    "task_id": task_id,
+                    "holder": str(raw.get("holder") or ""),
+                    "acquired_at": str(raw.get("acquired_at") or ""),
+                    "updated_at": str(raw.get("updated_at") or ""),
+                    "expires_at": expires_at.isoformat() if expires_at is not None else None,
+                    "expired": is_expired,
+                }
+            )
+        if changed:
+            self._save_to_disk()
+        return leases
+
+    def get_task_lease(self, *, task_id: str) -> dict[str, Any] | None:
+        leases = self.list_task_leases(include_expired=True)
+        for item in leases:
+            if str(item.get("task_id") or "").strip() == task_id:
+                return dict(item)
+        return None
+
     def append_task_timeline_event(
         self,
         *,
@@ -867,11 +996,12 @@ class MemoryService:
         next_step: str | None = None,
         cto_lane: str | None = None,
         execution_mode: str | None = None,
+        extra_fields: dict[str, Any] | None = None,
     ) -> None:
         now = datetime.now(UTC).isoformat()
         current = self._team_task_meta.get(task_id, {})
         normalized_eta = eta_minutes if eta_minutes is not None else current.get("eta_minutes")
-        self._team_task_meta[task_id] = {
+        payload = {
             "task_id": task_id,
             "owner_role": owner_role.strip().upper() or "CTO",
             "title": title.strip(),
@@ -885,6 +1015,18 @@ class MemoryService:
             "created_at": current.get("created_at", now),
             "updated_at": now,
         }
+        for key, value in current.items():
+            if key not in payload:
+                payload[key] = value
+        if isinstance(extra_fields, dict):
+            for key, value in extra_fields.items():
+                if not isinstance(key, str):
+                    continue
+                normalized_key = key.strip()
+                if not normalized_key:
+                    continue
+                payload[normalized_key] = value
+        self._team_task_meta[task_id] = payload
         self._save_to_disk()
 
     def get_team_task_meta(self, *, task_id: str) -> dict[str, Any] | None:
@@ -973,6 +1115,7 @@ class MemoryService:
         *,
         user_id: str,
         channel: str | None = None,
+        agent_id: str | None = None,
         limit: int = 20,
     ) -> list[TaskRecord]:
         if not user_id:
@@ -980,6 +1123,9 @@ class MemoryService:
         matched = [item for item in self._tasks.values() if item.user_id == user_id]
         if channel:
             matched = [item for item in matched if item.channel == channel]
+        if agent_id:
+            normalized_agent_id = self._normalize_agent_id(agent_id)
+            matched = [item for item in matched if self._normalize_agent_id(item.agent_id) == normalized_agent_id]
         matched.sort(key=lambda x: x.updated_at)
         return matched[-max(1, limit):]
 
@@ -1122,6 +1268,9 @@ class MemoryService:
             self._ingress_dedupe_metrics.get("dropped_total"),
             default=0,
         )
+        active_leases = self.list_task_leases(include_expired=False)
+        all_leases = self.list_task_leases(include_expired=True)
+        expired_lease_total = sum(1 for item in all_leases if bool(item.get("expired")))
         dedupe_hit_rate = (
             round(ingress_dropped_total / ingress_attempt_total, 4)
             if ingress_attempt_total > 0
@@ -1136,6 +1285,8 @@ class MemoryService:
             "task_cancelled": cancelled,
             "task_in_progress": in_progress,
             "task_planned": planned,
+            "task_active_leases": len(active_leases),
+            "task_expired_leases": expired_lease_total,
             "feedback_pending": feedback_pending,
             "quality_low_count": quality_low,
             "external_message_task_map_size": len(self._external_message_task_map),
@@ -2136,6 +2287,11 @@ class MemoryService:
     def _normalize_scope_value(self, value: str) -> str:
         return re.sub(r"[^a-zA-Z0-9._-]+", "_", value.strip())[:64]
 
+    def _normalize_agent_id(self, value: str) -> str:
+        normalized = re.sub(r"[^a-zA-Z0-9._-]+", "_", value.strip().lower())
+        normalized = normalized.strip("_")
+        return normalized[:32] or "ceo"
+
     def _normalize_project_key(self, value: str) -> str:
         normalized = re.sub(r"[^a-zA-Z0-9._-]+", "_", value.strip().lower())
         normalized = normalized.strip("_")
@@ -2354,12 +2510,16 @@ class MemoryService:
                 )
             except ValueError:
                 updated_at = datetime.now(UTC)
+            normalized_agent_id = self._normalize_agent_id(str(item.get("agent_id", "ceo")))
+            normalized_memory_scope = str(item.get("memory_scope", "")).strip() or f"agent:{normalized_agent_id}"
             record = TaskRecord(
                 task_id=task_id,
                 conversation_id=str(item.get("conversation_id", "")),
                 user_id=str(item.get("user_id", "")),
                 channel=str(item.get("channel", "api")),
                 project_key=str(item.get("project_key", "general")),
+                agent_id=normalized_agent_id,
+                memory_scope=normalized_memory_scope,
                 trace_id=str(item.get("trace_id", "")),
                 request_text=str(item.get("request_text", "")),
                 route_model=str(item.get("route_model", "minimax/MiniMax-M2.1")),
@@ -2681,26 +2841,43 @@ class MemoryService:
                 task_id = str(raw_task_id).strip()
                 if not task_id or not isinstance(raw_item, dict):
                     continue
-                self._team_task_meta[task_id] = {
+                parsed_item = {
+                    str(key): value for key, value in raw_item.items() if isinstance(key, str)
+                }
+                parsed_item["task_id"] = task_id
+                parsed_item["owner_role"] = str(parsed_item.get("owner_role") or "CTO")
+                parsed_item["title"] = str(parsed_item.get("title") or "")
+                parsed_item["objective"] = str(parsed_item.get("objective") or "")
+                parsed_item["status"] = str(parsed_item.get("status") or "pending")
+                parsed_item["cto_lane"] = str(parsed_item.get("cto_lane") or "ENG")
+                parsed_item["execution_mode"] = str(
+                    parsed_item.get("execution_mode") or "subagent"
+                )
+                if parsed_item.get("risk") is not None:
+                    parsed_item["risk"] = str(parsed_item.get("risk"))
+                if parsed_item.get("next_step") is not None:
+                    parsed_item["next_step"] = str(parsed_item.get("next_step"))
+                parsed_item["created_at"] = str(parsed_item.get("created_at") or "")
+                parsed_item["updated_at"] = str(parsed_item.get("updated_at") or "")
+                self._team_task_meta[task_id] = parsed_item
+        task_leases_data = payload.get("task_leases", {})
+        if isinstance(task_leases_data, dict):
+            for raw_task_id, raw_item in task_leases_data.items():
+                task_id = str(raw_task_id).strip()
+                if not task_id or not isinstance(raw_item, dict):
+                    continue
+                holder = str(raw_item.get("holder") or "").strip()
+                if not holder:
+                    continue
+                acquired_at = str(raw_item.get("acquired_at") or "").strip()
+                updated_at = str(raw_item.get("updated_at") or "").strip()
+                expires_at = str(raw_item.get("expires_at") or "").strip()
+                self._task_leases[task_id] = {
                     "task_id": task_id,
-                    "owner_role": str(raw_item.get("owner_role") or "CTO"),
-                    "title": str(raw_item.get("title") or ""),
-                    "objective": str(raw_item.get("objective") or ""),
-                    "status": str(raw_item.get("status") or "pending"),
-                    "cto_lane": str(raw_item.get("cto_lane") or "ENG"),
-                    "execution_mode": str(raw_item.get("execution_mode") or "subagent"),
-                    "risk": (
-                        str(raw_item.get("risk"))
-                        if raw_item.get("risk") is not None
-                        else None
-                    ),
-                    "next_step": (
-                        str(raw_item.get("next_step"))
-                        if raw_item.get("next_step") is not None
-                        else None
-                    ),
-                    "created_at": str(raw_item.get("created_at") or ""),
-                    "updated_at": str(raw_item.get("updated_at") or ""),
+                    "holder": holder,
+                    "acquired_at": acquired_at,
+                    "updated_at": updated_at,
+                    "expires_at": expires_at,
                 }
         self._rebuild_strategy_scope_order()
 
@@ -2767,6 +2944,9 @@ class MemoryService:
                     "user_id": record.user_id,
                     "channel": record.channel,
                     "project_key": record.project_key,
+                    "agent_id": self._normalize_agent_id(record.agent_id),
+                    "memory_scope": (record.memory_scope or "").strip()
+                    or f"agent:{self._normalize_agent_id(record.agent_id)}",
                     "trace_id": record.trace_id,
                     "request_text": record.request_text,
                     "route_model": record.route_model,
@@ -2861,6 +3041,7 @@ class MemoryService:
                 for namespace, items in self._federated_memory_namespaces.items()
             },
             "team_task_meta": self._team_task_meta,
+            "task_leases": self._task_leases,
         }
         self._write_payload_atomic(payload=payload, rotate_backups=True)
 

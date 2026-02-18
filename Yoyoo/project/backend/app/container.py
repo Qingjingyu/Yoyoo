@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from app.intelligence.ceo_dispatcher import CEODispatcher
 from app.intelligence.memory import MemoryService
+from app.services.agent_router import AgentRouter
+from app.services.auth_service import AuthService
 from app.services.executor_adapter import ExecutorAdapter
 
 
@@ -12,13 +14,21 @@ from app.services.executor_adapter import ExecutorAdapter
 class ServiceContainer:
     memory_service: MemoryService
     ceo_dispatcher: CEODispatcher
+    auth_service: AuthService
+    agent_router: AgentRouter
 
 
 def build_container() -> ServiceContainer:
     memory_file = os.getenv("YOYOO_MEMORY_FILE")
     memory = MemoryService(storage_path=memory_file)
+    agent_router = AgentRouter.from_env()
     dispatcher = CEODispatcher(
         memory_service=memory,
         executor_adapter=ExecutorAdapter(),
     )
-    return ServiceContainer(memory_service=memory, ceo_dispatcher=dispatcher)
+    return ServiceContainer(
+        memory_service=memory,
+        ceo_dispatcher=dispatcher,
+        auth_service=AuthService(),
+        agent_router=agent_router,
+    )

@@ -20,6 +20,7 @@ _CTO_LANE_RULES: list[tuple[str, tuple[str, ...]]] = [
     ("CH", ("钉钉", "飞书", "微信", "渠道", "群", "回调", "webhook")),
     ("INNO", ("创新", "学习", "调研", "评测", "沙箱", "新项目", "对比")),
 ]
+_AUTO_REWORK_LIMIT = 1
 
 
 class CEODispatcher:
@@ -41,6 +42,8 @@ class CEODispatcher:
         conversation_id: str,
         channel: str,
         project_key: str,
+        agent_id: str = "ceo",
+        memory_scope: str | None = None,
         request_text: str,
         trace_id: str,
     ) -> TaskCard:
@@ -53,6 +56,8 @@ class CEODispatcher:
             user_id=user_id,
             channel=channel,
             project_key=project_key,
+            agent_id=agent_id,
+            memory_scope=memory_scope,
             trace_id=trace_id,
             request_text=request_text,
             route_model="yoyoo-ceo/team",
@@ -97,6 +102,10 @@ class CEODispatcher:
             cto_lane=cto_lane,
             execution_mode=execution_mode,
             next_step=f"等待 CTO 以{mode_cn}执行并在 90 秒内回报首个进度。",
+            extra_fields={
+                "agent_id": task.agent_id,
+                "memory_scope": task.memory_scope,
+            },
         )
         self._memory.sync_department_to_ceo(
             role=_CEO_OWNER_ROLE,
@@ -389,8 +398,68 @@ class CEODispatcher:
             for item in evidence
         ]
         evidence_lines = [f"{item.source}: {item.content}" for item in evidence]
+        meta = self._memory.get_team_task_meta(task_id=task_id) or {}
+        rework_count = self._safe_rework_count(meta.get("rework_count"))
 
         if error:
+            if rework_count < _AUTO_REWORK_LIMIT:
+                next_rework_count = rework_count + 1
+                detail = (
+                    f"CTO 上报执行错误：{error}。"
+                    f"CEO 已触发自动返工（{next_rework_count}/{_AUTO_REWORK_LIMIT}）。"
+                )
+                self._memory.append_task_timeline_event(
+                    task_id=task_id,
+                    event_type="rework_requested",
+                    actor="CEO",
+                    role="CEO",
+                    stage="review",
+                    detail=detail,
+                    source="ceo_acceptance",
+                    evidence=[{"source": "error", "content": error}],
+                )
+                self._memory.update_task_record(
+                    task_id=task_id,
+                    status="running",
+                    executor_reply=reply,
+                    executor_error=error,
+                    evidence=evidence_lines,
+                    evidence_structured=normalized_evidence
+                    + [{"type": "submission", "source": "error", "content": error}],
+                )
+                self._memory.upsert_team_task_meta(
+                    task_id=task_id,
+                    owner_role=_CEO_OWNER_ROLE,
+                    title=self._make_title(task.request_text),
+                    objective=task.request_text,
+                    status="running",
+                    cto_lane=self._select_cto_lane(request_text=task.request_text),
+                    next_step="已触发自动返工一次：请修复错误并补充证据后重新提交。",
+                    extra_fields={
+                        "rework_count": next_rework_count,
+                        "last_rework_reason": "execution_error",
+                    },
+                )
+                self._memory.sync_department_to_ceo(
+                    role=_CEO_OWNER_ROLE,
+                    patch={
+                        "task_id": task_id,
+                        "summary": detail,
+                        "event_type": "rework_requested",
+                        "stage": "review",
+                        "updated_at": datetime.now(UTC).isoformat(),
+                    },
+                )
+                return AcceptanceResult(
+                    ok=False,
+                    task_id=task_id,
+                    status="review",
+                    corrected=True,
+                    issues=["execution_error", "auto_rework_once"],
+                    reply="CEO 已触发自动返工一次：先修复错误，再回传证据。",
+                    next_step="修复错误并补充证据后重新提交。",
+                )
+
             self._memory.append_task_timeline_event(
                 task_id=task_id,
                 event_type="failed",
@@ -416,6 +485,10 @@ class CEODispatcher:
                 objective=task.request_text,
                 status="failed",
                 cto_lane=self._select_cto_lane(request_text=task.request_text),
+                extra_fields={
+                    "rework_count": rework_count,
+                    "last_rework_reason": "execution_error",
+                },
             )
             return AcceptanceResult(
                 ok=False,
@@ -423,17 +496,72 @@ class CEODispatcher:
                 status="failed",
                 issues=["execution_error"],
                 reply=f"CEO 验收未通过：执行失败。错误：{error}",
-                next_step="请先排查错误并重新提交结果。",
+                next_step="自动返工次数已用尽，请人工介入排查并重派。",
             )
 
         if not evidence:
+            if rework_count < _AUTO_REWORK_LIMIT:
+                next_rework_count = rework_count + 1
+                detail = (
+                    f"结果缺少证据。CEO 已触发自动返工（{next_rework_count}/{_AUTO_REWORK_LIMIT}），"
+                    "要求 CTO 补齐日志/命令输出/截图。"
+                )
+                self._memory.append_task_timeline_event(
+                    task_id=task_id,
+                    event_type="rework_requested",
+                    actor="CEO",
+                    role="CEO",
+                    stage="review",
+                    detail=detail,
+                    source="ceo_acceptance",
+                )
+                self._memory.update_task_record(
+                    task_id=task_id,
+                    status="running",
+                    executor_reply=reply,
+                    evidence_structured=[],
+                )
+                self._memory.upsert_team_task_meta(
+                    task_id=task_id,
+                    owner_role=_CEO_OWNER_ROLE,
+                    title=self._make_title(task.request_text),
+                    objective=task.request_text,
+                    status="running",
+                    cto_lane=self._select_cto_lane(request_text=task.request_text),
+                    next_step="已触发自动返工一次：请补充证据后重新提交。",
+                    extra_fields={
+                        "rework_count": next_rework_count,
+                        "last_rework_reason": "missing_evidence",
+                    },
+                )
+                self._memory.sync_department_to_ceo(
+                    role=_CEO_OWNER_ROLE,
+                    patch={
+                        "task_id": task_id,
+                        "summary": detail,
+                        "event_type": "rework_requested",
+                        "stage": "review",
+                        "updated_at": datetime.now(UTC).isoformat(),
+                    },
+                )
+                return AcceptanceResult(
+                    ok=False,
+                    task_id=task_id,
+                    status="review",
+                    score=0.55,
+                    corrected=True,
+                    issues=["missing_evidence", "auto_rework_once"],
+                    reply="CEO 暂不验收通过：已触发自动返工一次，请先补证。",
+                    next_step="请补充日志、命令输出或截图后再提交。",
+                )
+
             self._memory.append_task_timeline_event(
                 task_id=task_id,
                 event_type="review_required",
                 actor="CEO",
                 role="CEO",
                 stage="review",
-                detail="结果缺少证据，已要求 CTO 补证。",
+                detail="结果缺少证据，自动返工次数已用尽，等待人工处理。",
                 source="ceo_acceptance",
             )
             self._memory.update_task_record(
@@ -449,6 +577,10 @@ class CEODispatcher:
                 objective=task.request_text,
                 status="review",
                 cto_lane=self._select_cto_lane(request_text=task.request_text),
+                extra_fields={
+                    "rework_count": rework_count,
+                    "last_rework_reason": "missing_evidence",
+                },
             )
             return AcceptanceResult(
                 ok=False,
@@ -457,7 +589,7 @@ class CEODispatcher:
                 score=0.55,
                 issues=["missing_evidence"],
                 reply="CEO 暂不验收通过：结果缺少证据。",
-                next_step="请补充日志、命令输出或截图后再提交。",
+                next_step="自动返工次数已用尽，请人工补充证据后再提交。",
             )
 
         self._memory.append_task_timeline_event(
@@ -484,6 +616,10 @@ class CEODispatcher:
             objective=task.request_text,
             status="done",
             cto_lane=self._select_cto_lane(request_text=task.request_text),
+            extra_fields={
+                "rework_count": rework_count,
+                "last_rework_reason": None,
+            },
         )
         self._memory.sync_department_to_ceo(
             role=_CEO_OWNER_ROLE,
@@ -502,6 +638,13 @@ class CEODispatcher:
             reply="CEO 验收通过，任务已完成并入总记忆。",
             next_step="可继续下一个任务。",
         )
+
+    def _safe_rework_count(self, value: Any) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return 0
+        return max(parsed, 0)
 
     def get_task_timeline(self, *, task_id: str, limit: int = 50) -> list[dict[str, Any]]:
         return self._memory.read_task_timeline(task_id=task_id, limit=limit)
@@ -678,6 +821,228 @@ class CEODispatcher:
             return normalized
         return None
 
+    def execute_task(
+        self,
+        *,
+        task_id: str,
+        max_attempts: int = 2,
+        resume: bool = True,
+    ) -> dict[str, Any]:
+        record = self._memory.get_task_record(task_id=task_id)
+        if record is None:
+            return {
+                "ok": False,
+                "task_id": task_id,
+                "status": "failed",
+                "attempts_used": 0,
+                "max_attempts": max(int(max_attempts), 1),
+                "resumed": False,
+                "provider": None,
+                "corrected": False,
+                "issues": ["task_not_found"],
+                "reply": f"任务不存在：{task_id}",
+                "next_step": "请先创建任务后再执行。",
+            }
+
+        bounded_attempts = max(int(max_attempts), 1)
+        current_attempts = max(int(record.execution_attempts or 0), 0)
+        resumed = bool(resume and current_attempts > 0)
+        lease_holder = f"ceo-dispatcher:{task_id}"
+        lease = self._memory.acquire_task_lease(
+            task_id=task_id,
+            holder=lease_holder,
+            ttl_sec=180,
+        )
+        if not bool(lease.get("acquired")):
+            holder = str(lease.get("holder") or "unknown")
+            expires_at = str(lease.get("expires_at") or "")
+            return {
+                "ok": False,
+                "task_id": task_id,
+                "status": "running",
+                "attempts_used": current_attempts,
+                "max_attempts": bounded_attempts,
+                "resumed": resumed,
+                "provider": None,
+                "corrected": False,
+                "issues": ["task_locked"],
+                "reply": f"任务正在执行中（holder={holder}）。",
+                "next_step": f"请等待执行租约过期后再重试。expires_at={expires_at}",
+            }
+        self._memory.mark_task_running(
+            task_id=task_id,
+            max_attempts=bounded_attempts,
+            resumed=resumed,
+            resume_reason="watchdog_resume" if resumed else "manual_run",
+        )
+
+        provider = "mock"
+        final_reply = ""
+        final_status = "running"
+        final_issues: list[str] = []
+        final_corrected = False
+        final_next_step: str | None = None
+
+        try:
+            for attempt_no in range(current_attempts + 1, bounded_attempts + 1):
+                self._memory.refresh_task_lease(
+                    task_id=task_id,
+                    holder=lease_holder,
+                    ttl_sec=180,
+                )
+                self._memory.record_task_attempt(
+                    task_id=task_id,
+                    attempt_no=attempt_no,
+                    reason="auto_retry" if attempt_no > 1 else "initial_run",
+                )
+                self._memory.append_task_timeline_event(
+                    task_id=task_id,
+                    event_type="execution_attempt",
+                    actor="CTO",
+                    role="CTO",
+                    stage="executing",
+                    detail=f"开始第 {attempt_no}/{bounded_attempts} 次执行尝试。",
+                    source="ceo_dispatcher",
+                )
+                adapter_result = self.execute_via_provider(
+                    user_id=record.user_id,
+                    conversation_id=record.conversation_id,
+                    channel=record.channel,
+                    route_model=record.route_model,
+                    message=record.request_text,
+                    trace_id=record.trace_id,
+                    preferred_provider="openclaw",
+                )
+                provider = str(adapter_result.get("provider") or provider)
+                reply = str(adapter_result.get("reply") or "").strip()
+                error = str(adapter_result.get("error") or "").strip() or None
+                evidence = self._coerce_evidence(adapter_result.get("evidence"))
+                if not evidence and reply:
+                    evidence = [TaskEvidence(source="executor_reply", content=reply[:800])]
+
+                acceptance = self.accept_result(
+                    task_id=task_id,
+                    role="CTO",
+                    reply=reply or None,
+                    error=error,
+                    evidence=evidence,
+                )
+                final_status = acceptance.status
+                final_reply = acceptance.reply
+                final_issues = list(acceptance.issues)
+                final_corrected = bool(acceptance.corrected)
+                final_next_step = acceptance.next_step
+
+                if acceptance.ok:
+                    break
+                if attempt_no >= bounded_attempts:
+                    break
+                if not acceptance.corrected and acceptance.status == "failed":
+                    break
+
+            latest = self._memory.get_task_record(task_id=task_id)
+            attempts_used = max(int(latest.execution_attempts if latest else 0), current_attempts)
+            return {
+                "ok": final_status == "done",
+                "task_id": task_id,
+                "status": final_status,
+                "attempts_used": attempts_used,
+                "max_attempts": bounded_attempts,
+                "resumed": resumed,
+                "provider": provider,
+                "corrected": final_corrected,
+                "issues": final_issues,
+                "reply": final_reply or "执行完成。",
+                "next_step": final_next_step,
+            }
+        finally:
+            self._memory.release_task_lease(
+                task_id=task_id,
+                holder=lease_holder,
+            )
+
+    def recover_stale_tasks(
+        self,
+        *,
+        max_scan: int = 50,
+        stale_seconds: int = 120,
+        max_attempts: int = 2,
+    ) -> dict[str, Any]:
+        now = datetime.now(UTC)
+        scan_limit = max(int(max_scan), 1)
+        stale_sec = max(int(stale_seconds), 30)
+        statuses = {"planned", "running", "in_progress", "failed", "timeout"}
+
+        scanned = 0
+        resumed = 0
+        completed = 0
+        failed = 0
+        skipped = 0
+        details: list[dict[str, Any]] = []
+
+        for record in self._memory.recent_all_tasks(limit=scan_limit):
+            status = (record.status or "").strip().lower()
+            if status not in statuses:
+                continue
+            scanned += 1
+            lease = self._memory.get_task_lease(task_id=record.task_id)
+            if isinstance(lease, dict) and not bool(lease.get("expired", False)):
+                skipped += 1
+                continue
+            heartbeat = record.last_heartbeat_at or record.updated_at or record.created_at
+            idle_seconds = max((now - heartbeat).total_seconds(), 0.0)
+            if status in {"running", "in_progress"} and idle_seconds < stale_sec:
+                skipped += 1
+                continue
+            if max(int(record.execution_attempts or 0), 0) >= max(int(max_attempts), 1):
+                skipped += 1
+                continue
+            run_result = self.execute_task(
+                task_id=record.task_id,
+                max_attempts=max_attempts,
+                resume=True,
+            )
+            resumed += 1
+            if run_result.get("status") == "done":
+                completed += 1
+            elif run_result.get("status") == "failed":
+                failed += 1
+            details.append(
+                {
+                    "task_id": record.task_id,
+                    "previous_status": status,
+                    "idle_seconds": int(idle_seconds),
+                    "result_status": run_result.get("status"),
+                    "attempts_used": run_result.get("attempts_used"),
+                    "reply": run_result.get("reply"),
+                }
+            )
+
+        return {
+            "ok": True,
+            "scanned": scanned,
+            "resumed": resumed,
+            "completed": completed,
+            "failed": failed,
+            "skipped": skipped,
+            "changed": resumed > 0,
+            "details": details,
+        }
+
+    def _coerce_evidence(self, raw: Any) -> list[TaskEvidence]:
+        if not isinstance(raw, list):
+            return []
+        evidence: list[TaskEvidence] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            source = str(item.get("source") or "").strip()
+            content = str(item.get("content") or "").strip()
+            if not source or not content:
+                continue
+            evidence.append(TaskEvidence(source=source[:64], content=content[:2000]))
+        return evidence
+
     def execute_via_provider(
         self,
         *,
@@ -712,3 +1077,16 @@ class CEODispatcher:
             "error": result.error,
             "evidence": result.evidence or [],
         }
+
+    def executor_diagnostics(self) -> dict[str, Any]:
+        if self._executor_adapter is None:
+            return {"configured": False, "reason": "executor_adapter_not_configured"}
+        if not hasattr(self._executor_adapter, "diagnostics"):
+            return {"configured": True, "reason": "diagnostics_not_supported"}
+        try:
+            detail = self._executor_adapter.diagnostics()  # type: ignore[attr-defined]
+        except Exception as exc:  # pragma: no cover
+            return {"configured": True, "reason": f"diagnostics_failed:{exc}"}
+        if not isinstance(detail, dict):
+            return {"configured": True, "reason": "diagnostics_not_dict"}
+        return {"configured": True, **detail}

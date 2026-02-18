@@ -129,6 +129,8 @@ Guard behavior (production defaults):
 - `POST /api/v1/chat`: mock chat endpoint
 - `POST /api/v1/dingtalk/events`: DingTalk event ingress endpoint (MVP loop)
 - `POST /api/v1/team/tasks`: CEO 接单并只派单给 CTO（CEO 不直接执行）
+  - 可选路由入参：`agent_id`、`peer_kind`、`peer_id`
+  - 返回 `resolved_agent_id`、`memory_scope`、`routing_reason`
   - 返回 `cto_lane` 与 `execution_mode`（`subagent` / `employee_instance`）
 - `POST /api/v1/team/tasks/{task_id}/run`: 触发任务执行（支持重试、续跑）
 - `POST /api/v1/team/tasks/{task_id}/progress`: 仅接受 CTO 进度回报，CEO 转述给用户
@@ -137,6 +139,7 @@ Guard behavior (production defaults):
 - `GET /api/v1/team/tasks/{task_id}`: 查询任务卡与阶段时间线
   - 明细包含 `cto_lane`、`execution_mode`、`rework_count`
 - `GET /api/v1/team/tasks?user_id=...`: 按用户查询任务列表（支持 `channel`/`limit`）
+  - 支持 `agent_id` 过滤同一用户下不同 Agent 的任务
   - 列表项包含 `rework_count`，便于前端直接展示返工次数
 - `POST /api/v1/team/watchdog/scan`: 后端主动扫描卡住任务（超时催办/降级）
 - `POST /api/v1/team/watchdog/recover`: 后端恢复卡住/失败任务（按尝试上限续跑）
@@ -216,6 +219,10 @@ export OPENCLAW_SESSION_STRATEGY="conversation"
 export OPENCLAW_SESSION_LOCK_RETRIES="1"
 export OPENCLAW_RETRY_POLICY_FILE="/root/yoyoo/backend/config/retry_policy.json"
 export OPENCLAW_RETRY_POLICY_RELOAD_SEC="5"
+export YOYOO_DEFAULT_AGENT_ID="ceo"
+export YOYOO_AGENT_BINDINGS_FILE="/root/yoyoo/backend/config/agent_bindings.json"
+# or inline JSON text
+export YOYOO_AGENT_BINDINGS_JSON='[{"agentId":"writer","match":{"channel":"feishu","peer":{"kind":"group","id":"oc_writer"}}}]'
 export OPENCLAW_SSH_HOST="115.191.36.128"
 export OPENCLAW_SSH_USER="root"
 export OPENCLAW_SSH_KEY_PATH="/path/to/miyaodui.pem"
