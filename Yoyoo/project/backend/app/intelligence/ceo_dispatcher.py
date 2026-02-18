@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -21,6 +22,39 @@ _CTO_LANE_RULES: list[tuple[str, tuple[str, ...]]] = [
     ("INNO", ("创新", "学习", "调研", "评测", "沙箱", "新项目", "对比")),
 ]
 _AUTO_REWORK_LIMIT = 1
+_CEO_SMALLTALK_WORDS = (
+    "你好",
+    "在吗",
+    "嗨",
+    "hi",
+    "hello",
+    "早上好",
+    "晚上好",
+    "辛苦了",
+)
+_CEO_CAPABILITY_WORDS = ("你是谁", "你能做什么", "你有什么能力", "介绍一下")
+_CEO_TASK_WORDS = (
+    "开发",
+    "实现",
+    "写一个",
+    "做一个",
+    "生成",
+    "分析",
+    "部署",
+    "排查",
+    "修复",
+    "优化",
+    "上线",
+    "执行",
+    "创建",
+    "制作",
+    "搭建",
+    "重构",
+    "整理",
+    "提取",
+    "转写",
+)
+_CEO_REQUEST_PREFIX = ("帮我", "请你", "请帮我", "麻烦你")
 
 
 class CEODispatcher:
@@ -676,6 +710,86 @@ class CEODispatcher:
         del request_text
         return _CEO_OWNER_ROLE
 
+    def ceo_chat(
+        self,
+        *,
+        request_text: str,
+        user_id: str,
+        conversation_id: str,
+        channel: str,
+        project_key: str,
+        agent_id: str = "ceo",
+        memory_scope: str | None = None,
+        trace_id: str | None = None,
+    ) -> dict[str, Any]:
+        text = (request_text or "").strip()
+        normalized = self._normalize_text(text)
+        task_intent = self._is_task_intent(normalized)
+
+        lane = self._select_cto_lane(request_text=text)
+        mode = self._pick_execution_mode(request_text=text)
+        eta = self._estimate_eta_minutes(request_text=text)
+        mode_cn = self._execution_mode_cn(mode)
+
+        if self._is_capability_query(normalized):
+            reply = (
+                "我是 Yoyoo CEO，负责和你对话、澄清目标、派发任务给 CTO、验收结果并持续汇报。"
+                "你可以直接说目标，我会判断是先讨论还是进入执行。"
+            )
+        elif self._is_greeting_or_smalltalk(normalized):
+            reply = "我在。你直接告诉我现在最想推进的目标，我来帮你拆解并安排执行。"
+        elif task_intent:
+            reply = (
+                f"我已理解任务方向，会由 CTO 负责执行（lane={lane}，mode={mode_cn}）。"
+                f"预计 {eta} 分钟给阶段结果。若你确认现在开始，请回复“确认执行”。"
+            )
+        else:
+            reply = (
+                "我先帮你把需求收敛清楚，再决定是否进入执行。"
+                "你可以补充目标、约束和截止时间。"
+            )
+
+        self._memory.append_event(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            direction="inbound",
+            text=text,
+            intent="task_intent" if task_intent else "chat",
+            trace_id=trace_id,
+        )
+        self._memory.append_event(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            direction="outbound",
+            text=reply,
+            intent="ceo_reply",
+            trace_id=trace_id,
+        )
+        self._memory.sync_department_to_ceo(
+            role=_CEO_OWNER_ROLE,
+            patch={
+                "task_id": None,
+                "summary": reply,
+                "event_type": "chat",
+                "stage": "discussion",
+                "updated_at": datetime.now(UTC).isoformat(),
+                "agent_id": agent_id,
+                "memory_scope": memory_scope or f"agent:{agent_id}",
+                "channel": channel,
+                "project_key": project_key,
+            },
+        )
+        return {
+            "ok": True,
+            "reply": reply,
+            "task_intent": task_intent,
+            "require_confirmation": bool(task_intent),
+            "suggested_executor": _CEO_OWNER_ROLE,
+            "cto_lane": lane,
+            "execution_mode": mode,
+            "eta_minutes": eta,
+        }
+
     def _select_cto_lane(self, *, request_text: str) -> str:
         message = (request_text or "").lower()
         for lane, keywords in _CTO_LANE_RULES:
@@ -771,6 +885,33 @@ class CEODispatcher:
     def _execution_strategy_detail(self, *, cto_lane: str, execution_mode: str) -> str:
         mode_cn = self._execution_mode_cn(execution_mode)
         return f"CTO 执行策略已确定：lane={cto_lane}，mode={mode_cn}。"
+
+    def _normalize_text(self, text: str) -> str:
+        return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+    def _is_capability_query(self, normalized: str) -> bool:
+        return any(token in normalized for token in _CEO_CAPABILITY_WORDS)
+
+    def _is_greeting_or_smalltalk(self, normalized: str) -> bool:
+        if not normalized:
+            return True
+        if len(normalized) <= 8 and any(token in normalized for token in _CEO_SMALLTALK_WORDS):
+            return True
+        return self._is_capability_query(normalized)
+
+    def _is_task_intent(self, normalized: str) -> bool:
+        if not normalized or self._is_greeting_or_smalltalk(normalized):
+            return False
+        explicit = normalized.startswith("任务 ") or "任务：" in normalized
+        has_action = any(token in normalized for token in _CEO_TASK_WORDS)
+        has_prefix = any(token in normalized for token in _CEO_REQUEST_PREFIX)
+        if explicit and len(normalized) >= 6:
+            return True
+        if has_action and has_prefix:
+            return True
+        if has_action and len(normalized) >= 10:
+            return True
+        return False
 
     def _recent_guard_event_exists(
         self,
