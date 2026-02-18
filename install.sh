@@ -10,6 +10,7 @@ BACKUP_ROOT="${OPENCLAW_HOME}/.yoyoo-backup"
 MANIFEST_FILE="${WORKSPACE_DIR}/manifest.json"
 BASELINE_VERSION="1.0.5"
 OPENCLAW_PINNED_VERSION="${YOYOO_OPENCLAW_VERSION:-2026.2.15}"
+YOYOO_MODE="${YOYOO_MODE:-single}"
 PLATFORM=""
 
 log() {
@@ -29,10 +30,11 @@ Yoyoo AI 基础包安装脚本
 
 可选环境变量:
   OPENCLAW_HOME=~/.openclaw   # OpenClaw 数据目录（默认 ~/.openclaw）
-  MINIMAX_API_KEY=xxx         # 自动激活 CEO+CTO 时使用
-  YOYOO_SKIP_AUTO_ACTIVATE=1  # 仅安装基础包，不自动激活 CEO+CTO
+  MINIMAX_API_KEY=xxx         # 自动激活团队模式时使用
+  YOYOO_MODE=single           # 安装后自动激活模式: single(默认) | dual
+  YOYOO_SKIP_AUTO_ACTIVATE=1  # 仅安装基础包，不自动激活团队
   YOYOO_OPENCLAW_VERSION=2026.2.15 # 固定 OpenClaw 版本（Yoyoo 1.0 默认）
-  YOYOO_TEAM_SHARED_MEMORY=1  # CEO/CTO 共享 MEMORY.md + memory/
+  YOYOO_TEAM_SHARED_MEMORY=1  # CEO/CTO 共享 MEMORY.md + memory/（single/dual 都可用）
   YOYOO_TEAM_SHARED_USER=1    # CEO/CTO 共享 USER.md
 USAGE
 }
@@ -604,22 +606,88 @@ ensure_minimax_api_key() {
     return 0
   fi
   if [[ ! -t 0 ]]; then
-    log "未检测到 MINIMAX_API_KEY 且当前非交互终端，跳过自动激活 CEO+CTO"
+    log "未检测到 MINIMAX_API_KEY 且当前非交互终端，跳过自动激活"
     return 1
   fi
-  printf "[Yoyoo] 请输入 MiniMax API Key（用于自动激活 CEO+CTO）: "
+  printf "[Yoyoo] 请输入 MiniMax API Key（用于自动激活团队）: "
   read -r MINIMAX_API_KEY
   if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
-    log "未输入 API Key，跳过自动激活 CEO+CTO"
+    log "未输入 API Key，跳过自动激活"
     return 1
   fi
   return 0
 }
 
+auto_activate_single_gateway_team() {
+  local activate_script configure_script ceo_home ceo_port ceo_profile ceo_unit ceo_expect_feishu
+  if [[ "${YOYOO_SKIP_AUTO_ACTIVATE:-0}" == "1" ]]; then
+    log "YOYOO_SKIP_AUTO_ACTIVATE=1，跳过自动激活"
+    return 0
+  fi
+
+  activate_script="${SCRIPT_DIR}/Yoyoo/project/bootstrap/activate_employee.sh"
+  configure_script="${SCRIPT_DIR}/Yoyoo/project/bootstrap/configure_single_gateway_agents.sh"
+  ceo_home="${YOYOO_CEO_HOME:-/root/.openclaw}"
+  ceo_port="${YOYOO_CEO_PORT:-18789}"
+  ceo_profile="${YOYOO_CEO_PROFILE:-yoyoo-ceo}"
+  ceo_unit="${YOYOO_CEO_UNIT:-openclaw-gateway.service}"
+  ceo_expect_feishu="${YOYOO_CEO_EXPECT_FEISHU:-1}"
+  if [[ ! -x "${activate_script}" ]]; then
+    log "未找到激活脚本，跳过自动激活: ${activate_script}"
+    return 0
+  fi
+  if [[ ! -x "${configure_script}" ]]; then
+    log "未找到单实例团队配置脚本，跳过自动激活: ${configure_script}"
+    return 0
+  fi
+
+  if ! ensure_minimax_api_key; then
+    return 0
+  fi
+
+  log "正在自动激活单实例团队（single: CEO 对话 + CTO 执行）..."
+  if [[ "$(id -u)" -ne 0 ]]; then
+    if command -v sudo >/dev/null 2>&1; then
+      sudo env \
+        MINIMAX_API_KEY="${MINIMAX_API_KEY}" \
+        YOYOO_ROLE="ceo" \
+        YOYOO_HOME="${ceo_home}" \
+        OPENCLAW_PORT="${ceo_port}" \
+        YOYOO_PROFILE="${ceo_profile}" \
+        OPENCLAW_SYSTEMD_UNIT="${ceo_unit}" \
+        YOYOO_EXPECT_FEISHU="${ceo_expect_feishu}" \
+        bash "${activate_script}"
+      sudo env \
+        YOYOO_HOME="${ceo_home}" \
+        YOYOO_PROFILE="${ceo_profile}" \
+        YOYOO_TEAM_SHARED_MEMORY="${YOYOO_TEAM_SHARED_MEMORY:-1}" \
+        YOYOO_TEAM_SHARED_USER="${YOYOO_TEAM_SHARED_USER:-1}" \
+        bash "${configure_script}"
+    else
+      log "当前不是 root 且没有 sudo，跳过自动激活"
+      return 0
+    fi
+  else
+    MINIMAX_API_KEY="${MINIMAX_API_KEY}" \
+      YOYOO_ROLE="ceo" \
+      YOYOO_HOME="${ceo_home}" \
+      OPENCLAW_PORT="${ceo_port}" \
+      YOYOO_PROFILE="${ceo_profile}" \
+      OPENCLAW_SYSTEMD_UNIT="${ceo_unit}" \
+      YOYOO_EXPECT_FEISHU="${ceo_expect_feishu}" \
+      bash "${activate_script}"
+    YOYOO_HOME="${ceo_home}" \
+      YOYOO_PROFILE="${ceo_profile}" \
+      YOYOO_TEAM_SHARED_MEMORY="${YOYOO_TEAM_SHARED_MEMORY:-1}" \
+      YOYOO_TEAM_SHARED_USER="${YOYOO_TEAM_SHARED_USER:-1}" \
+      bash "${configure_script}"
+  fi
+}
+
 auto_activate_ceo_cto() {
   local activate_script
   if [[ "${YOYOO_SKIP_AUTO_ACTIVATE:-0}" == "1" ]]; then
-    log "YOYOO_SKIP_AUTO_ACTIVATE=1，跳过自动激活 CEO+CTO"
+    log "YOYOO_SKIP_AUTO_ACTIVATE=1，跳过自动激活"
     return 0
   fi
 
@@ -633,7 +701,7 @@ auto_activate_ceo_cto() {
     return 0
   fi
 
-  log "正在自动激活 CEO + CTO..."
+  log "正在自动激活双实例团队（dual: CEO + CTO）..."
   if [[ "$(id -u)" -ne 0 ]]; then
     if command -v sudo >/dev/null 2>&1; then
       sudo env \
@@ -642,12 +710,29 @@ auto_activate_ceo_cto() {
         YOYOO_TEAM_SHARED_USER="${YOYOO_TEAM_SHARED_USER:-1}" \
         bash "${activate_script}"
     else
-      log "当前不是 root 且没有 sudo，跳过自动激活 CEO+CTO"
+      log "当前不是 root 且没有 sudo，跳过自动激活"
       return 0
     fi
   else
     MINIMAX_API_KEY="${MINIMAX_API_KEY}" bash "${activate_script}"
   fi
+}
+
+auto_activate_by_mode() {
+  local mode
+  mode="$(printf '%s' "${YOYOO_MODE}" | tr '[:upper:]' '[:lower:]')"
+  case "${mode}" in
+    single)
+      auto_activate_single_gateway_team
+      ;;
+    dual)
+      auto_activate_ceo_cto
+      ;;
+    *)
+      log "未知 YOYOO_MODE=${YOYOO_MODE}，回退到 single。可选: single | dual"
+      auto_activate_single_gateway_team
+      ;;
+  esac
 }
 
 run_install() {
@@ -669,14 +754,15 @@ run_install() {
   "${WORKSPACE_DIR}/bootstrap/harden_runtime.sh" || true
   write_manifest
   run_check
-  auto_activate_ceo_cto
+  auto_activate_by_mode
 
   log ""
   log "=========================================="
   log "   安装完成"
   log "=========================================="
-  log "当前默认流程：安装即自动激活 CEO+CTO。"
-  log "如需仅安装基础包，可使用 YOYOO_SKIP_AUTO_ACTIVATE=1 bash install.sh"
+  log "当前默认流程：安装即自动激活 single 模式（单 Gateway + 多 Agent）。"
+  log "如需双实例模式：YOYOO_MODE=dual bash install.sh"
+  log "如需仅安装基础包：YOYOO_SKIP_AUTO_ACTIVATE=1 bash install.sh"
 }
 
 main() {
