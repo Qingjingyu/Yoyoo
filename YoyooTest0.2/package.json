@@ -13,7 +13,8 @@
     "start": "next start",
     "lint": "next lint",
     "smoke:css": "node scripts/smoke-css.mjs",
-    "smoke:routes": "node scripts/smoke-routes.mjs"
+    "smoke:routes": "node scripts/smoke-routes.mjs",
+    "acceptance:v1": "node scripts/acceptance-v1.mjs"
   },
   "dependencies": {
     "react": "^18",
