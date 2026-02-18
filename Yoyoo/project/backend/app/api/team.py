@@ -8,6 +8,8 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from app.container import ServiceContainer
 from app.intelligence.team_models import TaskEvidence
 from app.schemas import (
+    TeamCeoChatRequest,
+    TeamCeoChatResponse,
     TeamRuntimeHealthResponse,
     TeamTaskCreateRequest,
     TeamTaskCreateResponse,
@@ -48,6 +50,51 @@ def _safe_rework_count(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return max(parsed, 0)
+
+
+@router.post("/chat/ceo", response_model=TeamCeoChatResponse)
+def ceo_chat(req: TeamCeoChatRequest, request: Request) -> TeamCeoChatResponse:
+    container = _get_container(request)
+    trace_id = getattr(request.state, "trace_id", str(uuid4()))
+    route = container.agent_router.resolve(
+        explicit_agent_id=req.agent_id,
+        channel=req.channel,
+        project_key=req.project_key,
+        peer_kind=req.peer_kind,
+        peer_id=req.peer_id,
+    )
+    conversation_id = req.conversation_id or f"api:{route.agent_id}:{req.user_id}"
+    result = container.ceo_dispatcher.ceo_chat(
+        user_id=req.user_id,
+        conversation_id=conversation_id,
+        channel=req.channel,
+        project_key=req.project_key,
+        agent_id=route.agent_id,
+        memory_scope=route.memory_scope,
+        request_text=req.message,
+        trace_id=trace_id,
+    )
+    return TeamCeoChatResponse(
+        ok=bool(result.get("ok", True)),
+        reply=str(result.get("reply") or ""),
+        task_intent=bool(result.get("task_intent", False)),
+        require_confirmation=bool(result.get("require_confirmation", False)),
+        suggested_executor=str(result.get("suggested_executor") or "CTO"),
+        cto_lane=(str(result.get("cto_lane")) if result.get("cto_lane") is not None else None),
+        execution_mode=(
+            str(result.get("execution_mode"))
+            if result.get("execution_mode") is not None
+            else None
+        ),
+        eta_minutes=(
+            int(result.get("eta_minutes"))
+            if result.get("eta_minutes") is not None
+            else None
+        ),
+        resolved_agent_id=route.agent_id,
+        memory_scope=route.memory_scope,
+        routing_reason=route.reason,
+    )
 
 
 @router.post("/tasks", response_model=TeamTaskCreateResponse)

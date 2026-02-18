@@ -84,6 +84,31 @@ class TeamTaskCreateRequest(BaseModel):
     peer_id: str | None = Field(default=None, min_length=2, max_length=128)
 
 
+class TeamCeoChatRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=64)
+    message: str = Field(min_length=1, max_length=4000)
+    conversation_id: str | None = Field(default=None, max_length=128)
+    channel: str = Field(default="api", min_length=2, max_length=32)
+    project_key: str = Field(default="general", min_length=2, max_length=64)
+    agent_id: str | None = Field(default=None, min_length=2, max_length=32)
+    peer_kind: str | None = Field(default=None, min_length=2, max_length=32)
+    peer_id: str | None = Field(default=None, min_length=2, max_length=128)
+
+
+class TeamCeoChatResponse(BaseModel):
+    ok: bool
+    reply: str
+    task_intent: bool = False
+    require_confirmation: bool = False
+    suggested_executor: str = "CTO"
+    cto_lane: str | None = None
+    execution_mode: str | None = None
+    eta_minutes: int | None = None
+    resolved_agent_id: str | None = None
+    memory_scope: str | None = None
+    routing_reason: str | None = None
+
+
 class TeamTaskCreateResponse(BaseModel):
     ok: bool
     task_id: str

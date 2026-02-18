@@ -253,6 +253,47 @@ def test_team_mode_api_runtime_health_endpoint() -> None:
     assert "timestamp" in body
 
 
+def test_team_mode_api_ceo_chat_endpoint() -> None:
+    resp = client.post(
+        "/api/v1/team/chat/ceo",
+        json={
+            "user_id": "u_ceo_chat",
+            "message": "你好，你有什么能力？",
+            "channel": "web",
+            "project_key": "proj_ui",
+        },
+    )
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert isinstance(body["reply"], str) and body["reply"]
+    assert body["task_intent"] is False
+    assert body["require_confirmation"] is False
+    assert body["resolved_agent_id"] == "ceo"
+    assert body["memory_scope"] == "agent:ceo"
+
+
+def test_team_mode_api_ceo_chat_detects_task_intent() -> None:
+    resp = client.post(
+        "/api/v1/team/chat/ceo",
+        json={
+            "user_id": "u_ceo_task",
+            "message": "请帮我开发一个内部任务看板系统，并安排执行",
+            "channel": "web",
+            "project_key": "proj_ui",
+        },
+    )
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert body["task_intent"] is True
+    assert body["require_confirmation"] is True
+    assert body["suggested_executor"] == "CTO"
+    assert isinstance(body["eta_minutes"], int)
+
+
 def test_team_mode_api_route_by_binding_and_filter_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
