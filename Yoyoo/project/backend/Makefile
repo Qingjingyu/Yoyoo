@@ -10,7 +10,7 @@ BACKEND_URL ?= http://127.0.0.1:8000
 LOAD_TOTAL ?= 20
 LOAD_CONCURRENCY ?= 5
 
-.PHONY: install dev test lint format load-test ops-report release-check release-prod-check
+.PHONY: install dev test lint format load-test ops-report acceptance-10 memory-check memory-restore release-check release-prod-check
 
 install:
 	$(PYTHON) -m venv $(VENV)
@@ -37,6 +37,15 @@ load-test:
 
 ops-report:
 	PYTHONPATH=. $(PY) scripts/ops_daily_report.py --base-url $(BACKEND_URL)
+
+acceptance-10:
+	PYTHONPATH=. $(PY) scripts/team_acceptance_10_tasks.py --base-url $(BACKEND_URL)
+
+memory-check:
+	PYTHONPATH=. $(PY) scripts/memory_recovery_check.py
+
+memory-restore:
+	PYTHONPATH=. $(PY) scripts/memory_recovery_check.py --restore-from 1
 
 release-check: lint test
 
