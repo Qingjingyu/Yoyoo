@@ -16,6 +16,10 @@ from app.schemas import (
     TeamTaskProgressResponse,
     TeamTaskResultRequest,
     TeamTaskResultResponse,
+    TeamTaskRunRequest,
+    TeamTaskRunResponse,
+    TeamWatchdogRecoverRequest,
+    TeamWatchdogRecoverResponse,
     TeamWatchdogScanRequest,
     TeamWatchdogScanResponse,
 )
@@ -34,25 +38,48 @@ def _fallback_title(request_text: str) -> str:
     return text[:32] + ("..." if len(text) > 32 else "")
 
 
+def _safe_rework_count(value: object) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return max(parsed, 0)
+
+
 @router.post("/tasks", response_model=TeamTaskCreateResponse)
 def create_task(req: TeamTaskCreateRequest, request: Request) -> TeamTaskCreateResponse:
     container = _get_container(request)
     trace_id = getattr(request.state, "trace_id", str(uuid4()))
-    conversation_id = req.conversation_id or f"api:{req.user_id}"
+    route = container.agent_router.resolve(
+        explicit_agent_id=req.agent_id,
+        channel=req.channel,
+        project_key=req.project_key,
+        peer_kind=req.peer_kind,
+        peer_id=req.peer_id,
+    )
+    conversation_id = req.conversation_id or f"api:{route.agent_id}:{req.user_id}"
     card = container.ceo_dispatcher.create_task(
         user_id=req.user_id,
         conversation_id=conversation_id,
         channel=req.channel,
         project_key=req.project_key,
+        agent_id=route.agent_id,
+        memory_scope=route.memory_scope,
         request_text=req.message,
         trace_id=trace_id,
     )
+    record = container.memory_service.get_task_record(task_id=card.task_id)
     meta = container.memory_service.get_team_task_meta(task_id=card.task_id) or {}
     return TeamTaskCreateResponse(
         ok=True,
         task_id=card.task_id,
         status=card.status,
         owner_role=card.owner_role,
+        resolved_agent_id=(record.agent_id if record else route.agent_id),
+        memory_scope=(record.memory_scope if record else route.memory_scope),
+        routing_reason=route.reason,
         cto_lane=str(meta.get("cto_lane") or "ENG"),
         execution_mode=str(meta.get("execution_mode") or "subagent"),
         eta_minutes=card.eta_minutes,
@@ -100,14 +127,32 @@ def submit_result(
         error=req.error,
         evidence=[TaskEvidence(source=item.source, content=item.content) for item in req.evidence],
     )
+    meta = container.memory_service.get_team_task_meta(task_id=task_id) or {}
     return TeamTaskResultResponse(
         ok=result.ok,
         task_id=result.task_id,
         status=result.status,
+        corrected=result.corrected,
+        rework_count=_safe_rework_count(meta.get("rework_count")),
         issues=result.issues,
         reply=result.reply,
         next_step=result.next_step,
     )
+
+
+@router.post("/tasks/{task_id}/run", response_model=TeamTaskRunResponse)
+def run_task(
+    task_id: str,
+    req: TeamTaskRunRequest,
+    request: Request,
+) -> TeamTaskRunResponse:
+    container = _get_container(request)
+    result = container.ceo_dispatcher.execute_task(
+        task_id=task_id,
+        max_attempts=req.max_attempts,
+        resume=req.resume,
+    )
+    return TeamTaskRunResponse(**result)
 
 
 @router.get("/tasks/{task_id}", response_model=TeamTaskDetailResponse)
@@ -120,16 +165,25 @@ def get_task(task_id: str, request: Request) -> TeamTaskDetailResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"task not found: {task_id}",
         ) from exc
+    record = container.memory_service.get_task_record(task_id=task_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"task not found: {task_id}",
+        )
     meta = container.memory_service.get_team_task_meta(task_id=task_id) or {}
     return TeamTaskDetailResponse(
         task_id=card.task_id,
         title=card.title,
         objective=card.objective,
         owner_role=card.owner_role,
+        agent_id=record.agent_id,
+        memory_scope=record.memory_scope,
         status=card.status,
         cto_lane=str(meta.get("cto_lane") or "ENG"),
         execution_mode=str(meta.get("execution_mode") or "subagent"),
         eta_minutes=card.eta_minutes,
+        rework_count=_safe_rework_count(meta.get("rework_count")),
         created_at=card.created_at.isoformat(),
         updated_at=card.updated_at.isoformat(),
         timeline=container.ceo_dispatcher.get_task_timeline(task_id=task_id),
@@ -141,12 +195,14 @@ def list_tasks(
     request: Request,
     user_id: str = Query(min_length=1, max_length=64),
     channel: str | None = Query(default=None, min_length=2, max_length=32),
+    agent_id: str | None = Query(default=None, min_length=2, max_length=32),
     limit: int = Query(default=30, ge=1, le=200),
 ) -> TeamTaskListResponse:
     container = _get_container(request)
     records = container.memory_service.recent_tasks_for_user(
         user_id=user_id,
         channel=channel,
+        agent_id=agent_id,
         limit=limit,
     )
     items: list[TeamTaskListItem] = []
@@ -158,10 +214,13 @@ def list_tasks(
                 title=str(meta.get("title") or _fallback_title(record.request_text)),
                 objective=str(meta.get("objective") or record.request_text),
                 owner_role=str(meta.get("owner_role") or "CTO"),
+                agent_id=record.agent_id,
+                memory_scope=record.memory_scope,
                 status=str(meta.get("status") or record.status or "planned"),
                 cto_lane=str(meta.get("cto_lane") or "ENG"),
                 execution_mode=str(meta.get("execution_mode") or "subagent"),
                 eta_minutes=meta.get("eta_minutes"),
+                rework_count=_safe_rework_count(meta.get("rework_count")),
                 created_at=record.created_at.isoformat(),
                 updated_at=record.updated_at.isoformat(),
             )
@@ -184,3 +243,17 @@ def scan_watchdog(req: TeamWatchdogScanRequest, request: Request) -> TeamWatchdo
         min_repeat_sec=req.min_repeat_sec,
     )
     return TeamWatchdogScanResponse(**result)
+
+
+@router.post("/watchdog/recover", response_model=TeamWatchdogRecoverResponse)
+def recover_watchdog(
+    req: TeamWatchdogRecoverRequest,
+    request: Request,
+) -> TeamWatchdogRecoverResponse:
+    container = _get_container(request)
+    result = container.ceo_dispatcher.recover_stale_tasks(
+        max_scan=req.max_scan,
+        stale_seconds=req.stale_seconds,
+        max_attempts=req.max_attempts,
+    )
+    return TeamWatchdogRecoverResponse(**result)
