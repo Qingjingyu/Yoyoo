@@ -2,6 +2,15 @@
 
 Minimal FastAPI backend bootstrap for restarting implementation work.
 
+## Deployment Modes (Yoyoo Team)
+
+- **single (recommended / default in install.sh)**: one Gateway + multi-agent routing.
+  - CEO: dialogue/dispatch/acceptance
+  - CTO: execution owner
+- **dual (optional compatibility mode)**: CEO + CTO run as separate instances.
+
+This backend supports both modes, while product default is now `single`.
+
 ## Structure
 
 ```text

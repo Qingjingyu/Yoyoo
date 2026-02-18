@@ -10,7 +10,10 @@ For end users, run from repo root:
 bash install.sh
 ```
 
-It will prompt for `MINIMAX_API_KEY` (if not set), then activate CEO + CTO automatically.
+It will prompt for `MINIMAX_API_KEY` (if not set), then activate **single mode** automatically:
+- one Gateway (`:18789`)
+- CEO as `main`
+- CTO as `cto` agent under the same Gateway
 
 ## Goal
 Any new employee activated from Git should get the same default stack:
@@ -23,6 +26,10 @@ Any new employee activated from Git should get the same default stack:
 - Yoyoo backend long-task kernel (retry + resume)
 - CEO private chat + group chat shared memory session
 
+Default architecture baseline:
+- `single`: one Gateway + multi-agent routing (recommended, install default)
+- `dual`: CEO + CTO dual instance (optional compatibility mode)
+
 ## Quick Start
 On server (root):
 
@@ -34,7 +41,7 @@ export YOYOO_ROLE='ceo'   # ceo | ops | cto | rd-director(legacy) | rd-engineer
 bash Yoyoo/project/bootstrap/activate_employee.sh
 ```
 
-## One-Click: Activate CEO + CTO
+## One-Click: Activate CEO + CTO (Dual Mode)
 
 Use this when you want the default dual-agent setup in one command:
 
@@ -58,6 +65,21 @@ Optional:
 - `YOYOO_RUN_ACCEPTANCE=0` to skip acceptance check.
 - `YOYOO_TEAM_SHARED_MEMORY=0` to disable shared memory wiring.
 - `YOYOO_TEAM_SHARED_USER=0` to keep `USER.md` independent.
+
+## One-Click: Configure Single Gateway Team (Default)
+
+When `install.sh` runs with default `YOYOO_MODE=single`, it performs:
+1) activate CEO instance via `activate_employee.sh` (`ceo`, `:18789`)
+2) configure CTO agent (`cto`) under the same Gateway via:
+   - `configure_single_gateway_agents.sh`
+
+Manual run:
+
+```bash
+export YOYOO_HOME=/root/.openclaw
+export YOYOO_PROFILE=yoyoo-ceo
+bash Yoyoo/project/bootstrap/configure_single_gateway_agents.sh
+```
 
 Package manager support in `activate_employee.sh`:
 - Debian/Ubuntu: `apt-get`
@@ -230,6 +252,7 @@ Checks included:
 ## Files
 - `activate_employee.sh`: one-step activation.
 - `activate_ceo_cto.sh`: one-step activation for CEO + CTO dual-agent baseline.
+- `configure_single_gateway_agents.sh`: add/repair CTO agent for single-gateway team mode.
 - `qmd_enable.sh`: enable QMD memory backend.
 - `install_base_skills.sh`: install default skills.
 - `setup_guard.sh`: install doctor timer + backup timer + git snapshot timer + rollback helper.
