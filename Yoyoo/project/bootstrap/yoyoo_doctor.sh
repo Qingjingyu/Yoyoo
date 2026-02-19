@@ -9,6 +9,7 @@ ACTION="${1:-check}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 YOYOO_ROLE="${YOYOO_ROLE:-ceo}"
+YOYOO_EMPLOYEE_KEY="${YOYOO_EMPLOYEE_KEY:-${YOYOO_ROLE}}"
 YOYOO_HOME="${YOYOO_HOME:-/root/.openclaw}"
 OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 YOYOO_PROFILE="${YOYOO_PROFILE:-yoyoo-${YOYOO_ROLE}}"
@@ -20,6 +21,9 @@ YOYOO_EXPECT_FEISHU_UNIFIED_SESSION="${YOYOO_EXPECT_FEISHU_UNIFIED_SESSION:-0}"
 YOYOO_AUTO_HEAL="${YOYOO_AUTO_HEAL:-1}"
 YOYOO_BASELINE_DIR="${YOYOO_BASELINE_DIR:-${YOYOO_HOME}/baseline}"
 YOYOO_FEISHU_SESSION_PATCH_SCRIPT="${YOYOO_FEISHU_SESSION_PATCH_SCRIPT:-${SCRIPT_DIR}/patch_openclaw_feishu_session.sh}"
+YOYOO_GUARD_ALERT_WEBHOOK="${YOYOO_GUARD_ALERT_WEBHOOK:-}"
+YOYOO_GUARD_ALERT_CHANNEL="${YOYOO_GUARD_ALERT_CHANNEL:-feishu}" # feishu | dingtalk
+YOYOO_GUARD_ALERT_ON_RECOVER="${YOYOO_GUARD_ALERT_ON_RECOVER:-0}"
 
 if [[ -z "${OPENCLAW_SYSTEMD_UNIT}" ]]; then
   if [[ "${YOYOO_ROLE}" == "ceo" ]]; then
@@ -42,6 +46,34 @@ OPENCLAW_GOLDEN_CONFIG_FILE="${YOYOO_HOME}/openclaw.golden.json"
 
 log() {
   printf '[yoyoo-doctor][%s][%s] %s\n' "${YOYOO_ROLE}" "${ACTION}" "$*"
+}
+
+send_guard_alert() {
+  local status="${1:-failed}"
+  local detail="${2:-healthcheck failed}"
+  local webhook="${YOYOO_GUARD_ALERT_WEBHOOK}"
+  local channel="${YOYOO_GUARD_ALERT_CHANNEL,,}"
+
+  if [[ -z "${webhook}" ]]; then
+    return 0
+  fi
+  if [[ "${status}" == "recovered" && "${YOYOO_GUARD_ALERT_ON_RECOVER}" != "1" ]]; then
+    return 0
+  fi
+
+  local host payload text
+  host="$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo unknown-host)"
+  text="[YoyooGuard][${status}] role=${YOYOO_ROLE} employee=${YOYOO_EMPLOYEE_KEY} host=${host} port=${OPENCLAW_PORT} unit=${OPENCLAW_SYSTEMD_UNIT}\n${detail}"
+
+  if [[ "${channel}" == "dingtalk" ]]; then
+    payload="$(jq -nc --arg text "${text}" '{msgtype:"text",text:{content:$text}}')"
+  else
+    payload="$(jq -nc --arg text "${text}" '{msg_type:"text",content:{text:$text}}')"
+  fi
+
+  if ! curl -fsS -m 8 -H 'Content-Type: application/json' -d "${payload}" "${webhook}" >/tmp/yoyoo_guard_alert_"${YOYOO_ROLE}".log 2>&1; then
+    log "alert push failed (channel=${channel})"
+  fi
 }
 
 openclaw_cmd() {
@@ -179,9 +211,13 @@ restart_gateway() {
 }
 
 run_check() {
+  local notes=()
+  local notes_text=""
+
   ensure_golden_exists
 
   if ! config_is_valid_json; then
+    notes+=("config_invalid")
     log "config missing or invalid JSON"
     if [[ "${YOYOO_AUTO_HEAL}" == "1" ]]; then
       restore_from_golden
@@ -190,12 +226,29 @@ run_check() {
 
   if ! config_is_valid_json; then
     log "healthcheck failed: config still invalid"
+    notes_text="$(IFS='; '; echo "${notes[*]}")"
+    send_guard_alert "failed" "${notes_text:-config still invalid}"
     return 1
   fi
 
-  fix_gateway_port_if_needed
-  check_feishu_if_required
-  check_feishu_unified_session_if_required
+  if ! fix_gateway_port_if_needed; then
+    notes+=("gateway_port_drift")
+    notes_text="$(IFS='; '; echo "${notes[*]}")"
+    send_guard_alert "failed" "${notes_text}"
+    return 1
+  fi
+  if ! check_feishu_if_required; then
+    notes+=("feishu_config_drift")
+    notes_text="$(IFS='; '; echo "${notes[*]}")"
+    send_guard_alert "failed" "${notes_text}"
+    return 1
+  fi
+  if ! check_feishu_unified_session_if_required; then
+    notes+=("feishu_session_patch_failed")
+    notes_text="$(IFS='; '; echo "${notes[*]}")"
+    send_guard_alert "failed" "${notes_text}"
+    return 1
+  fi
 
   if probe_gateway; then
     log "probe ok"
@@ -203,24 +256,35 @@ run_check() {
   fi
 
   log "probe failed, restarting gateway"
+  notes+=("probe_failed")
   restart_gateway
 
   if probe_gateway; then
     log "probe ok after restart"
+    notes+=("recovered_by_restart")
+    notes_text="$(IFS='; '; echo "${notes[*]}")"
+    send_guard_alert "recovered" "${notes_text}"
     return 0
   fi
 
   if [[ "${YOYOO_AUTO_HEAL}" == "1" ]]; then
     log "restoring config from golden and retrying"
+    notes+=("restore_golden_retry")
     restore_from_golden
     restart_gateway
     if probe_gateway; then
       log "probe ok after config restore"
+      notes+=("recovered_by_restore")
+      notes_text="$(IFS='; '; echo "${notes[*]}")"
+      send_guard_alert "recovered" "${notes_text}"
       return 0
     fi
   fi
 
   log "healthcheck failed after auto-heal attempts"
+  notes+=("final_failure")
+  notes_text="$(IFS='; '; echo "${notes[*]}")"
+  send_guard_alert "failed" "${notes_text}"
   return 1
 }
 

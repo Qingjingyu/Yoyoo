@@ -251,6 +251,23 @@ YOYOO_BACKUP_INTERVAL_MIN=30 \
 bash Yoyoo/project/bootstrap/setup_guard.sh
 ```
 
+Enable Feishu guard alerts (send only when failed):
+
+```bash
+YOYOO_GUARD_ALERT_CHANNEL=feishu \
+YOYOO_GUARD_ALERT_WEBHOOK='https://open.feishu.cn/open-apis/bot/v2/hook/xxxxx' \
+YOYOO_GUARD_ALERT_ON_RECOVER=0 \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+```
+
+Optional DingTalk alert:
+
+```bash
+YOYOO_GUARD_ALERT_CHANNEL=dingtalk \
+YOYOO_GUARD_ALERT_WEBHOOK='https://oapi.dingtalk.com/robot/send?access_token=xxxxx' \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+```
+
 Example rollback helper path:
 
 ```bash
