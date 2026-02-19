@@ -22,7 +22,7 @@ It will prompt for `MINIMAX_API_KEY` (if not set), then activate **single mode**
 
 ## Goal
 Any new employee activated from Git should get the same default stack:
-- OpenClaw 2026.2.15 (pinned baseline)
+- OpenClaw 2026.2.17 (pinned baseline)
 - MiniMax provider config
 - QMD backend
 - base skills
@@ -180,7 +180,7 @@ Mapping:
   - service: `openclaw-gateway-<employee_key>.service`
 
 Optional:
-- `YOYOO_FORCE_OPENCLAW_INSTALL=1` to force reinstall pinned OpenClaw version (`YOYOO_OPENCLAW_VERSION`, default `2026.2.15`).
+- `YOYOO_FORCE_OPENCLAW_INSTALL=1` to force reinstall pinned OpenClaw version (`YOYOO_OPENCLAW_VERSION`, default `2026.2.17`).
 - `YOYOO_ENABLE_BACKEND_KERNEL=0` to skip backend kernel install (not recommended).
 
 ## Feishu Unified Session (CEO default)
