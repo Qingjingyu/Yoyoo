@@ -25,7 +25,11 @@ const INITIAL_REPORT_WINDOW_MS = Number.parseInt(
     10
 );
 const BACKEND_TIMEOUT_MS = Number.parseInt(
-    process.env.YOYOO_BACKEND_TIMEOUT_MS || "8000",
+    process.env.YOYOO_BACKEND_TIMEOUT_MS || "600000",
+    10
+);
+const BACKEND_HEALTH_TIMEOUT_MS = Number.parseInt(
+    process.env.YOYOO_BACKEND_HEALTH_TIMEOUT_MS || "3000",
     10
 );
 const TASK_DISPATCH_MODE = (
@@ -68,11 +72,15 @@ type TeamCeoChatResponse = {
     eta_minutes?: number;
 };
 
-const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
+const fetchJson = async <T>(
+    url: string,
+    init?: RequestInit,
+    timeoutMs: number = BACKEND_TIMEOUT_MS
+): Promise<T> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(
         () => controller.abort(new Error("backend request timeout")),
-        Math.max(BACKEND_TIMEOUT_MS, 1000)
+        Math.max(timeoutMs, 1000)
     );
     const response = await fetch(url, {
         ...init,
@@ -83,6 +91,22 @@ const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
         throw new Error(`HTTP ${response.status} ${text}`.trim());
     }
     return (await response.json()) as T;
+};
+
+const isBackendHealthy = async (): Promise<boolean> => {
+    try {
+        const data = await fetchJson<{ ok?: boolean }>(
+            `${BACKEND_BASE_URL}/api/v1/team/runtime/health`,
+            {
+                method: "GET",
+                headers: { "Content-Type": "application/json" },
+            },
+            BACKEND_HEALTH_TIMEOUT_MS
+        );
+        return Boolean(data?.ok);
+    } catch {
+        return false;
+    }
 };
 
 const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
@@ -263,9 +287,46 @@ const runCeoChat = async ({
             }),
         });
     } catch (error) {
+        const msg = (error as Error)?.message || "unknown error";
+        const isTimeout = msg.includes("backend request timeout");
+        if (isTimeout) {
+            const healthy = await isBackendHealthy();
+            if (healthy) {
+                try {
+                    return await fetchJson<TeamCeoChatResponse>(
+                        `${BACKEND_BASE_URL}/api/v1/team/chat/ceo`,
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                user_id: userId,
+                                message: prompt,
+                                conversation_id: conversationId,
+                                channel: "web",
+                                project_key: "yoyoo-ui",
+                            }),
+                        },
+                        Math.max(BACKEND_TIMEOUT_MS, 100000)
+                    );
+                } catch (retryError) {
+                    return {
+                        ok: false,
+                        reply: `我在。后端正在处理长任务（服务健康），这次响应超时：${
+                            (retryError as Error)?.message || "unknown error"
+                        }。请稍后重试或继续发送下一条指令。`,
+                        task_intent: isTaskIntent(prompt),
+                        require_confirmation: false,
+                        suggested_executor: "CTO",
+                        cto_lane: "ENG",
+                        execution_mode: "subagent",
+                        eta_minutes: 8,
+                    };
+                }
+            }
+        }
         return {
             ok: false,
-            reply: `我在。后端暂时繁忙：${(error as Error)?.message || "unknown error"}。请稍后重试。`,
+            reply: `我在。后端暂时繁忙：${msg}。请稍后重试。`,
             task_intent: isTaskIntent(prompt),
             require_confirmation: false,
             suggested_executor: "CTO",

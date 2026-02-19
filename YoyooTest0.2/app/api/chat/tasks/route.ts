@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const BACKEND_TIMEOUT_MS = Number.parseInt(
-    process.env.YOYOO_BACKEND_TIMEOUT_MS || "8000",
+    process.env.YOYOO_BACKEND_TIMEOUT_MS || "600000",
     10
 );
 const BACKEND_BASE_URL = (
