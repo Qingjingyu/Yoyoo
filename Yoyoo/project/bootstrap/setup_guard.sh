@@ -121,7 +121,7 @@ export YOYOO_GUARD_ALERT_FEISHU_APP_SECRET='${YOYOO_GUARD_ALERT_FEISHU_APP_SECRE
 export YOYOO_GUARD_ALERT_FEISHU_OPEN_ID='${YOYOO_GUARD_ALERT_FEISHU_OPEN_ID}'
 bash '${YOYOO_DOCTOR_SCRIPT}' check >>'/tmp/yoyoo_openclaw_doctor_${YOYOO_EMPLOYEE_KEY}.log' 2>&1
 SH
-chmod +x "${DOCTOR_SCRIPT_RUNTIME}"
+chmod 700 "${DOCTOR_SCRIPT_RUNTIME}"
 
 cat > "${BACKUP_SCRIPT_RUNTIME}" <<SH
 #!/usr/bin/env bash
@@ -163,7 +163,7 @@ fi
 ln -sfn "\$(basename "\${out}")" '${YOYOO_BACKUP_DIR}/latest.tar.gz'
 ls -1t '${YOYOO_BACKUP_DIR}'/asset_*.tar.gz 2>/dev/null | tail -n +$((YOYOO_BACKUP_KEEP + 1)) | xargs -r rm -f
 SH
-chmod +x "${BACKUP_SCRIPT_RUNTIME}"
+chmod 700 "${BACKUP_SCRIPT_RUNTIME}"
 
 cat > "${SNAPSHOT_SCRIPT_RUNTIME}" <<SH
 #!/usr/bin/env bash
@@ -217,7 +217,7 @@ msg="snapshot(${YOYOO_EMPLOYEE_KEY}): \$(date -Iseconds)"
 git_cmd commit -m "\${msg}" >/tmp/yoyoo_asset_snapshot_${YOYOO_EMPLOYEE_KEY}.log 2>&1
 git_cmd update-ref "refs/heads/\${BRANCH}" HEAD >/dev/null 2>&1 || true
 SH
-chmod +x "${SNAPSHOT_SCRIPT_RUNTIME}"
+chmod 700 "${SNAPSHOT_SCRIPT_RUNTIME}"
 
 cat > "${TASK_WATCHDOG_SCRIPT_RUNTIME}" <<SH
 #!/usr/bin/env bash
@@ -228,7 +228,7 @@ export YOYOO_STALE_PROGRESS_SEC='${YOYOO_STALE_PROGRESS_SEC}'
 export YOYOO_STALE_DEGRADE_SEC='${YOYOO_STALE_DEGRADE_SEC}'
 exec bash '${YOYOO_TASK_WATCHDOG_SCRIPT}'
 SH
-chmod +x "${TASK_WATCHDOG_SCRIPT_RUNTIME}"
+chmod 700 "${TASK_WATCHDOG_SCRIPT_RUNTIME}"
 
 cat > "${ROLLBACK_SCRIPT_RUNTIME}" <<SH
 #!/usr/bin/env bash
@@ -299,7 +299,7 @@ case "\${1:-}" in
     ;;
 esac
 SH
-chmod +x "${ROLLBACK_SCRIPT_RUNTIME}"
+chmod 700 "${ROLLBACK_SCRIPT_RUNTIME}"
 
 cat > "${DOCTOR_SERVICE}" <<UNIT
 [Unit]
