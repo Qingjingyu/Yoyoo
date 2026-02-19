@@ -1,7 +1,7 @@
 # Yoyoo AI - 多员工AI协作系统
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.5-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.0.7-blue" alt="Version">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-green" alt="Platform">
   <img src="https://img.shields.io/badge/AI-MiniMax-orange" alt="Model">
 </p>
@@ -210,7 +210,7 @@ openclaw gateway
 - 群里不回：检查平台侧事件订阅是否开启、群策略是否允许。  
 - 通道配置改完后：重启网关再测一次。
 
-## 安装脚本能力（v1.0.5）
+## 安装脚本能力（v1.0.7）
 
 | 命令 | 作用 |
 |------|------|
@@ -221,7 +221,32 @@ openclaw gateway
 ## 版本与主线说明
 
 - GitHub `master` 为主线发布分支（受保护，必须通过 PR 合并）。
-- 最近一次主线发布补充说明见：`RELEASE_NOTES_v1.0.5.md`。
+- 当前稳定发布标签：`v1.0.7`（OpenClaw pinned `2026.2.17`）。
+
+## 每日备份与恢复演练（推荐开启）
+
+`setup_guard.sh` 现默认使用每日备份调度（`03:30`，可改）：
+
+```bash
+# 每日备份（默认）
+YOYOO_BACKUP_SCHEDULE=daily \
+YOYOO_BACKUP_ON_CALENDAR='*-*-* 03:30:00' \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+```
+
+恢复演练建议每周至少执行一次（只做校验，不覆盖线上运行）：
+
+```bash
+# 1) 主动触发一次备份
+systemctl start yoyoo-asset-backup-ceo.service
+
+# 2) 校验记忆主文件与 .bak1/.bak2/.bak3 完整性
+cd Yoyoo/project/backend
+make memory-check
+
+# 3) 演练恢复（从 bak1 恢复，脚本会先做 manual 快照）
+make memory-restore
+```
 
 如需重跑内置能力，可手动执行：
 
