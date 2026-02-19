@@ -219,7 +219,10 @@ export OPENCLAW_RETRY_UNKNOWN="0"
 export OPENCLAW_BRIDGE_SESSION_STRATEGY="conversation"
 export OPENCLAW_BRIDGE_SESSION_LOCK_RETRIES="1"
 export OPENCLAW_LOCAL_EXEC="1"
-export OPENCLAW_EXEC_TIMEOUT_SEC="45"
+export OPENCLAW_EXEC_TIMEOUT_SEC="600"
+export OPENCLAW_BIN="openclaw"
+export OPENCLAW_LOCAL_AGENT_ID="main"
+export OPENCLAW_LOCAL_CHANNEL="last"
 export OPENCLAW_FALLBACK_TO_SSH_ON_LOCAL_FAILURE="1"
 export OPENCLAW_LOCAL_HEALTHCHECK_TTL_SEC="60"
 export OPENCLAW_CIRCUIT_BREAKER_FAILURE_THRESHOLD="5"
@@ -294,6 +297,7 @@ systemctl status yoyoo-dingtalk-forwarder.service --no-pager
 
 Execution routing priority:
 1) `OPENCLAW_BRIDGE_URL` configured -> call HTTP bridge (if failed continue fallback).
+   - `POST /api/v1/team/chat/ceo` also uses this bridge for live CEO replies (non-template).
 2) If `OPENCLAW_LOCAL_EXEC=1` -> run local healthcheck then execute local `openclaw agent --json`.
 3) If local failed and SSH fallback enabled -> run recovery probe then execute `openclaw agent --json` via SSH.
 4) If SSH timeout occurs -> retry SSH once automatically.
