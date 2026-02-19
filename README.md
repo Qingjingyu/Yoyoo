@@ -67,6 +67,8 @@ YOYOO_OPENCLAW_VERSION=2026.2.17 bash install.sh
   - 中/大任务：CEO 分派 CTO 执行。
 - 默认软上限：40 子代理（会按机器资源自动降级使用）。
 - CEO/CTO 默认共享核心记忆（`MEMORY.md + memory/`），避免“群聊记得、私聊忘了”。
+- 执行策略默认：`YOYOO_EXECUTION_PROFILE=balanced`，由系统智能判断走 `subagent` 或 `employee_instance`。
+- 默认不强制子代理：`YOYOO_EXECUTION_FORCE_SUBAGENT=0`（仅当你显式设为 `1` 才会强制）。
 
 可选开关：
 

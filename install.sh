@@ -35,6 +35,7 @@ Yoyoo AI 基础包安装脚本
   MINIMAX_API_KEY=xxx         # 自动激活团队模式时使用
   YOYOO_MODE=single           # 安装后自动激活模式: single(默认) | dual
   YOYOO_EXECUTION_PROFILE=balanced # 执行档位: lean | balanced(默认) | aggressive
+  YOYOO_EXECUTION_FORCE_SUBAGENT=0 # 是否强制仅 subagent（默认 0，交给智能分流）
   YOYOO_WIZARD=1              # 交互式安装向导（默认开启）
   YOYOO_SKIP_AUTO_ACTIVATE=1  # 仅安装基础包，不自动激活团队
   YOYOO_OPENCLAW_VERSION=2026.2.15 # 固定 OpenClaw 版本（Yoyoo 1.0 默认）
@@ -139,11 +140,7 @@ apply_execution_profile_after_activation() {
   normalize_execution_profile
   force_subagent="${YOYOO_EXECUTION_FORCE_SUBAGENT:-}"
   if [[ -z "${force_subagent}" ]]; then
-    if [[ "${YOYOO_EXECUTION_PROFILE}" == "lean" ]]; then
-      force_subagent="1"
-    else
-      force_subagent="0"
-    fi
+    force_subagent="0"
   fi
 
   env_files=()
