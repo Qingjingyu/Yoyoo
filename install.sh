@@ -11,6 +11,8 @@ MANIFEST_FILE="${WORKSPACE_DIR}/manifest.json"
 BASELINE_VERSION="1.0.5"
 OPENCLAW_PINNED_VERSION="${YOYOO_OPENCLAW_VERSION:-2026.2.15}"
 YOYOO_MODE="${YOYOO_MODE:-single}"
+YOYOO_EXECUTION_PROFILE="${YOYOO_EXECUTION_PROFILE:-balanced}"
+YOYOO_WIZARD="${YOYOO_WIZARD:-1}"
 PLATFORM=""
 
 log() {
@@ -32,6 +34,8 @@ Yoyoo AI 基础包安装脚本
   OPENCLAW_HOME=~/.openclaw   # OpenClaw 数据目录（默认 ~/.openclaw）
   MINIMAX_API_KEY=xxx         # 自动激活团队模式时使用
   YOYOO_MODE=single           # 安装后自动激活模式: single(默认) | dual
+  YOYOO_EXECUTION_PROFILE=balanced # 执行档位: lean | balanced(默认) | aggressive
+  YOYOO_WIZARD=1              # 交互式安装向导（默认开启）
   YOYOO_SKIP_AUTO_ACTIVATE=1  # 仅安装基础包，不自动激活团队
   YOYOO_OPENCLAW_VERSION=2026.2.15 # 固定 OpenClaw 版本（Yoyoo 1.0 默认）
   YOYOO_TEAM_SHARED_MEMORY=1  # CEO/CTO 共享 MEMORY.md + memory/（single/dual 都可用）
@@ -54,6 +58,122 @@ ensure_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "缺少命令: $1" >&2
     exit 1
+  fi
+}
+
+normalize_execution_profile() {
+  local profile
+  profile="$(printf '%s' "${YOYOO_EXECUTION_PROFILE:-balanced}" | tr '[:upper:]' '[:lower:]')"
+  case "${profile}" in
+    lean|balanced|aggressive)
+      YOYOO_EXECUTION_PROFILE="${profile}"
+      ;;
+    *)
+      YOYOO_EXECUTION_PROFILE="balanced"
+      ;;
+  esac
+}
+
+interactive_install_wizard() {
+  local mode_choice profile_choice
+  if [[ "${YOYOO_WIZARD}" != "1" ]]; then
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    return 0
+  fi
+
+  log "安装向导：按回车使用默认值。"
+  printf "[Yoyoo] 模式选择 [1] single(默认) [2] dual: "
+  read -r mode_choice || true
+  case "${mode_choice}" in
+    2) YOYOO_MODE="dual" ;;
+    *) YOYOO_MODE="single" ;;
+  esac
+
+  printf "[Yoyoo] 执行档位 [1] lean [2] balanced(默认) [3] aggressive: "
+  read -r profile_choice || true
+  case "${profile_choice}" in
+    1) YOYOO_EXECUTION_PROFILE="lean" ;;
+    3) YOYOO_EXECUTION_PROFILE="aggressive" ;;
+    *) YOYOO_EXECUTION_PROFILE="balanced" ;;
+  esac
+
+  log "向导结果：YOYOO_MODE=${YOYOO_MODE}, YOYOO_EXECUTION_PROFILE=${YOYOO_EXECUTION_PROFILE}"
+}
+
+upsert_env_kv() {
+  local file key value
+  file="$1"
+  key="$2"
+  value="$3"
+
+  mkdir -p "$(dirname "${file}")"
+  touch "${file}"
+  python3 - "${file}" "${key}" "${value}" <<'PY'
+import sys
+from pathlib import Path
+
+file_path = Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+
+lines = file_path.read_text(encoding="utf-8").splitlines() if file_path.exists() else []
+prefix = f"{key}="
+updated = False
+out = []
+for line in lines:
+    if line.startswith(prefix):
+        out.append(f"{key}={value}")
+        updated = True
+    else:
+        out.append(line)
+if not updated:
+    out.append(f"{key}={value}")
+file_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+PY
+}
+
+apply_execution_profile_after_activation() {
+  local force_subagent env_files env_file
+  normalize_execution_profile
+  force_subagent="${YOYOO_EXECUTION_FORCE_SUBAGENT:-}"
+  if [[ -z "${force_subagent}" ]]; then
+    if [[ "${YOYOO_EXECUTION_PROFILE}" == "lean" ]]; then
+      force_subagent="1"
+    else
+      force_subagent="0"
+    fi
+  fi
+
+  env_files=()
+  if [[ -n "${YOYOO_BACKEND_ENV_FILE:-}" && -f "${YOYOO_BACKEND_ENV_FILE}" ]]; then
+    env_files+=("${YOYOO_BACKEND_ENV_FILE}")
+  fi
+  if [[ -d /etc/yoyoo ]]; then
+    while IFS= read -r env_file; do
+      env_files+=("${env_file}")
+    done < <(find /etc/yoyoo -maxdepth 1 -type f -name 'backend*.env' 2>/dev/null | sort)
+  fi
+
+  if (( ${#env_files[@]} == 0 )); then
+    log "未找到 backend env 文件，跳过执行档位回写。"
+    return 0
+  fi
+
+  for env_file in "${env_files[@]}"; do
+    upsert_env_kv "${env_file}" "YOYOO_EXECUTION_PROFILE" "${YOYOO_EXECUTION_PROFILE}"
+    upsert_env_kv "${env_file}" "YOYOO_EXECUTION_FORCE_SUBAGENT" "${force_subagent}"
+    log "已写入执行档位: ${env_file} (profile=${YOYOO_EXECUTION_PROFILE}, force_subagent=${force_subagent})"
+  done
+
+  if command -v systemctl >/dev/null 2>&1; then
+    while IFS= read -r svc; do
+      if [[ -n "${svc}" ]]; then
+        systemctl restart "${svc}" >/dev/null 2>&1 || true
+      fi
+    done < <(systemctl list-unit-files --type=service | awk '/^yoyoo-backend.*service/ {print $1}')
+    log "已重启 yoyoo-backend* 服务以应用执行档位。"
   fi
 }
 
@@ -737,6 +857,8 @@ auto_activate_by_mode() {
 
 run_install() {
   detect_platform
+  interactive_install_wizard
+  normalize_execution_profile
   log "=========================================="
   log "   Yoyoo AI ${BASELINE_VERSION} 安装脚本"
   log "=========================================="
@@ -755,6 +877,7 @@ run_install() {
   write_manifest
   run_check
   auto_activate_by_mode
+  apply_execution_profile_after_activation
 
   log ""
   log "=========================================="

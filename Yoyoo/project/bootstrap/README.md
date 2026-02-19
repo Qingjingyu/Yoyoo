@@ -14,6 +14,9 @@ It will prompt for `MINIMAX_API_KEY` (if not set), then activate **single mode**
 - one Gateway (`:18789`)
 - CEO as `main`
 - CTO as `cto` agent under the same Gateway
+- install wizard can also set:
+  - `YOYOO_MODE`: `single` / `dual`
+  - `YOYOO_EXECUTION_PROFILE`: `lean` / `balanced` / `aggressive`
 
 ## Goal
 Any new employee activated from Git should get the same default stack:
@@ -29,6 +32,23 @@ Any new employee activated from Git should get the same default stack:
 Default architecture baseline:
 - `single`: one Gateway + multi-agent routing (recommended, install default)
 - `dual`: CEO + CTO dual instance (optional compatibility mode)
+
+Execution profile baseline (PicoClaw-inspired lightweight scheduling):
+- `lean`: default to `subagent`, only escalate to `employee_instance` for clearly large tasks.
+- `balanced`: current default; keeps existing escalation behavior.
+- `aggressive`: escalates to `employee_instance` earlier for medium/large tasks.
+
+Set before activation/install:
+
+```bash
+export YOYOO_EXECUTION_PROFILE=lean   # lean | balanced | aggressive
+```
+
+Optional hard switch (always subagent):
+
+```bash
+export YOYOO_EXECUTION_FORCE_SUBAGENT=1
+```
 
 ## Quick Start
 On server (root):
