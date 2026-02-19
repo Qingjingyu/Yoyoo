@@ -231,9 +231,25 @@ Supported roles:
 
 `setup_guard.sh` now installs:
 - doctor timer (2 min)
-- asset backup timer (default 10 min)
+- asset backup timer（默认 daily `03:30`，可切到 interval）
 - asset git snapshot timer (default 5 min)
 - rollback helper script per employee
+
+Daily backup defaults (recommended):
+
+```bash
+YOYOO_BACKUP_SCHEDULE=daily \
+YOYOO_BACKUP_ON_CALENDAR='*-*-* 03:30:00' \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+```
+
+If you prefer fixed interval backup:
+
+```bash
+YOYOO_BACKUP_SCHEDULE=interval \
+YOYOO_BACKUP_INTERVAL_MIN=30 \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+```
 
 Example rollback helper path:
 
@@ -277,7 +293,7 @@ Checks included:
 - `configure_single_gateway_agents.sh`: add/repair CTO agent for single-gateway team mode.
 - `qmd_enable.sh`: enable QMD memory backend.
 - `install_base_skills.sh`: install default skills.
-- `setup_guard.sh`: install doctor timer + backup timer + git snapshot timer + rollback helper.
+- `setup_guard.sh`: install doctor timer + backup timer（daily/interval）+ git snapshot timer + rollback helper.
 - `task_progress_watchdog.sh`: detect stalled running tasks and auto nudge/degrade.
 - `hire_employee_from_git.sh`: pull repo and activate employee.
 - `hire_employee_safe.sh`: safe role-isolated hire + CEO/non-CEO health verification.
