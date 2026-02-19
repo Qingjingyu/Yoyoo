@@ -49,6 +49,7 @@ bash install.sh
 - 单 Gateway（`:18789`）
 - CEO 作为主入口（`main`）
 - CTO 作为执行 Agent（`cto`）
+- 自动安装 role 级 guard（doctor/backup/watchdog），并停用旧版全局 `yoyoo-healthcheck.*`（防误判重启）
 
 默认固定 OpenClaw 版本为 `2026.2.17`（Yoyoo 1.0 稳定基线），避免版本漂移导致兼容性问题。
 
@@ -231,6 +232,11 @@ openclaw gateway
 # 每日备份（默认）
 YOYOO_BACKUP_SCHEDULE=daily \
 YOYOO_BACKUP_ON_CALENDAR='*-*-* 03:30:00' \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+
+# 默认会停用旧版全局 healthcheck（防止误判重启）
+# 如必须保留旧逻辑（不推荐）：
+YOYOO_DISABLE_LEGACY_HEALTHCHECK=0 \
 bash Yoyoo/project/bootstrap/setup_guard.sh
 ```
 

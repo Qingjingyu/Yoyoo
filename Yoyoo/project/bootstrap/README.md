@@ -234,6 +234,8 @@ Supported roles:
 - asset backup timer（默认 daily `03:30`，可切到 interval）
 - asset git snapshot timer (default 5 min)
 - rollback helper script per employee
+- and disables legacy `yoyoo-healthcheck.service/timer` by default to avoid false restarts
+  from old CLI/token-based probes.
 
 Daily backup defaults (recommended):
 
@@ -248,6 +250,10 @@ If you prefer fixed interval backup:
 ```bash
 YOYOO_BACKUP_SCHEDULE=interval \
 YOYOO_BACKUP_INTERVAL_MIN=30 \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+
+# keep old legacy healthcheck if you really need it (not recommended)
+YOYOO_DISABLE_LEGACY_HEALTHCHECK=0 \
 bash Yoyoo/project/bootstrap/setup_guard.sh
 ```
 

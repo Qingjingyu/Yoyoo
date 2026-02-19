@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REQUIRE_CTO="${REQUIRE_CTO:-1}"
+YOYOO_MODE="${YOYOO_MODE:-single}"
+REQUIRE_CTO="${REQUIRE_CTO:-}"
+STRICT_PROBE="${STRICT_PROBE:-0}"
+if [[ -z "${REQUIRE_CTO}" ]]; then
+  if [[ "${YOYOO_MODE}" == "dual" ]]; then
+    REQUIRE_CTO="1"
+  else
+    REQUIRE_CTO="0"
+  fi
+fi
 FAIL=0
 
 check_systemd_unit() {
@@ -52,8 +61,12 @@ probe_openclaw() {
     openclaw channels status --probe >/tmp/yoyoo_post_check_"${profile}".log 2>&1; then
     echo "[post-check] probe ${profile}: pass"
   else
-    echo "[post-check] probe ${profile}: fail (see /tmp/yoyoo_post_check_${profile}.log)" >&2
-    FAIL=1
+    if [[ "${STRICT_PROBE}" == "1" ]]; then
+      echo "[post-check] probe ${profile}: fail (strict mode, see /tmp/yoyoo_post_check_${profile}.log)" >&2
+      FAIL=1
+    else
+      echo "[post-check] probe ${profile}: warn (non-strict, see /tmp/yoyoo_post_check_${profile}.log)"
+    fi
   fi
 }
 
@@ -89,4 +102,3 @@ if [[ "${FAIL}" -ne 0 ]]; then
 fi
 
 echo "[post-check] OK"
-

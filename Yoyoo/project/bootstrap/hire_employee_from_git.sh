@@ -13,6 +13,7 @@ OPENCLAW_PORT="${OPENCLAW_PORT:-}"
 YOYOO_ALLOW_SHARED_INSTANCE="${YOYOO_ALLOW_SHARED_INSTANCE:-0}"
 YOYOO_GIT_AUTO_STASH="${YOYOO_GIT_AUTO_STASH:-1}"
 YOYOO_ASSET_ROOT="${YOYOO_ASSET_ROOT:-/srv/yoyoo}"
+YOYOO_FORCE_CLEAN_RUNTIME="${YOYOO_FORCE_CLEAN_RUNTIME:-0}"
 
 role_default_home() {
   case "$1" in
@@ -106,6 +107,18 @@ if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
   exit 1
 fi
 
+if [[ -e "${RUNTIME_DIR}" && ! -d "${RUNTIME_DIR}" ]]; then
+  echo "RUNTIME_DIR is not a directory: ${RUNTIME_DIR}" >&2
+  exit 1
+fi
+
+case "${RUNTIME_DIR}" in
+  "/"|"/root"|"/home"|"/srv"|"/opt"|"/var"|"/usr"|"/etc")
+    echo "Refuse to use unsafe RUNTIME_DIR=${RUNTIME_DIR}" >&2
+    exit 1
+    ;;
+esac
+
 update_repo() {
   local stashed=0
   if [[ "${YOYOO_GIT_AUTO_STASH}" == "1" ]]; then
@@ -129,6 +142,11 @@ update_repo() {
 if [[ -d "${RUNTIME_DIR}/.git" ]]; then
   update_repo
 else
+  if [[ -d "${RUNTIME_DIR}" ]] && [[ -n "$(ls -A "${RUNTIME_DIR}" 2>/dev/null || true)" ]] && [[ "${YOYOO_FORCE_CLEAN_RUNTIME}" != "1" ]]; then
+    echo "RUNTIME_DIR is non-empty and not a git repo: ${RUNTIME_DIR}" >&2
+    echo "Refuse to remove automatically. Set YOYOO_FORCE_CLEAN_RUNTIME=1 to force." >&2
+    exit 1
+  fi
   rm -rf "${RUNTIME_DIR}"
   git clone "${GIT_URL}" "${RUNTIME_DIR}"
   git -C "${RUNTIME_DIR}" checkout "${GIT_REF}"
