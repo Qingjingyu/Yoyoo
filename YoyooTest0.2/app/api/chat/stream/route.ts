@@ -185,6 +185,16 @@ const isQueueQueryIntent = (prompt: string) => {
     return keywords.some((word) => text.includes(word));
 };
 
+const hasConfirmInstructionInReply = (reply: string) => {
+    const text = normalize(reply).toLowerCase();
+    if (!text) return false;
+    return (
+        text.includes("确认执行") ||
+        text.includes("开始执行") ||
+        text.includes("若你确认现在开始")
+    );
+};
+
 const eventKey = (event: TimelineEvent) =>
     `${event.timestamp || ""}|${event.event || ""}|${event.detail || ""}`;
 
@@ -469,21 +479,41 @@ export async function POST(request: NextRequest) {
                 const confirmIntent = isConfirmExecutionIntent(prompt);
                 const rejectIntent = isRejectExecutionIntent(prompt);
 
-                if (pendingIntent && confirmIntent) {
-                    enqueueText(controller, encoder, "CEO 正在理解任务上下文，请稍候...\n");
+                const skipCeoForConfirm = Boolean(pendingIntent && confirmIntent);
+                let ceoResult: TeamCeoChatResponse = {
+                    ok: true,
+                    reply: "",
+                    task_intent: true,
+                    require_confirmation: false,
+                    suggested_executor: "CTO",
+                    cto_lane: "ENG",
+                    execution_mode: "subagent",
+                    eta_minutes: 8,
+                };
+                let ceoReply = "";
+                let taskIntent = false;
+
+                if (!skipCeoForConfirm) {
+                    if (pendingIntent && confirmIntent) {
+                        enqueueText(controller, encoder, "CEO 正在理解任务上下文，请稍候...\n");
+                    }
+                    ceoResult = await runCeoChat({
+                        userId,
+                        conversationId,
+                        prompt,
+                    });
+                    ceoReply = (ceoResult.reply || "").trim() || "我在，请继续说。";
+                    taskIntent = Boolean(ceoResult.task_intent ?? isTaskIntent(prompt));
+                } else {
+                    taskIntent = true;
                 }
-                const ceoResult = await runCeoChat({
-                    userId,
-                    conversationId,
-                    prompt,
-                });
-                const ceoReply = (ceoResult.reply || "").trim() || "我在，请继续说。";
-                const taskIntent = Boolean(ceoResult.task_intent ?? isTaskIntent(prompt));
 
                 if (taskIntent && !pendingIntent) {
                     enqueueText(controller, encoder, "CEO 正在理解任务上下文，请稍候...\n");
                 }
-                await streamByChunks(controller, encoder, ceoReply);
+                if (!skipCeoForConfirm) {
+                    await streamByChunks(controller, encoder, ceoReply);
+                }
 
                 if (pendingIntent && rejectIntent) {
                     await clearPendingIntent(userId, conversationId);
@@ -507,11 +537,13 @@ export async function POST(request: NextRequest) {
                             prompt,
                             suggestedExecutor: ceoResult.suggested_executor || "CTO",
                         });
-                        enqueueText(
-                            controller,
-                            encoder,
-                            "\n\n我已识别到这是一条可执行任务。若要开始执行，请回复“确认执行”；若只想继续讨论，直接继续聊即可。"
-                        );
+                        if (!hasConfirmInstructionInReply(ceoReply)) {
+                            enqueueText(
+                                controller,
+                                encoder,
+                                "\n\n我已识别到这是一条可执行任务。若要开始执行，请回复“确认执行”；若只想继续讨论，直接继续聊即可。"
+                            );
+                        }
                         controller.close();
                         return;
                     } else {
