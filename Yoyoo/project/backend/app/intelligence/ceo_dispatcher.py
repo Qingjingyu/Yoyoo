@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -68,6 +69,8 @@ class CEODispatcher:
     ) -> None:
         self._memory = memory_service
         self._executor_adapter = executor_adapter
+        self._execution_profile = self._load_execution_profile()
+        self._force_subagent = self._env_bool("YOYOO_EXECUTION_FORCE_SUBAGENT", default=False)
 
     def create_task(
         self,
@@ -852,12 +855,27 @@ class CEODispatcher:
 
     def _pick_execution_mode(self, *, request_text: str) -> str:
         message = (request_text or "").lower()
+        heavy_markers = ("架构", "全量", "长期", "多阶段", "多并发", "系统", "企业级", "重构")
+        if self._force_subagent:
+            return "subagent"
+
+        if self._execution_profile == "lean":
+            if len(message) >= 240:
+                return "employee_instance"
+            if any(token in message for token in ("企业级", "系统重构", "跨团队", "大规模")):
+                return "employee_instance"
+            return "subagent"
+
+        if self._execution_profile == "aggressive":
+            if len(message) >= 80:
+                return "employee_instance"
+            if any(token in message for token in heavy_markers):
+                return "employee_instance"
+            return "subagent"
+
         if len(message) >= 120:
             return "employee_instance"
-        if any(
-            token in message
-            for token in ("架构", "全量", "长期", "多阶段", "多并发", "系统", "企业级", "重构")
-        ):
+        if any(token in message for token in heavy_markers):
             return "employee_instance"
         return "subagent"
 
@@ -937,7 +955,10 @@ class CEODispatcher:
 
     def _execution_strategy_detail(self, *, cto_lane: str, execution_mode: str) -> str:
         mode_cn = self._execution_mode_cn(execution_mode)
-        return f"CTO 执行策略已确定：lane={cto_lane}，mode={mode_cn}。"
+        return (
+            f"CTO 执行策略已确定：lane={cto_lane}，mode={mode_cn}，"
+            f"profile={self._execution_profile}。"
+        )
 
     def _normalize_text(self, text: str) -> str:
         return re.sub(r"\s+", " ", (text or "").strip().lower())
@@ -965,6 +986,18 @@ class CEODispatcher:
         if has_action and len(normalized) >= 10:
             return True
         return False
+
+    def _env_bool(self, name: str, *, default: bool) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    def _load_execution_profile(self) -> str:
+        raw = os.getenv("YOYOO_EXECUTION_PROFILE", "balanced").strip().lower()
+        if raw in {"lean", "balanced", "aggressive"}:
+            return raw
+        return "balanced"
 
     def _recent_guard_event_exists(
         self,
