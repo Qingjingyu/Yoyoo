@@ -24,6 +24,9 @@ YOYOO_FEISHU_SESSION_PATCH_SCRIPT="${YOYOO_FEISHU_SESSION_PATCH_SCRIPT:-${SCRIPT
 YOYOO_GUARD_ALERT_WEBHOOK="${YOYOO_GUARD_ALERT_WEBHOOK:-}"
 YOYOO_GUARD_ALERT_CHANNEL="${YOYOO_GUARD_ALERT_CHANNEL:-feishu}" # feishu | dingtalk
 YOYOO_GUARD_ALERT_ON_RECOVER="${YOYOO_GUARD_ALERT_ON_RECOVER:-0}"
+YOYOO_GUARD_ALERT_FEISHU_APP_ID="${YOYOO_GUARD_ALERT_FEISHU_APP_ID:-}"
+YOYOO_GUARD_ALERT_FEISHU_APP_SECRET="${YOYOO_GUARD_ALERT_FEISHU_APP_SECRET:-}"
+YOYOO_GUARD_ALERT_FEISHU_OPEN_ID="${YOYOO_GUARD_ALERT_FEISHU_OPEN_ID:-}"
 
 if [[ -z "${OPENCLAW_SYSTEMD_UNIT}" ]]; then
   if [[ "${YOYOO_ROLE}" == "ceo" ]]; then
@@ -65,6 +68,34 @@ send_guard_alert() {
   host="$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo unknown-host)"
   text="[YoyooGuard][${status}] role=${YOYOO_ROLE} employee=${YOYOO_EMPLOYEE_KEY} host=${host} port=${OPENCLAW_PORT} unit=${OPENCLAW_SYSTEMD_UNIT}\n${detail}"
 
+  # Preferred: direct Feishu app message (no webhook required)
+  if [[ -z "${webhook}" && "${channel}" == "feishu" && -n "${YOYOO_GUARD_ALERT_FEISHU_APP_ID}" && -n "${YOYOO_GUARD_ALERT_FEISHU_APP_SECRET}" && -n "${YOYOO_GUARD_ALERT_FEISHU_OPEN_ID}" ]]; then
+    local token_json token access_token content_json direct_payload
+    token_json="$(
+      curl -fsS -m 8 -H 'Content-Type: application/json' \
+        -d "$(jq -nc --arg id "${YOYOO_GUARD_ALERT_FEISHU_APP_ID}" --arg sec "${YOYOO_GUARD_ALERT_FEISHU_APP_SECRET}" '{app_id:$id,app_secret:$sec}')" \
+        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal" \
+        2>/tmp/yoyoo_guard_alert_token_"${YOYOO_ROLE}".log || true
+    )"
+    access_token="$(printf '%s' "${token_json}" | jq -r '.tenant_access_token // empty' 2>/dev/null || true)"
+    if [[ -n "${access_token}" ]]; then
+      content_json="$(jq -nc --arg t "${text}" '{text:$t}')"
+      direct_payload="$(jq -nc --arg rid "${YOYOO_GUARD_ALERT_FEISHU_OPEN_ID}" --arg c "${content_json}" '{receive_id:$rid,msg_type:"text",content:$c}')"
+      if curl -fsS -m 8 \
+        -H "Authorization: Bearer ${access_token}" \
+        -H 'Content-Type: application/json' \
+        -d "${direct_payload}" \
+        "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id" \
+        >/tmp/yoyoo_guard_alert_direct_"${YOYOO_ROLE}".log 2>&1; then
+        return 0
+      fi
+      log "direct feishu push failed"
+    else
+      log "get feishu tenant_access_token failed"
+    fi
+  fi
+
+  # Fallback: webhook push
   if [[ "${channel}" == "dingtalk" ]]; then
     payload="$(jq -nc --arg text "${text}" '{msgtype:"text",text:{content:$text}}')"
   else
