@@ -70,7 +70,7 @@ send_guard_alert() {
 
   # Preferred: direct Feishu app message (no webhook required)
   if [[ -z "${webhook}" && "${channel}" == "feishu" && -n "${YOYOO_GUARD_ALERT_FEISHU_APP_ID}" && -n "${YOYOO_GUARD_ALERT_FEISHU_APP_SECRET}" && -n "${YOYOO_GUARD_ALERT_FEISHU_OPEN_ID}" ]]; then
-    local token_json token access_token content_json direct_payload
+    local token_json access_token content_json direct_payload
     token_json="$(
       curl -fsS -m 8 -H 'Content-Type: application/json' \
         -d "$(jq -nc --arg id "${YOYOO_GUARD_ALERT_FEISHU_APP_ID}" --arg sec "${YOYOO_GUARD_ALERT_FEISHU_APP_SECRET}" '{app_id:$id,app_secret:$sec}')" \
