@@ -234,6 +234,15 @@ YOYOO_BACKUP_ON_CALENDAR='*-*-* 03:30:00' \
 bash Yoyoo/project/bootstrap/setup_guard.sh
 ```
 
+飞书告警（仅失败时推送）：
+
+```bash
+YOYOO_GUARD_ALERT_CHANNEL=feishu \
+YOYOO_GUARD_ALERT_WEBHOOK='https://open.feishu.cn/open-apis/bot/v2/hook/xxxxx' \
+YOYOO_GUARD_ALERT_ON_RECOVER=0 \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+```
+
 恢复演练建议每周至少执行一次（只做校验，不覆盖线上运行）：
 
 ```bash
