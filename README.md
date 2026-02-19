@@ -243,6 +243,16 @@ YOYOO_GUARD_ALERT_ON_RECOVER=0 \
 bash Yoyoo/project/bootstrap/setup_guard.sh
 ```
 
+不想用 Webhook 时，也可以直接用飞书应用机器人私聊推送（推荐）：
+
+```bash
+YOYOO_GUARD_ALERT_CHANNEL=feishu \
+YOYOO_GUARD_ALERT_FEISHU_APP_ID='cli_xxx' \
+YOYOO_GUARD_ALERT_FEISHU_APP_SECRET='xxx' \
+YOYOO_GUARD_ALERT_FEISHU_OPEN_ID='ou_xxx' \
+bash Yoyoo/project/bootstrap/setup_guard.sh
+```
+
 恢复演练建议每周至少执行一次（只做校验，不覆盖线上运行）：
 
 ```bash
