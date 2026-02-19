@@ -43,6 +43,7 @@ YOYOO_TASK_WATCHDOG_SCRIPT="${YOYOO_TASK_WATCHDOG_SCRIPT:-${SCRIPT_DIR}/task_pro
 YOYOO_MEMORY_FILE="${YOYOO_MEMORY_FILE:-${YOYOO_BACKEND_MEMORY_FILE:-${YOYOO_RUNTIME_HOME}/backend/yoyoo_memory.json}}"
 YOYOO_STALE_PROGRESS_SEC="${YOYOO_STALE_PROGRESS_SEC:-90}"
 YOYOO_STALE_DEGRADE_SEC="${YOYOO_STALE_DEGRADE_SEC:-300}"
+YOYOO_DISABLE_LEGACY_HEALTHCHECK="${YOYOO_DISABLE_LEGACY_HEALTHCHECK:-1}"
 
 sanitize_key() {
   local raw="$1"
@@ -97,6 +98,20 @@ SNAPSHOT_SERVICE="/etc/systemd/system/yoyoo-asset-snapshot-${YOYOO_EMPLOYEE_KEY}
 SNAPSHOT_TIMER="/etc/systemd/system/yoyoo-asset-snapshot-${YOYOO_EMPLOYEE_KEY}.timer"
 TASK_WATCHDOG_SERVICE="/etc/systemd/system/yoyoo-task-watchdog-${YOYOO_EMPLOYEE_KEY}.service"
 TASK_WATCHDOG_TIMER="/etc/systemd/system/yoyoo-task-watchdog-${YOYOO_EMPLOYEE_KEY}.timer"
+
+disable_legacy_healthcheck_units() {
+  if [[ "${YOYOO_DISABLE_LEGACY_HEALTHCHECK}" != "1" ]]; then
+    return 0
+  fi
+  local unit
+  for unit in yoyoo-healthcheck.timer yoyoo-healthcheck.service; do
+    if systemctl list-unit-files "${unit}" >/dev/null 2>&1; then
+      systemctl stop "${unit}" >/tmp/yoyoo_guard_legacy_stop_"${YOYOO_EMPLOYEE_KEY}".log 2>&1 || true
+      systemctl disable "${unit}" >/tmp/yoyoo_guard_legacy_disable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1 || true
+      systemctl reset-failed "${unit}" >/tmp/yoyoo_guard_legacy_reset_"${YOYOO_EMPLOYEE_KEY}".log 2>&1 || true
+    fi
+  done
+}
 
 cat > "${DOCTOR_SCRIPT_RUNTIME}" <<SH
 #!/usr/bin/env bash
@@ -411,6 +426,7 @@ WantedBy=timers.target
 UNIT
 
 systemctl daemon-reload
+disable_legacy_healthcheck_units
 systemctl enable --now "$(basename "${DOCTOR_TIMER}")" >/tmp/yoyoo_guard_enable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1
 systemctl enable --now "$(basename "${BACKUP_TIMER}")" >/tmp/yoyoo_asset_backup_enable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1
 systemctl enable --now "$(basename "${SNAPSHOT_TIMER}")" >/tmp/yoyoo_asset_snapshot_enable_"${YOYOO_EMPLOYEE_KEY}".log 2>&1
@@ -427,6 +443,9 @@ echo "  backup_on_calendar=${YOYOO_BACKUP_ON_CALENDAR}"
 echo "  snapshot_timer=$(basename "${SNAPSHOT_TIMER}")"
 echo "  task_watchdog_timer=$(basename "${TASK_WATCHDOG_TIMER}")"
 echo "  rollback_helper=${ROLLBACK_SCRIPT_RUNTIME}"
+if [[ "${YOYOO_DISABLE_LEGACY_HEALTHCHECK}" == "1" ]]; then
+  echo "  legacy_healthcheck=disabled (yoyoo-healthcheck.*)"
+fi
 if [[ -n "${YOYOO_GUARD_ALERT_WEBHOOK}" ]]; then
   echo "  guard_alert=enabled (${YOYOO_GUARD_ALERT_CHANNEL})"
 else

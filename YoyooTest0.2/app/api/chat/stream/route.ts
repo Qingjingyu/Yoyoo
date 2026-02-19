@@ -17,7 +17,7 @@ const POLL_INTERVAL_MS = Number.parseInt(
     10
 );
 const POLL_TIMEOUT_MS = Number.parseInt(
-    process.env.YOYOO_TASK_TIMEOUT_MS || "90000",
+    process.env.YOYOO_TASK_TIMEOUT_MS || "600000",
     10
 );
 const INITIAL_REPORT_WINDOW_MS = Number.parseInt(
@@ -59,6 +59,14 @@ type TaskDetailResponse = {
     task_id: string;
     status: string;
     timeline?: TimelineEvent[];
+};
+
+type TaskRunAsyncResponse = {
+    ok: boolean;
+    task_id: string;
+    accepted: boolean;
+    status: string;
+    message?: string;
 };
 
 type TeamCeoChatResponse = {
@@ -396,6 +404,34 @@ const runTaskExecutionFlow = async ({
         }
 
         const taskId = created.task_id;
+        try {
+            const runAccepted = await fetchJson<TaskRunAsyncResponse>(
+                `${BACKEND_BASE_URL}/api/v1/team/tasks/${encodeURIComponent(taskId)}/run-async`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        max_attempts: 2,
+                        resume: true,
+                    }),
+                }
+            );
+            if (runAccepted.message) {
+                enqueueText(controller, encoder, `\n${runAccepted.message}`);
+            }
+            if (!runAccepted.accepted && runAccepted.status === "done") {
+                enqueueText(controller, encoder, "\n任务已是完成态，正在回收执行结果。");
+            }
+        } catch (error) {
+            enqueueText(
+                controller,
+                encoder,
+                `\n触发执行失败：${(error as Error)?.message || "unknown error"}`
+            );
+        }
+
         const startedAt = Date.now();
         const seenEvents = new Set<string>();
         let lastStatus = created.status || "running";

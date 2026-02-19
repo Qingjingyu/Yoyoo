@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import sys
 from datetime import UTC, datetime
+from threading import Thread
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
@@ -29,6 +31,7 @@ from app.schemas import (
     TeamTaskProgressResponse,
     TeamTaskResultRequest,
     TeamTaskResultResponse,
+    TeamTaskRunAsyncResponse,
     TeamTaskRunRequest,
     TeamTaskRunResponse,
     TeamWatchdogRecoverRequest,
@@ -38,6 +41,7 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/api/v1/team", tags=["team"])
+_LOGGER = logging.getLogger(__name__)
 _OPS_QUERY_KEYWORDS = (
     "运维",
     "巡检",
@@ -318,6 +322,23 @@ def _build_ops_report(
         "server": server,
         "router": router,
     }
+
+
+def _execute_task_async_worker(
+    *,
+    container: ServiceContainer,
+    task_id: str,
+    max_attempts: int,
+    resume: bool,
+) -> None:
+    try:
+        container.ceo_dispatcher.execute_task(
+            task_id=task_id,
+            max_attempts=max_attempts,
+            resume=resume,
+        )
+    except Exception:  # pragma: no cover
+        _LOGGER.exception("run-async worker failed: task_id=%s", task_id)
 
 
 def _post_json(
@@ -635,6 +656,50 @@ def run_task(
         resume=req.resume,
     )
     return TeamTaskRunResponse(**result)
+
+
+@router.post("/tasks/{task_id}/run-async", response_model=TeamTaskRunAsyncResponse)
+def run_task_async(
+    task_id: str,
+    req: TeamTaskRunRequest,
+    request: Request,
+) -> TeamTaskRunAsyncResponse:
+    container = _get_container(request)
+    record = container.memory_service.get_task_record(task_id=task_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"task not found: {task_id}",
+        )
+
+    current_status = str(record.status or "planned").lower()
+    if current_status in {"done", "review"}:
+        return TeamTaskRunAsyncResponse(
+            ok=True,
+            task_id=task_id,
+            accepted=False,
+            status=current_status,
+            message="任务已结束，无需再次触发执行。",
+        )
+    worker = Thread(
+        target=_execute_task_async_worker,
+        kwargs={
+            "container": container,
+            "task_id": task_id,
+            "max_attempts": max(int(req.max_attempts), 1),
+            "resume": req.resume,
+        },
+        daemon=True,
+        name=f"yoyoo-run-{task_id[:24]}",
+    )
+    worker.start()
+    return TeamTaskRunAsyncResponse(
+        ok=True,
+        task_id=task_id,
+        accepted=True,
+        status="running",
+        message="已受理并开始异步执行。",
+    )
 
 
 @router.get("/tasks/{task_id}", response_model=TeamTaskDetailResponse)

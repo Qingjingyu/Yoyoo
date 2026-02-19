@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -441,3 +442,47 @@ def test_team_mode_api_run_task_and_recover() -> None:
     assert recover_resp.status_code == 200
     assert recover_body["ok"] is True
     assert "details" in recover_body
+
+
+def test_team_mode_api_run_task_async() -> None:
+    create_resp = client.post(
+        "/api/v1/team/tasks",
+        json={
+            "user_id": "u_run_async",
+            "message": "请异步执行任务并汇报结果",
+            "channel": "api",
+            "project_key": "proj_run_async",
+        },
+    )
+    task_id = create_resp.json()["task_id"]
+
+    run_async_resp = client.post(
+        f"/api/v1/team/tasks/{task_id}/run-async",
+        json={"max_attempts": 2, "resume": True},
+    )
+    run_async_body = run_async_resp.json()
+    assert run_async_resp.status_code == 200
+    assert run_async_body["ok"] is True
+    assert run_async_body["task_id"] == task_id
+    assert run_async_body["status"] == "running"
+    assert run_async_body["accepted"] is True
+
+    deadline = time.time() + 5.0
+    detail_body: dict[str, object] = {}
+    while time.time() < deadline:
+        detail_resp = client.get(f"/api/v1/team/tasks/{task_id}")
+        assert detail_resp.status_code == 200
+        detail_body = detail_resp.json()
+        timeline = detail_body.get("timeline")
+        if isinstance(timeline, list) and any(
+            isinstance(item, dict) and item.get("event") == "execution_attempt"
+            for item in timeline
+        ):
+            break
+        time.sleep(0.1)
+
+    assert detail_body.get("status") in {"running", "done", "review", "failed"}
+    assert any(
+        isinstance(item, dict) and item.get("event") == "execution_attempt"
+        for item in (detail_body.get("timeline") or [])
+    )

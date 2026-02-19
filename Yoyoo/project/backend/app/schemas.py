@@ -238,6 +238,14 @@ class TeamTaskRunResponse(BaseModel):
     next_step: str | None = None
 
 
+class TeamTaskRunAsyncResponse(BaseModel):
+    ok: bool
+    task_id: str
+    accepted: bool
+    status: str
+    message: str
+
+
 class TeamWatchdogRecoverRequest(BaseModel):
     max_scan: int = Field(default=50, ge=1, le=500)
     stale_seconds: int = Field(default=120, ge=30, le=7200)
