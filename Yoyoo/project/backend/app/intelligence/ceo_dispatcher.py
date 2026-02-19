@@ -730,22 +730,28 @@ class CEODispatcher:
         mode = self._pick_execution_mode(request_text=text)
         eta = self._estimate_eta_minutes(request_text=text)
         mode_cn = self._execution_mode_cn(mode)
+        latest_task = self._latest_task_hint(conversation_id=conversation_id)
 
         if self._is_capability_query(normalized):
-            reply = (
-                "我是 Yoyoo CEO，负责和你对话、澄清目标、派发任务给 CTO、验收结果并持续汇报。"
-                "你可以直接说目标，我会判断是先讨论还是进入执行。"
-            )
+            reply = self._capability_reply(latest_task=latest_task)
         elif self._is_greeting_or_smalltalk(normalized):
-            reply = "我在。你直接告诉我现在最想推进的目标，我来帮你拆解并安排执行。"
+            reply = self._greeting_reply(latest_task=latest_task)
         elif task_intent:
+            task_title = self._make_title(text)
             reply = (
-                f"我已理解任务方向，会由 CTO 负责执行（lane={lane}，mode={mode_cn}）。"
+                f"我已理解你的目标：「{task_title}」。"
+                f"我会由 CTO 负责执行（lane={lane}，mode={mode_cn}）。"
                 f"预计 {eta} 分钟给阶段结果。若你确认现在开始，请回复“确认执行”。"
             )
         else:
+            task_hint = ""
+            if latest_task is not None and latest_task.get("task_id"):
+                task_hint = (
+                    f"你上一个任务 {latest_task['task_id']} 目前{latest_task.get('status_cn', '处理中')}。"
+                )
             reply = (
-                "我先帮你把需求收敛清楚，再决定是否进入执行。"
+                f"我理解你在问「{self._make_title(text)}」。"
+                f"{task_hint}我先帮你把需求收敛清楚，再决定是否进入执行。"
                 "你可以补充目标、约束和截止时间。"
             )
 
@@ -789,6 +795,53 @@ class CEODispatcher:
             "execution_mode": mode,
             "eta_minutes": eta,
         }
+
+    def _latest_task_hint(self, *, conversation_id: str) -> dict[str, Any] | None:
+        tasks = self._memory.recent_tasks(conversation_id=conversation_id, limit=1)
+        if not tasks:
+            return None
+        item = tasks[-1]
+        return {
+            "task_id": item.task_id,
+            "title": self._make_title(item.request_text),
+            "status": item.status,
+            "status_cn": self._task_status_cn(item.status),
+            "updated_at": item.updated_at.isoformat(),
+        }
+
+    def _task_status_cn(self, status: str) -> str:
+        mapping = {
+            "planned": "待执行",
+            "running": "执行中",
+            "in_progress": "执行中",
+            "review": "验收中",
+            "completed": "已完成",
+            "completed_with_warnings": "已完成（有提醒）",
+            "failed": "失败",
+            "timeout": "超时",
+            "cancelled": "已取消",
+        }
+        return mapping.get((status or "").strip().lower(), "处理中")
+
+    def _capability_reply(self, *, latest_task: dict[str, Any] | None) -> str:
+        task_hint = ""
+        if latest_task is not None and latest_task.get("task_id"):
+            task_hint = (
+                f"你最近任务 {latest_task['task_id']} 当前{latest_task.get('status_cn', '处理中')}。"
+            )
+        return (
+            "我是 Yoyoo CEO，负责和你对话、澄清目标、派发任务给 CTO、验收结果并持续汇报。"
+            f"{task_hint}你可以直接说目标，我会判断是先讨论还是进入执行。"
+        )
+
+    def _greeting_reply(self, *, latest_task: dict[str, Any] | None) -> str:
+        if latest_task is not None and latest_task.get("task_id"):
+            return (
+                f"我在。你上个任务「{latest_task.get('title', '')}」"
+                f"（{latest_task['task_id']}）当前{latest_task.get('status_cn', '处理中')}。"
+                "你要继续推进它，还是开一个新任务？"
+            )
+        return "我在。你直接告诉我现在最想推进的目标，我来帮你拆解并安排执行。"
 
     def _select_cto_lane(self, *, request_text: str) -> str:
         message = (request_text or "").lower()
