@@ -232,6 +232,8 @@ export OPENCLAW_SESSION_LOCK_RETRIES="1"
 export OPENCLAW_RETRY_POLICY_FILE="/root/yoyoo/backend/config/retry_policy.json"
 export OPENCLAW_RETRY_POLICY_RELOAD_SEC="5"
 export YOYOO_DEFAULT_AGENT_ID="ceo"
+export YOYOO_EXECUTION_PROFILE="balanced"
+export YOYOO_EXECUTION_FORCE_SUBAGENT="0"
 export YOYOO_AGENT_BINDINGS_FILE="/root/yoyoo/backend/config/agent_bindings.json"
 # or inline JSON text
 export YOYOO_AGENT_BINDINGS_JSON='[{"agentId":"writer","match":{"channel":"feishu","peer":{"kind":"group","id":"oc_writer"}}}]'

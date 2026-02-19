@@ -14,6 +14,8 @@ It will prompt for `MINIMAX_API_KEY` (if not set), then activate **single mode**
 - one Gateway (`:18789`)
 - CEO as `main`
 - CTO as `cto` agent under the same Gateway
+- default execution policy: `YOYOO_EXECUTION_PROFILE=balanced` (AI smart routing)
+- default force flag: `YOYOO_EXECUTION_FORCE_SUBAGENT=0`
 - install wizard can also set:
   - `YOYOO_MODE`: `single` / `dual`
   - `YOYOO_EXECUTION_PROFILE`: `lean` / `balanced` / `aggressive`
@@ -41,7 +43,7 @@ Execution profile baseline (PicoClaw-inspired lightweight scheduling):
 Set before activation/install:
 
 ```bash
-export YOYOO_EXECUTION_PROFILE=lean   # lean | balanced | aggressive
+export YOYOO_EXECUTION_PROFILE=balanced   # lean | balanced | aggressive
 ```
 
 Optional hard switch (always subagent):
