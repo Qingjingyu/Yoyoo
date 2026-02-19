@@ -265,6 +265,27 @@ class TeamRuntimeHealthResponse(BaseModel):
     timestamp: str
 
 
+class TeamOpsReportRequest(BaseModel):
+    user_id: str | None = Field(default=None, min_length=1, max_length=64)
+    push_feishu: bool = False
+    scan_now: bool = True
+    recover_now: bool = False
+    stale_progress_sec: int = Field(default=90, ge=30, le=3600)
+    stale_degrade_sec: int = Field(default=300, ge=60, le=7200)
+    max_scan: int = Field(default=200, ge=1, le=5000)
+    min_repeat_sec: int = Field(default=120, ge=30, le=3600)
+
+
+class TeamOpsReportResponse(BaseModel):
+    ok: bool
+    summary: str
+    report: dict[str, Any] = Field(default_factory=dict)
+    pushed: bool = False
+    push_channel: str | None = None
+    push_error: str | None = None
+    timestamp: str
+
+
 class AuthSendCodeRequest(BaseModel):
     login_type: Literal["phone", "email"]
     identifier: str = Field(min_length=3, max_length=128)

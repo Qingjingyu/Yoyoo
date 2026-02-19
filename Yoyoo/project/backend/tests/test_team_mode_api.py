@@ -294,6 +294,79 @@ def test_team_mode_api_ceo_chat_detects_task_intent() -> None:
     assert isinstance(body["eta_minutes"], int)
 
 
+def test_team_mode_api_ceo_chat_ops_report_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("YOYOO_OPS_CHAT_PUSH_DEFAULT", "0")
+    resp = client.post(
+        "/api/v1/team/chat/ceo",
+        json={
+            "user_id": "u_ops_chat",
+            "message": "帮我看下运维情况",
+            "channel": "web",
+            "project_key": "proj_ops",
+        },
+    )
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert body["task_intent"] is False
+    assert body["require_confirmation"] is False
+    assert "Yoyoo 运维概览" in body["reply"]
+    assert "服务器:" in body["reply"]
+    assert "模型:" in body["reply"]
+
+
+def test_team_mode_api_ceo_chat_ops_report_detail_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("YOYOO_OPS_CHAT_PUSH_DEFAULT", "0")
+    resp = client.post(
+        "/api/v1/team/chat/ceo",
+        json={
+            "user_id": "u_ops_chat_detail",
+            "message": "查看运维详细报告",
+            "channel": "web",
+            "project_key": "proj_ops",
+        },
+    )
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert "Yoyoo 运维概览" in body["reply"]
+    assert "详细补充：" in body["reply"]
+    assert "记忆概述:" in body["reply"]
+    assert "服务器:" in body["reply"]
+    assert "模型:" in body["reply"]
+
+
+def test_team_mode_api_ops_report_endpoint_without_push(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("YOYOO_GUARD_ALERT_WEBHOOK", raising=False)
+    monkeypatch.delenv("YOYOO_GUARD_ALERT_FEISHU_APP_ID", raising=False)
+    monkeypatch.delenv("YOYOO_GUARD_ALERT_FEISHU_APP_SECRET", raising=False)
+    monkeypatch.delenv("YOYOO_GUARD_ALERT_FEISHU_OPEN_ID", raising=False)
+
+    resp = client.post(
+        "/api/v1/team/ops/report",
+        json={
+            "push_feishu": False,
+            "scan_now": True,
+            "recover_now": False,
+        },
+    )
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["ok"] is True
+    assert body["pushed"] is False
+    assert "summary" in body and "Yoyoo 运维概览" in body["summary"]
+    assert isinstance(body.get("report"), dict)
+    assert "watchdog" in body["report"]
+    assert "memory" in body["report"]
+    assert "server" in body["report"]
+    assert "model" in body["report"]
+
+
 def test_team_mode_api_route_by_binding_and_filter_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
