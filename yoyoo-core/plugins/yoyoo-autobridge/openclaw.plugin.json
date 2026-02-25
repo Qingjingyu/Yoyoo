@@ -1,0 +1,64 @@
+{
+  "id": "yoyoo-autobridge",
+  "name": "Yoyoo Auto Bridge",
+  "description": "Inject Yoyoo context into OpenClaw before prompt build.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "admins": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "skills": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "memoryBridgeMode": {
+        "type": "string",
+        "enum": ["isolated", "user-global"]
+      },
+      "groupSessionScope": {
+        "type": "string",
+        "enum": ["per-group", "per-user"]
+      },
+      "sharedMemoryRoot": {
+        "type": "string"
+      },
+      "sharedMemoryPriority": {
+        "type": "string",
+        "enum": ["P0", "P1", "P2"]
+      }
+    }
+  },
+  "uiHints": {
+    "enabled": {
+      "label": "Enable Yoyoo Auto Bridge"
+    },
+    "admins": {
+      "label": "Admin User IDs"
+    },
+    "skills": {
+      "label": "Yoyoo Skill Tags"
+    },
+    "memoryBridgeMode": {
+      "label": "Memory Bridge Mode"
+    },
+    "groupSessionScope": {
+      "label": "Group Session Scope"
+    },
+    "sharedMemoryRoot": {
+      "label": "Shared Memory Root"
+    },
+    "sharedMemoryPriority": {
+      "label": "Shared Memory Priority"
+    }
+  }
+}

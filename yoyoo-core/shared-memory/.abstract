@@ -1,0 +1,4 @@
+# Shared Memory L0 Index
+- user-profile.md: stable user preferences and identity (P0)
+- active-tasks.md: current active tasks and milestones (P1)
+- cross-agent-log.md: cross-agent key conclusions (P0/P1/P2)

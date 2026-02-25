@@ -1,0 +1,10 @@
+{
+  "name": "yoyoo-autobridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "openclaw": {
+    "extensions": ["index.ts"]
+  }
+}
