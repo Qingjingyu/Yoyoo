@@ -13,6 +13,7 @@ OPENCLAW_PORT="${OPENCLAW_PORT:-}"
 OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}"
 YOYOO_ENABLE_QMD="${YOYOO_ENABLE_QMD:-1}"
 YOYOO_ENABLE_BASE_SKILLS="${YOYOO_ENABLE_BASE_SKILLS:-1}"
+YOYOO_ENABLE_AGENT_REACH="${YOYOO_ENABLE_AGENT_REACH:-1}"
 YOYOO_DEFAULT_MODEL="${YOYOO_DEFAULT_MODEL:-MiniMax-M2.5}"
 YOYOO_FORCE_OPENCLAW_INSTALL="${YOYOO_FORCE_OPENCLAW_INSTALL:-0}"
 YOYOO_OPENCLAW_VERSION="${YOYOO_OPENCLAW_VERSION:-2026.2.17}"
@@ -187,7 +188,7 @@ Group=${YOYOO_LINUX_GROUP}
 UMask=0077
 WorkingDirectory=${YOYOO_RUNTIME_HOME}
 Environment="HOME=${YOYOO_RUNTIME_HOME}"
-Environment="PATH=/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PATH=${YOYOO_RUNTIME_HOME}/.local/bin:${YOYOO_RUNTIME_HOME}/.agent-reach/npm/bin:${YOYOO_RUNTIME_HOME}/.agent-reach/venv/bin:/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="OPENCLAW_STATE_DIR=${YOYOO_HOME}"
 Environment="OPENCLAW_PROFILE=${YOYOO_PROFILE}"
 Environment="OPENCLAW_GATEWAY_PORT=${OPENCLAW_PORT}"
@@ -552,6 +553,10 @@ fi
 
 if [[ "${YOYOO_ENABLE_BASE_SKILLS}" == "1" ]]; then
   bash "${SCRIPT_DIR}/install_base_skills.sh"
+fi
+
+if [[ "${YOYOO_ENABLE_AGENT_REACH}" == "1" ]]; then
+  bash "${SCRIPT_DIR}/install_agent_reach.sh"
 fi
 
 openclaw_cmd doctor --fix >/tmp/yoyoo_bootstrap_doctor_fix.log 2>&1 || true
