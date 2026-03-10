@@ -323,3 +323,13 @@ Checks included:
 - `acceptance_check.sh`: one-click acceptance checks (probe/session/auth/log signatures).
 - `profiles/*`: role identity/soul/memory/contract templates.
 - `registry/capability-catalog.yaml`: baseline/optional capability governance.
+- `install_agent_reach.sh`: install isolated Agent Reach tool layer into the employee runtime home.
+
+## Agent Reach Baseline
+- `activate_employee.sh` now installs `Agent Reach` by default when `YOYOO_ENABLE_AGENT_REACH=1`.
+- Default mode is safe bootstrap:
+  - installs the `agent-reach` CLI into the employee runtime home
+  - installs user-space helpers like `mcporter`, `xreach`, `yt-dlp`, and `mcp-server-weibo`
+  - wires `agent-reach` into the gateway `PATH`
+- This gives every newborn claw a default internet reach layer without forcing platform credentials on day 0.
+- Channels that still need cookies, proxy, login, or extra keys should be configured later by mission.
