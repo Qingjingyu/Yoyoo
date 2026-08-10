@@ -41,7 +41,6 @@ function usePreviewAmplitude(state: PresenceState) {
 
   return amplitude;
 }
-
 export function OrbPreview() {
   const [state, setState] = useState<PresenceState>("idle");
   const amplitude = usePreviewAmplitude(state);
@@ -80,4 +79,3 @@ export function OrbPreview() {
     </section>
   );
 }
-
