@@ -1,0 +1,51 @@
+@layer tokens {
+  :root {
+    color-scheme: dark;
+
+    --ink-950: #070b0a;
+    --ink-900: #0a100e;
+    --ink-850: #0d1412;
+    --ink-800: #121a17;
+    --text-primary: #edf2ee;
+    --text-secondary: #a8b3ad;
+    --text-tertiary: #7f8c85;
+    --accent: #77c29f;
+    --accent-strong: #a3ddc0;
+    --danger: #d8988f;
+
+    --line-soft: rgb(224 239 231 / 8%);
+    --line-medium: rgb(224 239 231 / 14%);
+    --glass-fill: rgb(13 22 19 / 74%);
+    --glass-fill-strong: rgb(15 24 21 / 91%);
+    --glass-highlight: rgb(238 248 242 / 12%);
+
+    --font-sans: "Avenir Next", Avenir, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+    --radius-surface: 8px;
+    --radius-control: 8px;
+    --radius-round: 999px;
+
+    --space-2xs: 0.25rem;
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 2.5rem;
+    --space-3xl: 3rem;
+
+    --control-size: 2.75rem;
+    --content-measure: 46rem;
+    --mobile-navigation-height: 4rem;
+
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-fast: 180ms;
+    --duration-medium: 420ms;
+
+    --layer-base: 0;
+    --layer-content: 1;
+    --layer-navigation: 4;
+    --layer-skip: 10;
+  }
+}
