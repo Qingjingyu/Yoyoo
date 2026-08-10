@@ -1,0 +1,396 @@
+@property --angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.page {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #060908;
+  color: var(--text-primary);
+}
+
+.page::before {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(214 237 225 / 2.4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(214 237 225 / 2.4%) 1px, transparent 1px);
+  background-size: 5.5rem 5.5rem;
+  content: "";
+  mask-image: linear-gradient(to bottom, transparent 2%, black 38%, transparent 90%);
+  pointer-events: none;
+}
+
+.header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  height: 4rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  border-bottom: 1px solid rgb(225 242 233 / 7%);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+}
+
+.brand {
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.preview {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: calc(100dvh - 4rem);
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  padding: 3rem 2rem 2.25rem;
+}
+
+.focus {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding-bottom: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+
+.focus h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  font-weight: 540;
+}
+
+.orbStage {
+  display: grid;
+  width: 19rem;
+  height: 19rem;
+  margin-top: 1.6rem;
+  place-items: center;
+}
+
+.orb {
+  --orb-bg: oklch(15% 0.038 272);
+  --orb-c1: oklch(71% 0.22 350);
+  --orb-c2: oklch(79% 0.18 210);
+  --orb-c3: oklch(66% 0.22 285);
+  --orb-c4: oklch(80% 0.18 155);
+
+  position: relative;
+  display: grid;
+  flex: none;
+  isolation: isolate;
+  place-items: center;
+}
+
+.glow {
+  position: absolute;
+  inset: -19%;
+  border-radius: 50%;
+  animation: aura-breathe 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  background: conic-gradient(
+    from 35deg,
+    rgb(69 226 255 / 34%),
+    rgb(255 78 148 / 28%),
+    rgb(91 129 255 / 32%),
+    rgb(69 244 184 / 22%),
+    rgb(69 226 255 / 34%)
+  );
+  filter: blur(calc(var(--orb-size) * 0.24));
+}
+
+.surface {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--orb-bg);
+  filter: saturate(var(--orb-saturation)) hue-rotate(var(--orb-hue));
+  isolation: isolate;
+  place-items: stretch;
+  box-shadow:
+    0 0 0 1px rgb(229 247 238 / 9%),
+    0 0 2.5rem rgb(61 214 255 / 10%),
+    0 1.5rem 4rem rgb(1 6 4 / 42%);
+}
+
+.surface::before {
+  --angle: 0deg;
+
+  position: absolute;
+  inset: -24%;
+  border-radius: 44%;
+  animation: mesh-turn var(--orb-duration) linear infinite;
+  background:
+    conic-gradient(
+      from calc(var(--angle) * 2) at 25% 70%,
+      var(--orb-c3),
+      transparent 20% 80%,
+      var(--orb-c3)
+    ),
+    conic-gradient(
+      from calc(var(--angle) * 2) at 45% 75%,
+      var(--orb-c2),
+      transparent 30% 60%,
+      var(--orb-c2)
+    ),
+    conic-gradient(
+      from calc(var(--angle) * -3) at 80% 20%,
+      var(--orb-c1),
+      transparent 40% 60%,
+      var(--orb-c1)
+    ),
+    conic-gradient(
+      from calc(var(--angle) * 1.5) at 60% 35%,
+      var(--orb-c4),
+      transparent 25% 75%,
+      var(--orb-c4)
+    ),
+    conic-gradient(
+      from calc(var(--angle) * 2) at 15% 5%,
+      var(--orb-c2),
+      transparent 10% 90%,
+      var(--orb-c2)
+    ),
+    conic-gradient(
+      from var(--angle) at 20% 80%,
+      var(--orb-c1),
+      transparent 10% 90%,
+      var(--orb-c1)
+    ),
+    conic-gradient(
+      from calc(var(--angle) * -2) at 85% 10%,
+      var(--orb-c3),
+      transparent 20% 80%,
+      var(--orb-c3)
+    );
+  content: "";
+  filter: blur(calc(var(--orb-size) * var(--orb-blur-ratio))) contrast(1.65) saturate(1.34);
+}
+
+.surface::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(circle, rgb(232 248 240 / 16%) 0.55px, transparent 0.72px);
+  background-size: 2.2px 2.2px;
+  content: "";
+  mask-image: radial-gradient(black 16%, transparent 78%);
+  mix-blend-mode: soft-light;
+  opacity: 0.58;
+}
+
+.sheen,
+.rim {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.sheen {
+  animation: sheen-drift 9s ease-in-out infinite alternate;
+  background:
+    radial-gradient(circle at 30% 23%, rgb(255 255 255 / 19%), transparent 23%),
+    radial-gradient(circle at 18% 74%, rgb(51 225 255 / 34%), transparent 43%),
+    radial-gradient(circle at 82% 24%, rgb(255 65 180 / 30%), transparent 41%),
+    radial-gradient(circle at 72% 84%, rgb(70 255 184 / 24%), transparent 44%);
+  mix-blend-mode: screen;
+}
+
+.sheen::after {
+  position: absolute;
+  inset: 12%;
+  border-radius: 47% 53% 43% 57% / 55% 42% 58% 45%;
+  animation: energy-drift 11s ease-in-out infinite alternate;
+  background: conic-gradient(
+    from 220deg,
+    transparent 0 12%,
+    rgb(78 236 255 / 36%) 23%,
+    transparent 39% 54%,
+    rgb(255 72 151 / 32%) 67%,
+    transparent 82%
+  );
+  content: "";
+  filter: blur(calc(var(--orb-size) * 0.045));
+  mix-blend-mode: screen;
+}
+
+.rim {
+  box-shadow:
+    inset 0 0 0 1px rgb(239 250 245 / 18%),
+    inset 0 0.9rem 2rem rgb(235 251 243 / 13%),
+    inset 0 -1.3rem 2.4rem rgb(0 8 5 / 48%);
+}
+
+.orb[data-state="thinking"] {
+  --orb-c1: oklch(68% 0.25 305);
+  --orb-c2: oklch(79% 0.18 205);
+  --orb-c4: oklch(76% 0.2 344);
+}
+
+.orb[data-state="speaking"] {
+  --orb-c1: oklch(74% 0.23 8);
+  --orb-c2: oklch(82% 0.17 210);
+  --orb-c3: oklch(70% 0.2 250);
+  --orb-c4: oklch(82% 0.18 155);
+}
+
+.orb[data-state="listening"] {
+  --orb-c1: oklch(75% 0.22 355);
+  --orb-c2: oklch(82% 0.18 205);
+  --orb-c3: oklch(70% 0.2 250);
+  --orb-c4: oklch(83% 0.17 155);
+}
+
+.orb[data-state="muted"] .surface::before,
+.orb[data-state="muted"] .sheen {
+  animation-play-state: paused;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+}
+
+.status span {
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  box-shadow: 0 0 0.7rem rgb(119 194 159 / 65%);
+}
+
+.stateSelector {
+  display: grid;
+  width: min(44rem, 100%);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  padding: 0.25rem;
+  border: 1px solid var(--line-medium);
+  border-radius: var(--radius-surface);
+  background: rgb(13 22 19 / 72%);
+  box-shadow: inset 0 1px 0 rgb(239 250 244 / 4%);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.stateButton {
+  min-width: 0;
+  height: 2.65rem;
+  padding: 0 0.55rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+}
+
+.stateButton:hover {
+  color: var(--text-secondary);
+}
+
+.stateButton[aria-pressed="true"] {
+  background: rgb(226 243 234 / 8%);
+  color: var(--text-primary);
+}
+
+@keyframes mesh-turn {
+  to {
+    --angle: 360deg;
+  }
+}
+
+@keyframes sheen-drift {
+  from {
+    transform: translate(-5%, -3%) scale(1.04);
+  }
+
+  to {
+    transform: translate(6%, 5%) scale(1.1);
+  }
+}
+
+@keyframes aura-breathe {
+  0%,
+  100% {
+    transform: scale(0.93) rotate(-3deg);
+  }
+
+  50% {
+    transform: scale(1.07) rotate(3deg);
+  }
+}
+
+@keyframes energy-drift {
+  from {
+    transform: translate(-7%, 5%) rotate(-14deg) scale(0.92);
+  }
+
+  to {
+    transform: translate(8%, -6%) rotate(18deg) scale(1.12);
+  }
+}
+
+@media (max-width: 42rem) {
+  .header {
+    padding: 0 1.25rem;
+  }
+
+  .preview {
+    padding: 1.5rem 1rem 1rem;
+  }
+
+  .orbStage {
+    width: 16rem;
+    height: 16rem;
+  }
+
+  .orbStage .orb {
+    width: 12.5rem !important;
+    height: 12.5rem !important;
+  }
+
+  .stateSelector {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface::before,
+  .glow,
+  .sheen::after,
+  .sheen {
+    animation: none;
+  }
+}
