@@ -8,6 +8,15 @@ test-results/
 .env
 .env.*
 !.env.example
+.next/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+output/
+.playwright-cli/
+.data/
+*.tsbuildinfo
+.DS_Store
 *.log
 .DS_Store
-
