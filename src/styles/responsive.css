@@ -1,0 +1,191 @@
+@layer responsive {
+  @media (max-width: 48rem) {
+    .space-shell {
+      display: block;
+      min-height: 100dvh;
+      padding-bottom: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom, 0px));
+      overflow: visible;
+    }
+
+    .space-backdrop {
+      object-position: center center;
+    }
+
+    .space-scrim {
+      background: rgb(2 7 12 / 34%);
+    }
+
+    .sidebar {
+      position: fixed;
+      inset: auto 0 0;
+      display: grid;
+      width: 100%;
+      min-height: calc(var(--mobile-navigation-height) + env(safe-area-inset-bottom, 0px));
+      grid-template-columns: minmax(0, 1fr) var(--mobile-navigation-height);
+      grid-template-rows: var(--mobile-navigation-height);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      border-top: 1px solid rgb(219 235 244 / 12%);
+      border-right: 0;
+      background: rgb(3 8 13 / 84%);
+      -webkit-backdrop-filter: blur(18px) saturate(112%);
+      backdrop-filter: blur(18px) saturate(112%);
+    }
+
+    .sidebar__brand {
+      display: none;
+    }
+
+    .sidebar__nav {
+      display: grid;
+      width: 100%;
+      grid-template-columns: repeat(2, minmax(var(--mobile-navigation-height), 1fr));
+      place-self: stretch;
+      gap: 0;
+      margin-top: 0;
+    }
+
+    .sidebar__link {
+      width: 100%;
+      height: var(--mobile-navigation-height);
+      border: 0;
+      border-radius: 0;
+    }
+
+    .sidebar__link[data-active] {
+      border: 0;
+      background: rgb(124 195 204 / 8%);
+      box-shadow: inset 0 2px 0 rgb(143 213 216 / 58%);
+    }
+
+    .sidebar__settings {
+      width: var(--mobile-navigation-height);
+      margin: 0;
+    }
+
+    .home-stage {
+      min-height: calc(
+        100dvh - var(--mobile-navigation-height) - env(safe-area-inset-bottom, 0px)
+      );
+      grid-template-rows: 3.75rem minmax(0, 1fr);
+    }
+
+    .home-header {
+      padding: 0 var(--space-md);
+    }
+
+    .home-canvas,
+    .conversation-canvas,
+    .live-canvas,
+    .home-loading,
+    .home-error {
+      min-height: calc(
+        100dvh - 7.75rem - env(safe-area-inset-bottom, 0px)
+      );
+    }
+
+    .home-focus {
+      width: min(100% - 2rem, 40rem);
+      padding: var(--space-xl) 0 var(--space-2xl);
+    }
+
+    .greeting {
+      margin-top: var(--space-sm);
+    }
+
+    .greeting h1 {
+      font-size: 1.85rem;
+    }
+
+    .conversation-thread {
+      max-height: min(14rem, 29dvh);
+      margin-top: var(--space-lg);
+      gap: var(--space-md);
+    }
+
+    .conversation-message {
+      max-width: 88%;
+    }
+
+    .home-canvas__composer {
+      margin-top: var(--space-lg);
+    }
+
+    .conversation-workspace {
+      width: min(100% - 2rem, 46rem);
+      height: calc(
+        100dvh - 7.75rem - env(safe-area-inset-bottom, 0px)
+      );
+    }
+
+    .conversation-workspace__thread {
+      max-height: none;
+      padding: var(--space-xl) 0 var(--space-lg);
+    }
+
+    .conversation-workspace__thread .conversation-message {
+      max-width: 90%;
+    }
+
+    .conversation-empty h1 {
+      font-size: 1.85rem;
+    }
+
+    .conversation-empty p {
+      max-width: 19rem;
+      font-size: 0.8rem;
+    }
+
+    .conversation-workspace__footer {
+      padding-bottom: var(--space-2xs);
+    }
+
+    .composer {
+      min-height: 4rem;
+    }
+
+    .live-canvas {
+      padding: var(--space-md);
+    }
+
+    .live-focus {
+      --live-orb-size: 8.5rem;
+
+      width: 100%;
+      transform: translateY(-0.75rem);
+    }
+
+    .live-focus h1 {
+      margin-bottom: var(--space-lg);
+    }
+
+    .live-controls {
+      bottom: var(--space-lg);
+    }
+
+    .home-loading__composer {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 24rem) {
+    .home-focus {
+      width: calc(100% - 1.5rem);
+    }
+
+    .composer {
+      grid-template-columns: minmax(0, 1fr) var(--control-size) var(--control-size);
+      gap: var(--space-2xs);
+      padding-right: var(--space-2xs);
+      padding-left: var(--space-sm);
+    }
+
+    .composer button {
+      width: var(--control-size);
+      height: var(--control-size);
+    }
+
+    .conversation-workspace {
+      width: calc(100% - 1.5rem);
+    }
+  }
+}
