@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: yoyoo-space-postgres
+    environment:
+      POSTGRES_DB: yoyoo_space
+      POSTGRES_USER: yoyoo
+      POSTGRES_PASSWORD: yoyoo_dev
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - yoyoo_space_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yoyoo -d yoyoo_space"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+volumes:
+  yoyoo_space_pg_data:
+    name: yoyoo_space_pg_data
