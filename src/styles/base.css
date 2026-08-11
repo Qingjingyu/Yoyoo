@@ -9,7 +9,7 @@
 
   html {
     min-width: 20rem;
-    background: var(--ink-950);
+    background: var(--surface-canvas);
   }
 
   body {
@@ -27,7 +27,7 @@
 @layer base {
   body {
     overflow-x: hidden;
-    background: var(--ink-950);
+    background: var(--surface-canvas);
     color: var(--text-primary);
     font-family: var(--font-sans);
     letter-spacing: 0;
@@ -51,13 +51,13 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--accent-strong);
+    outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
 
   ::selection {
-    background: var(--accent);
-    color: var(--ink-950);
+    background: var(--accent-soft);
+    color: var(--text-primary);
   }
 
   .sr-only {
@@ -80,8 +80,10 @@
     padding: 0.7rem 0.9rem;
     transform: translateY(-160%);
     border-radius: var(--radius-control);
-    background: var(--text-primary);
-    color: var(--ink-950);
+    border: 1px solid var(--border-default);
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-floating);
     transition: transform var(--duration-fast) var(--ease-out);
   }
 

@@ -1,23 +1,6 @@
 @layer tokens {
   :root {
-    color-scheme: dark;
-
-    --ink-950: #070b0a;
-    --ink-900: #0a100e;
-    --ink-850: #0d1412;
-    --ink-800: #121a17;
-    --text-primary: #edf2ee;
-    --text-secondary: #a8b3ad;
-    --text-tertiary: #7f8c85;
-    --accent: #77c29f;
-    --accent-strong: #a3ddc0;
-    --danger: #d8988f;
-
-    --line-soft: rgb(224 239 231 / 8%);
-    --line-medium: rgb(224 239 231 / 14%);
-    --glass-fill: rgb(13 22 19 / 74%);
-    --glass-fill-strong: rgb(15 24 21 / 91%);
-    --glass-highlight: rgb(238 248 242 / 12%);
+    color-scheme: light;
 
     --font-sans: "Avenir Next", Avenir, "PingFang SC", "Microsoft YaHei", sans-serif;
     --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -41,11 +24,168 @@
 
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
     --duration-fast: 180ms;
+    --duration-normal: 240ms;
     --duration-medium: 420ms;
+
+    --type-metadata: 0.6875rem;
+    --type-label: 0.75rem;
+    --type-body: 0.9375rem;
+    --type-room-title: 1rem;
 
     --layer-base: 0;
     --layer-content: 1;
     --layer-navigation: 4;
     --layer-skip: 10;
+
+    --surface-canvas: #f5f6f7;
+    --surface-rail: #eff1f3;
+    --surface-panel: #fafbfc;
+    --surface-subtle: #f0f2f4;
+    --surface-elevated: #ffffff;
+    --surface-floating: rgb(255 255 255 / 88%);
+    --surface-input: rgb(249 252 253 / 92%);
+    --surface-interactive: rgb(40 52 62 / 5%);
+    --surface-interactive-hover: rgb(40 52 62 / 8%);
+    --surface-selected: rgb(73 113 142 / 10%);
+    --surface-message-own: rgb(55 73 86 / 7%);
+    --surface-room-rail: #eef1f3;
+    --surface-room-header: #fafbfc;
+    --surface-timeline: #f5f6f7;
+    --surface-message-agent: #fbfbfc;
+    --surface-message-human: #eef1f3;
+    --surface-composer: #fbfcfd;
+    --surface-menu: rgb(251 253 253 / 96%);
+    --surface-room-active: rgb(73 113 142 / 9%);
+
+    --glass-navigation: rgb(248 250 252 / 70%);
+    --glass-panel: rgb(252 253 254 / 64%);
+    --glass-control: rgb(252 254 254 / 74%);
+    --glass-floating: rgb(252 254 254 / 82%);
+    --glass-border: rgb(255 255 255 / 82%);
+    --glass-highlight: rgb(255 255 255 / 94%);
+    --glass-lowlight: rgb(46 61 74 / 14%);
+    --glass-blur-navigation: 22px;
+    --glass-blur-panel: 24px;
+    --glass-blur-control: 28px;
+    --glass-blur-floating: 30px;
+    --glass-saturation: 118%;
+
+    --text-primary: #19242c;
+    --text-secondary: #5b6871;
+  --text-tertiary: #63717a;
+    --text-disabled: #a9b1b7;
+    --text-on-accent: #ffffff;
+
+    --border-subtle: rgb(29 41 50 / 8%);
+    --border-default: rgb(29 41 50 / 13%);
+    --border-strong: rgb(29 41 50 / 21%);
+    --border-highlight: rgb(255 255 255 / 72%);
+
+    --accent: #3f6682;
+    --accent-strong: #294f69;
+    --accent-soft: rgb(63 102 130 / 10%);
+    --accent-glow: rgb(84 142 181 / 22%);
+    --danger: #a34f49;
+    --danger-strong: #873f3a;
+    --danger-soft: rgb(163 79 73 / 11%);
+    --warning: #856b33;
+    --warning-soft: rgb(133 107 51 / 12%);
+
+    --shadow-soft: 0 12px 36px rgb(31 43 52 / 8%);
+    --shadow-control: 0 1px 4px rgb(31 43 52 / 10%);
+    --shadow-floating: 0 20px 60px rgb(31 43 52 / 14%);
+    --shadow-color-soft: rgb(31 43 52 / 10%);
+    --shadow-color-strong: rgb(31 43 52 / 18%);
+    --focus-ring: rgb(63 102 130 / 30%);
+    --edge-active: rgb(63 102 130 / 28%);
+    --edge-luminous: rgb(255 255 255 / 82%);
+    --shadow-compact: 0 4px 8px rgb(28 51 62 / 9%);
+    --shadow-glass-navigation: 0 10px 28px rgb(28 51 62 / 9%);
+    --shadow-glass-panel: 0 14px 34px rgb(28 51 62 / 11%);
+    --shadow-glass-control: 0 16px 38px rgb(28 51 62 / 14%);
+    --shadow-glass-floating: 0 22px 52px rgb(28 51 62 / 18%);
+
+    /* Compatibility aliases for the isolated Orb preview and old shared rules. */
+    --ink-950: var(--surface-canvas);
+    --ink-900: var(--surface-rail);
+    --ink-850: var(--surface-panel);
+    --ink-800: var(--surface-subtle);
+    --line-soft: var(--border-subtle);
+    --line-medium: var(--border-default);
+    --glass-fill: var(--surface-floating);
+    --glass-fill-strong: var(--surface-elevated);
+    --glass-fill-highlight: var(--border-highlight);
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --surface-canvas: #0b0d0f;
+    --surface-rail: #111417;
+    --surface-panel: #15191c;
+    --surface-subtle: #1a1f23;
+    --surface-elevated: #20262b;
+    --surface-floating: rgb(21 25 29 / 90%);
+    --surface-input: rgb(15 18 21 / 92%);
+    --surface-interactive: rgb(225 232 237 / 5%);
+    --surface-interactive-hover: rgb(225 232 237 / 8%);
+    --surface-selected: rgb(111 153 183 / 10%);
+    --surface-message-own: rgb(183 198 208 / 8%);
+    --surface-room-rail: #111519;
+    --surface-room-header: #15191c;
+    --surface-timeline: #0b0e10;
+    --surface-message-agent: #14181b;
+    --surface-message-human: #1a2126;
+    --surface-composer: #151a1e;
+    --surface-menu: rgb(20 24 28 / 96%);
+    --surface-room-active: rgb(111 153 183 / 10%);
+
+    --glass-navigation: rgb(18 22 26 / 72%);
+    --glass-panel: rgb(23 28 32 / 64%);
+    --glass-control: rgb(26 32 37 / 74%);
+    --glass-floating: rgb(25 31 36 / 82%);
+    --glass-border: rgb(219 231 238 / 17%);
+    --glass-highlight: rgb(231 240 245 / 20%);
+    --glass-lowlight: rgb(0 4 7 / 48%);
+    --glass-blur-navigation: 22px;
+    --glass-blur-panel: 24px;
+    --glass-blur-control: 28px;
+    --glass-blur-floating: 30px;
+    --glass-saturation: 122%;
+
+    --text-primary: #f0f3f5;
+    --text-secondary: #b2bdc4;
+    --text-tertiary: #78858e;
+    --text-disabled: #58636a;
+    --text-on-accent: #091116;
+
+    --border-subtle: rgb(220 230 236 / 7%);
+    --border-default: rgb(220 230 236 / 12%);
+    --border-strong: rgb(220 230 236 / 20%);
+    --border-highlight: rgb(245 248 250 / 11%);
+
+    --accent: #9ec6de;
+    --accent-strong: #d1e7f2;
+    --accent-soft: rgb(111 153 183 / 11%);
+    --accent-glow: rgb(121 176 211 / 22%);
+    --danger: #d89a93;
+    --danger-strong: #efb6af;
+    --danger-soft: rgb(216 154 147 / 13%);
+    --warning: #cfb270;
+    --warning-soft: rgb(207 178 112 / 12%);
+
+    --shadow-soft: 0 12px 36px rgb(0 3 6 / 18%);
+    --shadow-control: 0 1px 5px rgb(0 3 6 / 26%);
+    --shadow-floating: 0 20px 60px rgb(0 3 6 / 30%);
+    --shadow-color-soft: rgb(0 3 6 / 18%);
+    --shadow-color-strong: rgb(0 3 6 / 32%);
+    --focus-ring: rgb(158 198 222 / 28%);
+    --edge-active: rgb(158 198 222 / 30%);
+    --edge-luminous: rgb(243 250 252 / 13%);
+    --shadow-compact: 0 4px 8px rgb(0 3 6 / 24%);
+    --shadow-glass-navigation: 0 10px 28px rgb(0 3 6 / 26%);
+    --shadow-glass-panel: 0 14px 34px rgb(0 3 6 / 32%);
+    --shadow-glass-control: 0 16px 38px rgb(0 3 6 / 38%);
+    --shadow-glass-floating: 0 22px 52px rgb(0 3 6 / 46%);
   }
 }
