@@ -63,6 +63,39 @@ describe("RoomClient", () => {
     );
   });
 
+  it("updates room purpose and personal list state", async () => {
+    const fetcher = vi.fn(async () =>
+      new Response(JSON.stringify({ id: "room-1", purpose: "项目协作" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const client = createRoomClient({ fetcher });
+
+    await client.setRoomPurpose("room/1", "项目协作");
+    await client.updateRoomListState("room/1", "pin");
+    await client.updateRoomListState("room/1", "hide");
+
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/rooms/room%2F1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ purpose: "项目协作" }),
+      }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/rooms/room%2F1/list-state",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ action: "pin" }) }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/rooms/room%2F1/list-state",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ action: "hide" }) }),
+    );
+  });
+
   it("loads and mutates room membership through room-scoped endpoints", async () => {
     const fetcher = vi.fn(async () =>
       new Response(JSON.stringify({ member: { principalId: "agent-1" } }), {

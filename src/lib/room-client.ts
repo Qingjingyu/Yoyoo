@@ -43,6 +43,7 @@ export interface RoomSnapshot {
 
 export interface RoomMembershipDetails {
   canManage: boolean;
+  canEditProfile: boolean;
   members: RoomMemberRecord[];
   candidates: RoomMemberCandidateRecord[];
 }
@@ -80,7 +81,12 @@ export interface RoomClient {
     agentPrincipalId: string,
   ): Promise<{ duplicate: boolean; room: RoomRecord }>;
   renameRoom(roomId: string, name: string): Promise<RoomRecord>;
+  setRoomPurpose(roomId: string, purpose: string): Promise<RoomRecord>;
   setRoomStatus(roomId: string, status: RoomStatus): Promise<RoomRecord>;
+  updateRoomListState(
+    roomId: string,
+    action: "pin" | "unpin" | "hide" | "show",
+  ): Promise<RoomMemberStateRecord>;
   getRoom(roomId: string): Promise<RoomSnapshot>;
   getRoomMembers(roomId: string): Promise<RoomMembershipDetails>;
   addRoomMember(roomId: string, principalId: string): Promise<RoomMemberRecord>;
@@ -193,12 +199,32 @@ export function createRoomClient(options: {
         body: JSON.stringify({ name }),
       }),
 
+    setRoomPurpose: (roomId, purpose) =>
+      requestJson(fetcher, `/api/v1/rooms/${encodeURIComponent(roomId)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ purpose }),
+      }),
+
     setRoomStatus: (roomId, status) =>
       requestJson(fetcher, `/api/v1/rooms/${encodeURIComponent(roomId)}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status }),
       }),
+
+    updateRoomListState: async (roomId, action) => {
+      const response = await requestJson<{ memberState: RoomMemberStateRecord }>(
+        fetcher,
+        `/api/v1/rooms/${encodeURIComponent(roomId)}/list-state`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action }),
+        },
+      );
+      return response.memberState;
+    },
 
     getRoom: (roomId) =>
       requestJson(fetcher, `/api/v1/rooms/${encodeURIComponent(roomId)}`),
