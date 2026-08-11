@@ -10,6 +10,7 @@ import {
 } from "@/server/postgres/conversation-repository";
 import {
   MessageMutationPermissionError,
+  MessageIdempotencyConflictError,
   MessageNotFoundError,
   MessageRevisionConflictError,
   RoomLifecycleConflictError,
@@ -157,6 +158,12 @@ export function errorResponse(error: unknown): Response {
   if (error instanceof MessageRevisionConflictError) {
     return Response.json(
       { error: { code: "MESSAGE_REVISION_CONFLICT", message: error.message } },
+      { status: 409 },
+    );
+  }
+  if (error instanceof MessageIdempotencyConflictError) {
+    return Response.json(
+      { error: { code: "MESSAGE_IDEMPOTENCY_CONFLICT", message: error.message } },
       { status: 409 },
     );
   }
