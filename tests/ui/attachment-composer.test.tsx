@@ -52,6 +52,51 @@ function client(overrides: Partial<AttachmentClient> = {}): AttachmentClient {
 }
 
 describe("AttachmentComposer", () => {
+  it("exposes upload progress as a transform-ready ratio", async () => {
+    let finishUpload: (() => void) | undefined;
+    const attachmentClient = client({
+      upload: vi.fn(async (id, file, onProgress) => {
+        onProgress(60);
+        await new Promise<void>((resolve) => {
+          finishUpload = resolve;
+        });
+        return {
+          id,
+          workspaceId: "workspace",
+          uploaderPrincipalId: "subai",
+          originalName: file.name,
+          declaredMediaType: file.type,
+          detectedMediaType: file.type,
+          sizeBytes: file.size,
+          sha256: "c".repeat(64),
+          status: "ready" as const,
+          provenance: "human_upload" as const,
+          sourceRunId: null,
+          errorCode: null,
+          expiresAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }),
+    });
+    const user = userEvent.setup();
+    const { container } = render(
+      <AttachmentComposer client={attachmentClient} onReadyChange={() => undefined} />,
+    );
+
+    await user.upload(
+      screen.getByLabelText("添加附件"),
+      new File(["progress"], "progress.txt", { type: "text/plain" }),
+    );
+
+    expect(await screen.findByText("60%")).toBeInTheDocument();
+    const progress = container.querySelector<HTMLElement>(".attachment-composer__progress");
+    expect(progress?.style.getPropertyValue("--attachment-progress")).toBe("0.6");
+    expect(progress?.style.width).toBe("");
+
+    finishUpload?.();
+  });
+
   it("uploads a selected file and exposes the ready attachment", async () => {
     const attachmentClient = client();
     const onReadyChange = vi.fn();

@@ -1,7 +1,7 @@
 "use client";
 
 import { File, Paperclip, RotateCcw, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import type { AttachmentMetadata } from "@/domain/collaboration";
 import {
@@ -140,7 +140,11 @@ export function AttachmentComposer({
                 <X aria-hidden="true" size={13} />
               </button>
               {item.state === "uploading" ? (
-                <span aria-hidden="true" className="attachment-composer__progress" style={{ width: `${item.progress}%` }} />
+                <span
+                  aria-hidden="true"
+                  className="attachment-composer__progress"
+                  style={{ "--attachment-progress": item.progress / 100 } as CSSProperties}
+                />
               ) : null}
             </div>
           ))}
