@@ -159,6 +159,7 @@ describe("V0.2 collaboration migration", () => {
         "009_attachment_only_messages.sql",
         "010_message_revisions.sql",
         "011_im_member_state.sql",
+        "012_addressable_conversations.sql",
       ]);
       await expect(
         isolated.pool.query(
@@ -208,6 +209,27 @@ describe("V0.2 collaboration migration", () => {
       expect(migratedMessage.rows[0]).toEqual({
         sender: "human:subai",
         content: "请开始工作",
+      });
+
+      const addressableConversation = await isolated.pool.query<{
+        purpose: string;
+        pinned_at: Date | null;
+        hidden_at: Date | null;
+      }>(
+        `SELECT rooms.purpose,
+                room_member_states.pinned_at,
+                room_member_states.hidden_at
+         FROM rooms
+         JOIN room_member_states ON room_member_states.room_id = rooms.id
+         WHERE rooms.id = $1
+         ORDER BY room_member_states.principal_id
+         LIMIT 1`,
+        [conversationId],
+      );
+      expect(addressableConversation.rows[0]).toEqual({
+        purpose: "",
+        pinned_at: null,
+        hidden_at: null,
       });
     } finally {
       await isolated.pool.end();

@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { createPostgresPool } from "@/server/postgres/client";
 import { AttachmentRepository } from "@/server/postgres/attachment-repository";
 import { CollaborationRunRepository } from "@/server/postgres/collaboration-run-repository";
+import { MemberStateRepository } from "@/server/postgres/member-state-repository";
 
 const databaseUrl =
   process.env.TEST_DATABASE_URL ??
@@ -27,6 +28,10 @@ interface RepositoryModules {
   RoomRepository: new (database: typeof pool) => {
     create(input: Record<string, unknown>): Promise<Record<string, unknown>>;
     createWithWorkspaceAgents(input: Record<string, unknown>): Promise<{
+      duplicate: boolean;
+      room: Record<string, unknown>;
+    }>;
+    createDirect(input: Record<string, unknown>): Promise<{
       duplicate: boolean;
       room: Record<string, unknown>;
     }>;
@@ -324,6 +329,113 @@ describe("collaboration repositories", () => {
       id: fixture.room.id,
       lastMessagePreview: "较早的公开消息",
     });
+  });
+
+  it("keeps pin and hidden room-list state personal and restores hidden rooms on activity", async () => {
+    const fixture = await createCollaborationFixture();
+    const states = new MemberStateRepository(pool);
+    const second = await fixture.rooms.createWithWorkspaceAgents({
+      workspaceId: fixture.workspace.id,
+      name: "同名协作室",
+      createdByPrincipalId: fixture.human.id,
+      idempotencyKey: randomUUID(),
+    });
+    const third = await fixture.rooms.createWithWorkspaceAgents({
+      workspaceId: fixture.workspace.id,
+      name: "同名协作室",
+      createdByPrincipalId: fixture.human.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    await states.updateListState({
+      roomId: second.room.id as string,
+      principalId: fixture.human.id as string,
+      action: "pin",
+    });
+
+    const humanPinned = await fixture.rooms.listAccessibleSummaries(
+      fixture.workspace.id as string,
+      fixture.human.id as string,
+    );
+    const agentUnpinned = await fixture.rooms.listAccessibleSummaries(
+      fixture.workspace.id as string,
+      fixture.agentOne.id as string,
+    );
+    expect(humanPinned.active[0]).toMatchObject({
+      id: second.room.id,
+      name: "同名协作室",
+      pinnedAt: expect.any(Date),
+    });
+    expect(agentUnpinned.active.find((room) => room.id === second.room.id)).toMatchObject({
+      pinnedAt: null,
+    });
+    expect(second.room.id).not.toBe(third.room.id);
+
+    await states.updateListState({
+      roomId: second.room.id as string,
+      principalId: fixture.human.id as string,
+      action: "hide",
+    });
+    const humanHidden = await fixture.rooms.listAccessibleSummaries(
+      fixture.workspace.id as string,
+      fixture.human.id as string,
+    );
+    const agentStillVisible = await fixture.rooms.listAccessibleSummaries(
+      fixture.workspace.id as string,
+      fixture.agentOne.id as string,
+    );
+    expect(humanHidden.active.map((room) => room.id)).not.toContain(second.room.id);
+    expect(agentStillVisible.active.map((room) => room.id)).toContain(second.room.id);
+
+    await fixture.rooms.createMessage({
+      roomId: second.room.id,
+      senderPrincipalId: fixture.agentOne.id,
+      kind: "message",
+      content: "新消息让会话重新出现",
+      status: "completed",
+      idempotencyKey: randomUUID(),
+    });
+    const humanRestored = await fixture.rooms.listAccessibleSummaries(
+      fixture.workspace.id as string,
+      fixture.human.id as string,
+    );
+    expect(humanRestored.active.find((room) => room.id === second.room.id)).toMatchObject({
+      pinnedAt: null,
+      lastMessagePreview: "新消息让会话重新出现",
+    });
+  });
+
+  it("reopens a hidden direct room by its existing room ID", async () => {
+    const fixture = await createCollaborationFixture();
+    const states = new MemberStateRepository(pool);
+    const first = await fixture.rooms.createDirect({
+      workspaceId: fixture.workspace.id,
+      humanPrincipalId: fixture.human.id,
+      agentPrincipalId: fixture.agentOne.id,
+    });
+    await states.updateListState({
+      roomId: first.room.id as string,
+      principalId: fixture.human.id as string,
+      action: "hide",
+    });
+    const hidden = await fixture.rooms.listAccessibleSummaries(
+      fixture.workspace.id as string,
+      fixture.human.id as string,
+    );
+    expect(hidden.active.map((room) => room.id)).not.toContain(first.room.id);
+
+    const reopened = await fixture.rooms.createDirect({
+      workspaceId: fixture.workspace.id,
+      humanPrincipalId: fixture.human.id,
+      agentPrincipalId: fixture.agentOne.id,
+    });
+    const visible = await fixture.rooms.listAccessibleSummaries(
+      fixture.workspace.id as string,
+      fixture.human.id as string,
+    );
+
+    expect(reopened).toMatchObject({ duplicate: true, room: { id: first.room.id } });
+    expect(visible.active.map((room) => room.id)).toContain(first.room.id);
   });
 
   it("renames, archives, and restores a room without losing its history", async () => {

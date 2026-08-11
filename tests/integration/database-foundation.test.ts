@@ -67,6 +67,7 @@ describe("PostgreSQL foundation", () => {
       "009_attachment_only_messages.sql",
       "010_message_revisions.sql",
       "011_im_member_state.sql",
+      "012_addressable_conversations.sql",
     ]);
 
     const migrationCounts = await pool.query<{ version: string; count: string }>(
