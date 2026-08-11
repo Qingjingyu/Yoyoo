@@ -12,17 +12,15 @@ import {
   RotateCw,
   X,
 } from "lucide-react";
-import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 
 import { Sidebar } from "@/components/shell/sidebar";
+import { ThemeSelector } from "@/components/theme/theme-selector";
 import {
   browserAgentDirectoryClient,
   type AgentDirectoryClient,
   type AgentDirectoryRecord,
 } from "@/lib/agent-directory-client";
-
-import rainCityBackdrop from "../../../public/yoyoo-rain-city.png";
 
 type DirectoryState = "loading" | "ready" | "error";
 type PendingAction = `rotate:${string}` | `revoke:${string}` | "create" | null;
@@ -166,17 +164,6 @@ export function AgentDirectory({
   return (
     <div className="space-shell agent-directory-shell">
       <a className="skip-link" href="#agent-directory-main">跳到 AI 接入</a>
-      <Image
-        alt=""
-        aria-hidden="true"
-        className="space-backdrop"
-        fill
-        priority
-        sizes="100vw"
-        src={rainCityBackdrop}
-        unoptimized
-      />
-      <div className="space-scrim agent-directory-scrim" aria-hidden="true" />
       <Sidebar activeItem="settings" />
 
       <main className="agent-directory-stage" id="agent-directory-main">
@@ -205,6 +192,14 @@ export function AgentDirectory({
             </button>
           </div>
         </header>
+
+        <section aria-labelledby="appearance-title" className="appearance-settings">
+          <div>
+            <span>界面</span>
+            <h2 id="appearance-title">空间主题</h2>
+          </div>
+          <ThemeSelector />
+        </section>
 
         <section aria-label="AI 目录" className="agent-directory-surface">
           {credential ? (

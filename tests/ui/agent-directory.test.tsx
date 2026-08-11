@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, type RenderOptions } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { vi } from "vitest";
 
 import { AgentDirectory } from "@/components/settings/agent-directory";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import type { AgentDirectoryClient, AgentDirectoryRecord } from "@/lib/agent-directory-client";
 
 const existingAgent: AgentDirectoryRecord = {
@@ -21,6 +23,13 @@ const existingAgent: AgentDirectoryRecord = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
+
+function renderWithTheme(
+  ui: ReactNode,
+  options?: Omit<RenderOptions, "wrapper">,
+) {
+  return render(ui, { ...options, wrapper: ThemeProvider });
+}
 
 function createClient(
   overrides: Partial<AgentDirectoryClient> = {},
@@ -53,7 +62,7 @@ function createClient(
 
 describe("AgentDirectory", () => {
   it("offers AI Card authorization and renders callback outcomes", async () => {
-    const { rerender } = render(
+    const { rerender } = renderWithTheme(
       <AgentDirectory client={createClient()} aicardResult="connected" />,
     );
 
@@ -88,7 +97,7 @@ describe("AgentDirectory", () => {
       credentialVersion: null,
       lastSeenAt: null,
     };
-    render(<AgentDirectory client={createClient({ listAgents: async () => [cardAgent] })} />);
+    renderWithTheme(<AgentDirectory client={createClient({ listAgents: async () => [cardAgent] })} />);
 
     expect(await screen.findByText("悠悠研究员")).toBeInTheDocument();
     expect(screen.getByText("等待运行节点")).toBeInTheDocument();
@@ -100,7 +109,7 @@ describe("AgentDirectory", () => {
   it("renders connected Agents and reveals a new credential only once", async () => {
     const user = userEvent.setup();
     const client = createClient();
-    render(<AgentDirectory client={client} />);
+    renderWithTheme(<AgentDirectory client={client} />);
 
     expect(await screen.findByRole("heading", { name: "AI 接入" })).toBeInTheDocument();
     expect(await screen.findByText("Researcher")).toBeInTheDocument();
@@ -124,7 +133,7 @@ describe("AgentDirectory", () => {
     const user = userEvent.setup();
     const rotateCredential = vi.fn(createClient().rotateCredential);
     const revokeCredential = vi.fn(createClient().revokeCredential);
-    render(
+    renderWithTheme(
       <AgentDirectory
         client={createClient({ rotateCredential, revokeCredential })}
       />,
@@ -148,7 +157,7 @@ describe("AgentDirectory", () => {
       .fn<AgentDirectoryClient["listAgents"]>()
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce([]);
-    render(<AgentDirectory client={createClient({ listAgents })} />);
+    renderWithTheme(<AgentDirectory client={createClient({ listAgents })} />);
 
     expect(await screen.findByText("AI 目录暂时无法载入")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重新载入" }));
