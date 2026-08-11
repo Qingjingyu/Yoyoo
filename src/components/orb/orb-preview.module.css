@@ -8,20 +8,8 @@
   position: relative;
   min-height: 100dvh;
   overflow: hidden;
-  background: #060908;
+  background: var(--surface-canvas);
   color: var(--text-primary);
-}
-
-.page::before {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgb(214 237 225 / 2.4%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(214 237 225 / 2.4%) 1px, transparent 1px);
-  background-size: 5.5rem 5.5rem;
-  content: "";
-  mask-image: linear-gradient(to bottom, transparent 2%, black 38%, transparent 90%);
-  pointer-events: none;
 }
 
 .header {
@@ -32,7 +20,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 2rem;
-  border-bottom: 1px solid rgb(225 242 233 / 7%);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
   color: var(--text-tertiary);
   font-family: var(--font-mono);
   font-size: 0.62rem;
@@ -282,7 +271,7 @@
   height: 0.28rem;
   border-radius: 50%;
   background: var(--accent-strong);
-  box-shadow: 0 0 0.7rem rgb(119 194 159 / 65%);
+  box-shadow: 0 0 0.7rem var(--accent-glow);
 }
 
 .stateSelector {
@@ -292,8 +281,8 @@
   padding: 0.25rem;
   border: 1px solid var(--line-medium);
   border-radius: var(--radius-surface);
-  background: rgb(13 22 19 / 72%);
-  box-shadow: inset 0 1px 0 rgb(239 250 244 / 4%);
+  background: var(--surface-floating);
+  box-shadow: inset 0 1px 0 var(--border-highlight);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
@@ -321,7 +310,7 @@
 }
 
 .stateButton[aria-pressed="true"] {
-  background: rgb(226 243 234 / 8%);
+  background: var(--surface-selected);
   color: var(--text-primary);
 }
 
