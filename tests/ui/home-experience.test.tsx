@@ -53,7 +53,7 @@ function createConversationClient(
 }
 
 describe("HomeExperience", () => {
-  it("renders one centered conversation surface over the owned city backdrop", async () => {
+  it("renders one centered image-free conversation surface", async () => {
     const { container } = render(
       <HomeExperience conversationClient={createConversationClient()} />,
     );
@@ -62,7 +62,7 @@ describe("HomeExperience", () => {
       await screen.findByRole("heading", { name: "晚上好，苏白。" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Yoyoo 在线")).toBeInTheDocument();
-    expect(container.querySelector(".space-backdrop")).toBeInTheDocument();
+    expect(container.querySelector(".space-backdrop")).not.toBeInTheDocument();
     expect(container.querySelector(".home-focus")).toHaveAttribute(
       "data-layout",
       "centered-conversation",

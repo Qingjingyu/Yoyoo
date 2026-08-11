@@ -12,7 +12,7 @@ test("homepage stays focused, aligned, and free of horizontal overflow", async (
 
   await expect(page.getByRole("heading", { name: "晚上好，苏白。" })).toBeVisible();
   await expect(page.getByText("Yoyoo 在线")).toBeVisible();
-  await expect(page.locator(".space-backdrop")).toBeVisible();
+  await expect(page.locator(".space-backdrop")).toHaveCount(0);
   await expect(page.locator(".presence-scene")).toHaveCount(0);
   await expect(page.getByRole("img", { name: /Yoyoo 数字生命/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "最近对话" })).toHaveCount(0);
@@ -58,24 +58,21 @@ test("compact mobile controls retain full touch targets", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
-test("owned rain-city backdrop fills the viewport behind a centered conversation rail", async ({
+test("image-free spatial canvas fills the viewport behind a centered conversation rail", async ({
   page,
 }, testInfo) => {
   await page.goto("/");
 
-  const backdrop = page.locator(".space-backdrop");
-  await expect(backdrop).toBeVisible();
-  const backdropBox = await backdrop.boundingBox();
+  await expect(page.locator(".space-backdrop")).toHaveCount(0);
+  const shell = page.locator(".space-shell");
+  await expect(shell).toBeVisible();
+  const shellBox = await shell.boundingBox();
   const viewport = page.viewportSize();
-  expect(backdropBox?.width ?? 0).toBeGreaterThanOrEqual(viewport?.width ?? 0);
-  expect(backdropBox?.height ?? 0).toBeGreaterThanOrEqual(viewport?.height ?? 0);
-
-  const imageSize = await backdrop.evaluate((image) => ({
-    height: (image as HTMLImageElement).naturalHeight,
-    width: (image as HTMLImageElement).naturalWidth,
-  }));
-  expect(imageSize.width).toBeGreaterThanOrEqual(1600);
-  expect(imageSize.height).toBeGreaterThanOrEqual(900);
+  expect(shellBox?.width ?? 0).toBeGreaterThanOrEqual(viewport?.width ?? 0);
+  expect(shellBox?.height ?? 0).toBeGreaterThanOrEqual(viewport?.height ?? 0);
+  expect(
+    await shell.evaluate((element) => getComputedStyle(element).backgroundImage),
+  ).toBe("none");
 
   if (testInfo.project.name === "desktop-chromium") {
     const focusBox = await page.locator(".home-focus").boundingBox();

@@ -1,7 +1,6 @@
 "use client";
 
 import { Mic, MicOff, RotateCcw, Square, X } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -20,8 +19,6 @@ import {
   type ClientRunEvent,
   type ConversationClient,
 } from "@/lib/conversation-client";
-
-import rainCityBackdrop from "../../../public/yoyoo-rain-city.png";
 
 import { HomeComposer } from "./home-composer";
 import type { HomeState } from "./home-types";
@@ -243,17 +240,6 @@ export function HomeExperience({
       <a className="skip-link" href="#main-content">
         跳到主要内容
       </a>
-      <Image
-        alt=""
-        aria-hidden="true"
-        className="space-backdrop"
-        fill
-        priority
-        sizes="100vw"
-        src={rainCityBackdrop}
-        unoptimized
-      />
-      <div className="space-scrim" aria-hidden="true" />
       <Sidebar activeItem={surface} />
 
       <main className="home-stage" id="main-content">
