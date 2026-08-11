@@ -22,6 +22,11 @@
     "db:up": "docker compose -f infra/postgres/docker-compose.yml up -d --wait",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/db-migrate.mjs",
     "db:status": "docker compose -f infra/postgres/docker-compose.yml ps",
+    "internal:doctor": "node --env-file-if-exists=.env.local scripts/internal-ops.mts doctor",
+    "internal:backup": "node --env-file-if-exists=.env.local scripts/internal-ops.mts backup",
+    "internal:verify-backup": "node --env-file-if-exists=.env.local scripts/internal-ops.mts verify",
+    "internal:start": "node --env-file-if-exists=.env.local scripts/internal-ops.mts start --mode=yos --port=4173",
+    "internal:start:local": "node --env-file-if-exists=.env.local scripts/internal-ops.mts start --mode=local --port=4173",
     "test:e2e": "playwright test"
   },
   "dependencies": {
