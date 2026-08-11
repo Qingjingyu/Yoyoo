@@ -127,6 +127,7 @@ export interface RoomRecord {
   workspaceId: string;
   legacyConversationId: string | null;
   name: string;
+  purpose: string;
   kind: RoomKind;
   directHumanPrincipalId: string | null;
   directAgentPrincipalId: string | null;
@@ -141,6 +142,7 @@ export interface RoomSummaryRecord extends RoomRecord {
   lastMessageAt: Date | null;
   lastActivityAt: Date;
   unreadCount: number;
+  pinnedAt: Date | null;
 }
 
 export interface RoomMemberStateRecord {
@@ -153,6 +155,8 @@ export interface RoomMemberStateRecord {
   lastReadAt: Date | null;
   readingPositionUpdatedAt: Date | null;
   draftUpdatedAt: Date | null;
+  pinnedAt: Date | null;
+  hiddenAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

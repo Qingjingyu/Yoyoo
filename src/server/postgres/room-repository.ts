@@ -26,6 +26,7 @@ interface RoomRow {
   workspace_id: string;
   legacy_conversation_id: string | null;
   name: string;
+  purpose: string;
   kind: RoomKind;
   direct_human_principal_id: string | null;
   direct_agent_principal_id: string | null;
@@ -40,6 +41,7 @@ interface RoomSummaryRow extends RoomRow {
   last_message_at: Date | null;
   last_activity_at: Date;
   unread_count: string | number;
+  pinned_at: Date | null;
 }
 
 interface ManageableRoomRow extends RoomRow {
@@ -109,6 +111,7 @@ function mapRoom(row: RoomRow): RoomRecord {
     workspaceId: row.workspace_id,
     legacyConversationId: row.legacy_conversation_id,
     name: row.name,
+    purpose: row.purpose,
     kind: row.kind,
     directHumanPrincipalId: row.direct_human_principal_id,
     directAgentPrincipalId: row.direct_agent_principal_id,
@@ -126,6 +129,7 @@ function mapRoomSummary(row: RoomSummaryRow): RoomSummaryRecord {
     lastMessageAt: row.last_message_at,
     lastActivityAt: row.last_activity_at,
     unreadCount: Number(row.unread_count),
+    pinnedAt: row.pinned_at,
   };
 }
 
@@ -240,6 +244,13 @@ export class MessageRevisionConflictError extends Error {
   }
 }
 
+export class MessageIdempotencyConflictError extends Error {
+  constructor() {
+    super("The idempotency key was already used for a different message request");
+    this.name = "MessageIdempotencyConflictError";
+  }
+}
+
 async function selectManageableRoom(
   client: PoolClient,
   roomId: string,
@@ -249,9 +260,17 @@ async function selectManageableRoom(
     `SELECT rooms.*, room_members.role AS member_role
      FROM rooms
      JOIN room_members ON room_members.room_id = rooms.id
+     JOIN workspace_members
+       ON workspace_members.workspace_id = rooms.workspace_id
+      AND workspace_members.principal_id = room_members.principal_id
+     JOIN principals ON principals.id = room_members.principal_id
+     JOIN workspaces ON workspaces.id = rooms.workspace_id
      WHERE rooms.id = $1
        AND room_members.principal_id = $2
-       AND room_members.status = 'active'`,
+       AND room_members.status = 'active'
+       AND workspace_members.status = 'active'
+       AND principals.status = 'active'
+       AND workspaces.status = 'active'`,
     [roomId, principalId],
   );
   if (!result.rows[0]) throw new RoomNotFoundError();
@@ -505,6 +524,13 @@ export class RoomRepository {
            WHERE room_id = $1 AND principal_id = ANY($2::uuid[])`,
           [existing.rows[0].id, [input.humanPrincipalId, input.agentPrincipalId]],
         );
+        await client.query(
+          `INSERT INTO room_member_states (room_id, principal_id, hidden_at)
+           VALUES ($1, $2, NULL)
+           ON CONFLICT (room_id, principal_id) DO UPDATE
+             SET hidden_at = NULL, updated_at = NOW()`,
+          [existing.rows[0].id, input.humanPrincipalId],
+        );
         return { duplicate: true, room: mapRoom(restored.rows[0]) };
       }
 
@@ -547,10 +573,18 @@ export class RoomRepository {
     const result = await this.pool.query<RoomRow>(
       `SELECT rooms.* FROM rooms
        JOIN room_members ON room_members.room_id = rooms.id
+       JOIN workspace_members
+         ON workspace_members.workspace_id = rooms.workspace_id
+        AND workspace_members.principal_id = room_members.principal_id
+       JOIN principals ON principals.id = room_members.principal_id
+       JOIN workspaces ON workspaces.id = rooms.workspace_id
        WHERE rooms.workspace_id = $1
          AND rooms.status = 'active'
          AND room_members.principal_id = $2
          AND room_members.status = 'active'
+         AND workspace_members.status = 'active'
+         AND principals.status = 'active'
+         AND workspaces.status = 'active'
        ORDER BY rooms.created_at, rooms.id`,
       [workspaceId, principalId],
     );
@@ -569,9 +603,15 @@ export class RoomRepository {
                 rooms.updated_at,
                 COALESCE(last_message.created_at, rooms.updated_at)
               ) AS last_activity_at,
-              COALESCE(unread.unread_count, 0::bigint) AS unread_count
+              COALESCE(unread.unread_count, 0::bigint) AS unread_count,
+              room_member_states.pinned_at
        FROM rooms
        JOIN room_members ON room_members.room_id = rooms.id
+       JOIN workspace_members
+         ON workspace_members.workspace_id = rooms.workspace_id
+        AND workspace_members.principal_id = room_members.principal_id
+       JOIN principals ON principals.id = room_members.principal_id
+       JOIN workspaces ON workspaces.id = rooms.workspace_id
        LEFT JOIN room_member_states
          ON room_member_states.room_id = rooms.id
         AND room_member_states.principal_id = $2
@@ -602,7 +642,21 @@ export class RoomRepository {
        WHERE rooms.workspace_id = $1
          AND room_members.principal_id = $2
          AND room_members.status = 'active'
-       ORDER BY CASE rooms.status WHEN 'active' THEN 0 ELSE 1 END,
+         AND workspace_members.status = 'active'
+         AND principals.status = 'active'
+         AND workspaces.status = 'active'
+         AND (
+           rooms.status = 'archived'
+           OR room_member_states.hidden_at IS NULL
+           OR last_message.created_at > room_member_states.hidden_at
+         )
+       ORDER BY CASE
+                  WHEN rooms.status = 'active'
+                       AND room_member_states.pinned_at IS NOT NULL THEN 0
+                  WHEN rooms.status = 'active' THEN 1
+                  ELSE 2
+                END,
+                room_member_states.pinned_at DESC NULLS LAST,
                 last_activity_at DESC, rooms.id`,
       [workspaceId, principalId],
     );
@@ -627,6 +681,27 @@ export class RoomRepository {
         `UPDATE rooms SET name = $2, updated_at = NOW()
          WHERE id = $1 RETURNING *`,
         [input.roomId, input.name],
+      );
+      return mapRoom(updated.rows[0]);
+    });
+  }
+
+  async updatePurpose(input: {
+    roomId: string;
+    principalId: string;
+    purpose: string;
+  }): Promise<RoomRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const room = await selectManageableRoom(client, input.roomId, input.principalId);
+      if (room.status !== "active") {
+        throw new RoomLifecycleConflictError(
+          "An archived room cannot change its purpose",
+        );
+      }
+      const updated = await client.query<RoomRow>(
+        `UPDATE rooms SET purpose = $2, updated_at = NOW()
+         WHERE id = $1 RETURNING *`,
+        [input.roomId, input.purpose],
       );
       return mapRoom(updated.rows[0]);
     });
@@ -688,10 +763,18 @@ export class RoomRepository {
     const result = await this.pool.query<RoomRow>(
       `SELECT rooms.* FROM rooms
        JOIN room_members ON room_members.room_id = rooms.id
+       JOIN workspace_members
+         ON workspace_members.workspace_id = rooms.workspace_id
+        AND workspace_members.principal_id = room_members.principal_id
+       JOIN principals ON principals.id = room_members.principal_id
+       JOIN workspaces ON workspaces.id = rooms.workspace_id
        WHERE rooms.id = $1
          AND rooms.status = 'active'
          AND room_members.principal_id = $2
-         AND room_members.status = 'active'`,
+         AND room_members.status = 'active'
+         AND workspace_members.status = 'active'
+         AND principals.status = 'active'
+         AND workspaces.status = 'active'`,
       [roomId, principalId],
     );
     if (!result.rows[0]) throw new RoomNotFoundError();
@@ -950,7 +1033,15 @@ export class RoomRepository {
               principals.display_name
        FROM room_members
        JOIN principals ON principals.id = room_members.principal_id
+       JOIN rooms ON rooms.id = room_members.room_id
+       JOIN workspaces ON workspaces.id = rooms.workspace_id
+       JOIN workspace_members
+         ON workspace_members.workspace_id = rooms.workspace_id
+        AND workspace_members.principal_id = room_members.principal_id
        WHERE room_members.room_id = $1
+         AND principals.status = 'active'
+         AND workspaces.status = 'active'
+         AND workspace_members.status = 'active'
        ORDER BY room_members.joined_at, room_members.principal_id`,
       [roomId],
     );
@@ -969,10 +1060,18 @@ export class RoomRepository {
               room_members.listener_policy, agent_bindings.adapter_id
        FROM room_members
        JOIN principals ON principals.id = room_members.principal_id
+       JOIN rooms ON rooms.id = room_members.room_id
+       JOIN workspaces ON workspaces.id = rooms.workspace_id
+       JOIN workspace_members
+         ON workspace_members.workspace_id = rooms.workspace_id
+        AND workspace_members.principal_id = room_members.principal_id
        LEFT JOIN agent_bindings
          ON agent_bindings.principal_id = room_members.principal_id
         AND agent_bindings.status = 'enabled'
        WHERE room_members.room_id = $1
+         AND principals.status = 'active'
+         AND workspaces.status = 'active'
+         AND workspace_members.status = 'active'
        ORDER BY room_members.joined_at, room_members.principal_id`,
       [roomId],
     );
@@ -1004,13 +1103,38 @@ export class RoomRepository {
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
         `room-message:${input.roomId}:${input.idempotencyKey}`,
       ]);
+      const sender = await client.query<{ id: string }>(
+        `SELECT room_members.principal_id AS id
+         FROM room_members
+         JOIN rooms ON rooms.id = room_members.room_id
+         JOIN workspaces ON workspaces.id = rooms.workspace_id
+         JOIN workspace_members
+           ON workspace_members.workspace_id = rooms.workspace_id
+          AND workspace_members.principal_id = room_members.principal_id
+         JOIN principals ON principals.id = room_members.principal_id
+         WHERE room_members.room_id = $1
+           AND room_members.principal_id = $2
+           AND room_members.status = 'active'
+           AND rooms.status = 'active'
+           AND workspaces.status = 'active'
+           AND workspace_members.status = 'active'
+           AND principals.status = 'active'`,
+        [input.roomId, input.senderPrincipalId],
+      );
+      if (!sender.rows[0]) {
+        throw new RoomLifecycleConflictError(
+          "Messages can only be sent by an active member to an active room",
+        );
+      }
       const existing = await client.query<{ id: string }>(
         `SELECT id FROM room_messages
          WHERE room_id = $1 AND idempotency_key = $2`,
         [input.roomId, input.idempotencyKey],
       );
       if (existing.rows[0]) {
+        const existingMessage = await selectMessage(client, existing.rows[0].id);
         const requestedAttachmentIds = [...new Set(input.attachmentIds ?? [])];
+        const requestedMentionIds = [...new Set(input.mentionedPrincipalIds ?? [])].sort();
         const linked = await client.query<{ attachment_id: string }>(
           `SELECT attachment_id FROM message_attachments
            WHERE message_id = $1 ORDER BY position`,
@@ -1018,31 +1142,26 @@ export class RoomRepository {
         );
         const linkedAttachmentIds = linked.rows.map((row) => row.attachment_id);
         if (
+          existingMessage.senderPrincipalId !== input.senderPrincipalId
+          || existingMessage.kind !== input.kind
+          || existingMessage.content !== input.content
+          || existingMessage.status !== input.status
+          || existingMessage.replyToMessageId !== (input.replyToMessageId ?? null)
+          || existingMessage.threadRootMessageId !== (input.threadRootMessageId ?? null)
+          || existingMessage.mentionedPrincipalIds.length !== requestedMentionIds.length
+          || existingMessage.mentionedPrincipalIds.some(
+            (id, index) => id !== requestedMentionIds[index],
+          )
+          ||
           requestedAttachmentIds.length !== linkedAttachmentIds.length ||
           requestedAttachmentIds.some((id, index) => id !== linkedAttachmentIds[index])
         ) {
-          throw new Error("Message already has different attachments");
+          throw new MessageIdempotencyConflictError();
         }
         return {
           duplicate: true,
-          message: await selectMessage(client, existing.rows[0].id),
+          message: existingMessage,
         };
-      }
-
-      const sender = await client.query<{ id: string }>(
-        `SELECT room_members.principal_id AS id
-         FROM room_members
-         JOIN rooms ON rooms.id = room_members.room_id
-         WHERE room_members.room_id = $1
-           AND room_members.principal_id = $2
-           AND room_members.status = 'active'
-           AND rooms.status = 'active'`,
-        [input.roomId, input.senderPrincipalId],
-      );
-      if (!sender.rows[0]) {
-        throw new RoomLifecycleConflictError(
-          "Messages can only be sent to an active room",
-        );
       }
 
       const attachmentIds = [...new Set(input.attachmentIds ?? [])];
@@ -1100,13 +1219,26 @@ export class RoomRepository {
       const mentionedPrincipalIds = [...new Set(input.mentionedPrincipalIds ?? [])];
       if (mentionedPrincipalIds.length > 0) {
         const mentions = await client.query<{ principal_id: string }>(
-          `SELECT principal_id FROM room_members
-           WHERE room_id = $1 AND status = 'active'
-             AND principal_id = ANY($2::uuid[])`,
+          `SELECT room_members.principal_id
+           FROM room_members
+           JOIN rooms ON rooms.id = room_members.room_id
+           JOIN workspaces ON workspaces.id = rooms.workspace_id
+           JOIN workspace_members
+             ON workspace_members.workspace_id = rooms.workspace_id
+            AND workspace_members.principal_id = room_members.principal_id
+           JOIN principals ON principals.id = room_members.principal_id
+           WHERE room_members.room_id = $1
+             AND room_members.status = 'active'
+             AND workspace_members.status = 'active'
+             AND principals.status = 'active'
+             AND workspaces.status = 'active'
+             AND room_members.principal_id = ANY($2::uuid[])`,
           [input.roomId, mentionedPrincipalIds],
         );
         if (mentions.rowCount !== mentionedPrincipalIds.length) {
-          throw new Error("A mentioned principal is not an active room member");
+          throw new RoomMembershipConflictError(
+            "A mentioned principal is not an active room member",
+          );
         }
       }
 
