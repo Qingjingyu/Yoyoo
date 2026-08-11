@@ -54,6 +54,7 @@ interface RoomRow {
   workspace_id: string;
   legacy_conversation_id: string | null;
   name: string;
+  purpose: string;
   kind: RoomRecord["kind"];
   direct_human_principal_id: string | null;
   direct_agent_principal_id: string | null;
@@ -104,6 +105,7 @@ function mapRoom(row: RoomRow): RoomRecord {
     workspaceId: row.workspace_id,
     legacyConversationId: row.legacy_conversation_id,
     name: row.name,
+    purpose: row.purpose,
     kind: row.kind,
     directHumanPrincipalId: row.direct_human_principal_id,
     directAgentPrincipalId: row.direct_agent_principal_id,

@@ -172,6 +172,7 @@ test("room lifecycle keeps history recoverable through rename, archive, and rest
 
   await openRoomRail();
   await page.getByRole("button", { name: `管理${initialName}` }).click();
+  await page.getByRole("menuitem", { name: "会话详情" }).click();
   const details = page.getByRole("complementary", { name: `${initialName}详情` });
   await expect(details).toBeVisible();
   await details.getByRole("button", { name: "移除 Builder" }).click();
