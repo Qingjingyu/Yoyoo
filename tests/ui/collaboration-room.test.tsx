@@ -27,17 +27,19 @@ const workspace = {
   rooms: [{
     id: "room",
     name: "交付协作室",
+    purpose: "推进 Yoyoo 交付",
     status: "active",
     lastMessagePreview: "请共同制定发布计划",
     lastMessageAt: createdAt,
     lastActivityAt: createdAt,
+    pinnedAt: null,
   }],
   archivedRooms: [],
   agents,
 } as unknown as CurrentWorkspace;
 
 const snapshot = {
-  room: { id: "room", name: "交付协作室" },
+  room: { id: "room", name: "交付协作室", purpose: "推进 Yoyoo 交付" },
   members: [
     {
       roomId: "room",
@@ -124,6 +126,8 @@ const snapshot = {
     lastReadAt: null,
     readingPositionUpdatedAt: null,
     draftUpdatedAt: null,
+    pinnedAt: null,
+    hiddenAt: null,
     createdAt,
     updatedAt: createdAt,
   },
@@ -155,10 +159,17 @@ function createClient(overrides: Partial<RoomClient> = {}): RoomClient {
       room: { ...snapshot.room, id: "room-direct", kind: "direct" as const },
     })),
     renameRoom: vi.fn(async (_roomId, name) => ({ ...snapshot.room, name })),
+    setRoomPurpose: vi.fn(async (_roomId, purpose) => ({ ...snapshot.room, purpose })),
     setRoomStatus: vi.fn(async (_roomId, status) => ({ ...snapshot.room, status })),
+    updateRoomListState: vi.fn(async (_roomId, action) => ({
+      ...snapshot.memberState,
+      pinnedAt: action === "pin" ? new Date() : null,
+      hiddenAt: action === "hide" ? new Date() : null,
+    })),
     getRoom: vi.fn(async () => snapshot),
     getRoomMembers: vi.fn(async () => ({
       canManage: true,
+      canEditProfile: true,
       members: snapshot.members,
       candidates: [],
     })),
@@ -230,6 +241,29 @@ describe("CollaborationRoom", () => {
     expect(screen.getByText("Yoyoo V0.2 发布方案")).toBeInTheDocument();
   });
 
+  it("keeps an empty workspace recoverable instead of showing a connection error", async () => {
+    const emptyWorkspace = {
+      ...workspace,
+      rooms: [],
+      archivedRooms: [],
+    } as CurrentWorkspace;
+    const client = createClient({
+      getCurrentWorkspace: vi.fn(async () => emptyWorkspace),
+    });
+
+    render(<CollaborationRoom client={client} />);
+
+    expect(await screen.findByRole("heading", { name: "还没有会话" })).toBeInTheDocument();
+    expect(screen.queryByText("协作房间暂时无法载入")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "新建第一个会话" }));
+    expect(screen.getByRole("complementary", { name: "协作房间" })).toHaveAttribute(
+      "data-open",
+      "true",
+    );
+    expect(screen.getByRole("textbox", { name: "房间名称" })).toBeInTheDocument();
+    expect(client.getRoom).not.toHaveBeenCalled();
+  });
+
   it("sends one room message to all selected Agents", async () => {
     const client = createClient();
     const user = userEvent.setup();
@@ -274,7 +308,7 @@ describe("CollaborationRoom", () => {
       .toHaveValue("上次没有发完的内容");
   });
 
-  it("shows unread counts and opens a stable Agent direct room from the rail", async () => {
+  it("shows only real conversations and opens an existing direct room from the rail", async () => {
     const directRoom = {
       ...snapshot.room,
       id: "direct-planner",
@@ -292,7 +326,12 @@ describe("CollaborationRoom", () => {
     } as RoomSnapshot;
     const unreadWorkspace = {
       ...workspace,
-      rooms: [{ ...workspace.rooms[0], unreadCount: 4 }],
+      rooms: [{ ...workspace.rooms[0], unreadCount: 4 }, {
+        ...workspace.rooms[0],
+        ...directRoom,
+        lastMessagePreview: "已有私聊",
+        unreadCount: 0,
+      }],
     } as CurrentWorkspace;
     const unreadSnapshot = {
       ...snapshot,
@@ -304,7 +343,6 @@ describe("CollaborationRoom", () => {
     } as RoomSnapshot;
     const client = createClient({
       getCurrentWorkspace: vi.fn(async () => unreadWorkspace),
-      createDirectRoom: vi.fn(async () => ({ duplicate: false, room: directRoom })),
       getRoom: vi.fn(async (roomId) =>
         roomId === directRoom.id ? directSnapshot : unreadSnapshot),
     });
@@ -313,9 +351,65 @@ describe("CollaborationRoom", () => {
     await screen.findByRole("heading", { name: "交付协作室" });
 
     expect(screen.getByLabelText("4条未读消息")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "与Planner单聊" }));
-    expect(client.createDirectRoom).toHaveBeenCalledWith("planner");
+    expect(screen.queryByLabelText("房间 Agent 状态")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "切换到Local Planner" }));
+    expect(client.createDirectRoom).not.toHaveBeenCalled();
     expect(await screen.findByRole("heading", { name: "Local Planner" })).toBeInTheDocument();
+  });
+
+  it("pins and removes a conversation from the row context menu", async () => {
+    const secondRoom = {
+      ...workspace.rooms[0],
+      id: "room-2",
+      name: "设计评审室",
+      lastMessagePreview: "检查交互",
+    };
+    const multiRoomWorkspace = {
+      ...workspace,
+      rooms: [workspace.rooms[0], secondRoom],
+    } as CurrentWorkspace;
+    const refreshed = {
+      ...multiRoomWorkspace,
+      rooms: [{ ...workspace.rooms[0], pinnedAt: new Date() }, secondRoom],
+    } as CurrentWorkspace;
+    const client = createClient({
+      getCurrentWorkspace: vi
+        .fn()
+        .mockResolvedValueOnce(multiRoomWorkspace)
+        .mockResolvedValue(refreshed),
+    });
+    const user = userEvent.setup();
+    render(<CollaborationRoom client={client} />);
+    const row = await screen.findByRole("button", { name: "切换到交付协作室" });
+
+    fireEvent.contextMenu(row);
+    await user.click(screen.getByRole("menuitem", { name: "置顶会话" }));
+    expect(client.updateRoomListState).toHaveBeenCalledWith("room", "pin");
+
+    fireEvent.contextMenu(row);
+    await user.click(screen.getByRole("menuitem", { name: "从列表移除" }));
+    await user.click(screen.getByRole("button", { name: "确认移出会话" }));
+    expect(client.updateRoomListState).toHaveBeenCalledWith("room", "hide");
+  });
+
+  it("opens conversation actions from the keyboard menu key", async () => {
+    render(<CollaborationRoom client={createClient()} />);
+    const row = await screen.findByRole("button", { name: "切换到交付协作室" });
+
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+
+    expect(screen.getByRole("menuitem", { name: "置顶会话" })).toBeInTheDocument();
+  });
+
+  it("opens conversation actions after a touch long-press", async () => {
+    render(<CollaborationRoom client={createClient()} />);
+    const row = await screen.findByRole("button", { name: "切换到交付协作室" });
+
+    fireEvent.pointerDown(row, { pointerType: "touch" });
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    fireEvent.pointerUp(row, { pointerType: "touch" });
+
+    expect(screen.getByRole("menuitem", { name: "置顶会话" })).toBeInTheDocument();
   });
 
   it("replies with an explicit quoted message reference", async () => {
@@ -641,8 +735,9 @@ describe("CollaborationRoom", () => {
     await screen.findByRole("heading", { name: "交付协作室" });
 
     expect(screen.getAllByText("请共同制定发布计划")).toHaveLength(2);
-    await user.click(screen.getByRole("button", { name: "管理交付协作室" }));
+    await user.click(screen.getByRole("button", { name: "打开会话详情" }));
     expect(await screen.findByRole("complementary", { name: "交付协作室详情" })).toBeInTheDocument();
+    expect(screen.getByText("room")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重命名房间" }));
     await user.clear(screen.getByRole("textbox", { name: "房间名称" }));
     await user.type(screen.getByRole("textbox", { name: "房间名称" }), "发布协作室");
@@ -671,6 +766,7 @@ describe("CollaborationRoom", () => {
     const client = createClient({
       getRoomMembers: vi.fn(async () => ({
         canManage: true,
+        canEditProfile: true,
         members: snapshot.members,
         candidates: [candidate],
       })),
@@ -679,7 +775,7 @@ describe("CollaborationRoom", () => {
     render(<CollaborationRoom client={client} />);
     await screen.findByRole("heading", { name: "交付协作室" });
 
-    await user.click(screen.getByRole("button", { name: "管理交付协作室" }));
+    await user.click(screen.getByRole("button", { name: "打开会话详情" }));
     const removePlanner = await screen.findByRole("button", { name: "移除 Planner" });
     await user.click(removePlanner);
     await user.click(screen.getByRole("button", { name: "确认移除 Planner" }));
@@ -699,7 +795,7 @@ describe("CollaborationRoom", () => {
     render(<CollaborationRoom client={client} />);
     await screen.findByRole("heading", { name: "交付协作室" });
 
-    await user.click(screen.getByRole("button", { name: "管理交付协作室" }));
+    await user.click(screen.getByRole("button", { name: "打开会话详情" }));
     expect(await screen.findByText("房间详情暂时无法载入")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重试房间详情" }));
     expect(client.getRoomMembers).toHaveBeenCalledTimes(2);

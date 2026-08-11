@@ -13,6 +13,8 @@ import {
   MessageCircle,
   MoreHorizontal,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   RotateCcw,
   Search as SearchIcon,
@@ -24,7 +26,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   useCallback,
@@ -59,8 +60,6 @@ import {
   type RoomSnapshot,
 } from "@/lib/room-client";
 
-import rainCityBackdrop from "../../../public/yoyoo-rain-city.png";
-
 interface CollaborationRoomProps {
   client?: RoomClient;
   attachmentClient?: AttachmentClient;
@@ -93,9 +92,10 @@ function requestedRoomId(): string | null {
   return new URLSearchParams(window.location.search).get("room");
 }
 
-function updateRoomUrl(roomId: string, mode: "push" | "replace"): void {
+function updateRoomUrl(roomId: string | null, mode: "push" | "replace"): void {
   const url = new URL(window.location.href);
-  url.searchParams.set("room", roomId);
+  if (roomId) url.searchParams.set("room", roomId);
+  else url.searchParams.delete("room");
   window.history[mode === "push" ? "pushState" : "replaceState"](
     {},
     "",
@@ -222,14 +222,22 @@ export function CollaborationRoom({
       const requested = requestedRoomId();
       const room = current.rooms.find((candidate) => candidate.id === requested)
         ?? current.rooms[0];
-      if (!room) throw new Error("Workspace does not contain a room");
+      if (!room) {
+        closeSubscriptions();
+        setWorkspace(current);
+        setSnapshot(null);
+        setState("ready");
+        updateRoomUrl(null, "replace");
+        return;
+      }
       const roomSnapshot = await client.getRoom(room.id);
       applyLoadedRoom(current, roomSnapshot);
       updateRoomUrl(room.id, "replace");
-    } catch {
+    } catch (error) {
+      console.error("[Yoyoo] Failed to load collaboration room", error);
       setState("error");
     }
-  }, [applyLoadedRoom, client]);
+  }, [applyLoadedRoom, client, closeSubscriptions]);
 
   const selectRoom = useCallback(async (
     room: RoomRecord,
@@ -339,16 +347,24 @@ export function CollaborationRoom({
         const requested = requestedRoomId();
         const room = current.rooms.find((candidate) => candidate.id === requested)
           ?? current.rooms[0];
-        if (!room) throw new Error("Workspace does not contain a room");
+        if (!room) return [current, null] as const;
         return Promise.all([Promise.resolve(current), client.getRoom(room.id)] as const);
       })
       .then(([current, roomSnapshot]) => {
         if (mounted) {
-          applyLoadedRoom(current, roomSnapshot);
-          updateRoomUrl(roomSnapshot.room.id, "replace");
+          if (roomSnapshot) {
+            applyLoadedRoom(current, roomSnapshot);
+            updateRoomUrl(roomSnapshot.room.id, "replace");
+          } else {
+            setWorkspace(current);
+            setSnapshot(null);
+            setState("ready");
+            updateRoomUrl(null, "replace");
+          }
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("[Yoyoo] Failed to initialize collaboration room", error);
         if (mounted) setState("error");
       });
     const activeSubscriptions = subscriptions.current;
@@ -781,37 +797,6 @@ export function CollaborationRoom({
     }
   }
 
-  async function openDirectRoom(agentPrincipalId: string) {
-    if (
-      snapshot?.room.kind === "direct"
-      && snapshot.room.directAgentPrincipalId === agentPrincipalId
-    ) {
-      setRoomRailOpen(false);
-      return;
-    }
-    if (pendingAction === "direct-room") return;
-    setPendingAction("direct-room");
-    setNotice(null);
-    try {
-      const result = await client.createDirectRoom(agentPrincipalId);
-      const [nextWorkspace, roomSnapshot] = await Promise.all([
-        client.getCurrentWorkspace(),
-        client.getRoom(result.room.id),
-      ]);
-      closeSubscriptions();
-      applyLoadedRoom(nextWorkspace, roomSnapshot);
-      setStreamText({});
-      setReadyAttachments([]);
-      setAttachmentComposerKey((current) => current + 1);
-      setRoomRailOpen(false);
-      updateRoomUrl(result.room.id, "push");
-    } catch {
-      setNotice("单聊暂时无法打开，请稍后重试。");
-    } finally {
-      setPendingAction(null);
-    }
-  }
-
   async function renameManagedRoom(room: RoomSummaryRecord, name: string) {
     const renamed = await client.renameRoom(room.id, name);
     setWorkspace((current) => current ? {
@@ -823,6 +808,35 @@ export function CollaborationRoom({
     setSnapshot((current) => current?.room.id === room.id
       ? { ...current, room: { ...current.room, ...renamed } }
       : current);
+  }
+
+  async function updateManagedRoomPurpose(
+    room: RoomSummaryRecord,
+    purpose: string,
+  ) {
+    const updated = await client.setRoomPurpose(room.id, purpose);
+    setWorkspace((current) => current ? {
+      ...current,
+      rooms: current.rooms.map((candidate) => candidate.id === room.id
+        ? { ...candidate, ...updated }
+        : candidate),
+    } : current);
+    setSnapshot((current) => current?.room.id === room.id
+      ? { ...current, room: { ...current.room, ...updated } }
+      : current);
+  }
+
+  async function updateManagedRoomListState(
+    room: RoomSummaryRecord,
+    action: "pin" | "unpin" | "hide" | "show",
+  ) {
+    await client.updateRoomListState(room.id, action);
+    const nextWorkspace = await client.getCurrentWorkspace();
+    setWorkspace(nextWorkspace);
+    if (action === "hide" && snapshot?.room.id === room.id) {
+      const nextRoom = nextWorkspace.rooms.find((candidate) => candidate.id !== room.id);
+      if (nextRoom) await selectRoom(nextRoom, "replace");
+    }
   }
 
   async function archiveManagedRoom(room: RoomSummaryRecord) {
@@ -916,27 +930,16 @@ export function CollaborationRoom({
   return (
     <div
       className="space-shell room-shell"
-      data-has-room-rail={workspace && snapshot ? true : undefined}
+      data-has-room-rail={workspace ? true : undefined}
       data-room-details={detailsRoom ? true : undefined}
       data-room-state={state}
     >
       <a className="skip-link" href="#room-main">跳到房间内容</a>
-      <Image
-        alt=""
-        aria-hidden="true"
-        className="space-backdrop"
-        fill
-        priority
-        sizes="100vw"
-        src={rainCityBackdrop}
-        unoptimized
-      />
-      <div className="space-scrim room-scrim" aria-hidden="true" />
       <Sidebar activeItem="conversation" />
 
-      {workspace && snapshot ? (
+      {workspace ? (
         <RoomRail
-          activeRoomId={snapshot.room.id}
+          activeRoomId={snapshot?.room.id ?? null}
           creating={creatingRoom}
           creationState={roomCreationState}
           name={newRoomName}
@@ -951,14 +954,15 @@ export function CollaborationRoom({
           }}
           onClose={() => setRoomRailOpen(false)}
           onCreate={() => void createRoom()}
+          onArchive={archiveManagedRoom}
+          onListState={updateManagedRoomListState}
           onOpenDetails={(room) => void openRoomDetails(room)}
-          onOpenDirect={(agentPrincipalId) => void openDirectRoom(agentPrincipalId)}
+          onRename={renameManagedRoom}
           onRestore={restoreManagedRoom}
           onSelect={(room) => void selectRoom(room)}
           onStartCreate={() => setCreatingRoom(true)}
           open={roomRailOpen}
           archivedRooms={workspace.archivedRooms}
-          agents={workspace.agents}
           rooms={workspace.rooms}
         />
       ) : null}
@@ -966,11 +970,17 @@ export function CollaborationRoom({
       <main className="room-stage" id="room-main">
         {state === "loading" || roomTransitioning ? (
           <RoomLoading />
-        ) : state === "error" || !workspace || !snapshot ? (
+        ) : state === "error" || !workspace ? (
           <RoomError onRetry={loadRoom} />
+        ) : !snapshot ? (
+          <RoomWorkspaceEmpty onCreate={() => {
+            setCreatingRoom(true);
+            setRoomRailOpen(true);
+          }} />
         ) : (
           <>
             <RoomHeader
+              onOpenDetails={() => setDetailsRoomId(snapshot.room.id)}
               onOpenRooms={() => setRoomRailOpen(true)}
               onOpenSearch={() => {
                 setDetailsRoomId(null);
@@ -1199,6 +1209,7 @@ export function CollaborationRoom({
             messageId,
           })}
           onRename={renameManagedRoom}
+          onPurpose={updateManagedRoomPurpose}
           room={detailsRoom}
         />
       ) : null}
@@ -1214,32 +1225,18 @@ export function CollaborationRoom({
 }
 
 function RoomHeader({
+  onOpenDetails,
   onOpenRooms,
   onOpenSearch,
   snapshot,
   workspace,
 }: {
+  onOpenDetails: () => void;
   onOpenRooms: () => void;
   onOpenSearch: () => void;
   snapshot: RoomSnapshot;
   workspace: CurrentWorkspace;
 }) {
-  const runningAgentIds = new Set(
-    snapshot.runs
-      .filter((run) => activeStatuses.has(run.status))
-      .map((run) => run.targetAgentPrincipalId),
-  );
-  const activeAgentIds = new Set(
-    snapshot.members
-      .filter(
-        (member) =>
-          member.principalKind === "agent" && member.status === "active",
-      )
-      .map((member) => member.principalId),
-  );
-  const roomAgents = workspace.agents.filter((agent) =>
-    activeAgentIds.has(agent.principalId),
-  );
   const activeMemberCount = snapshot.members.filter(
     (member) => member.status === "active",
   ).length;
@@ -1261,24 +1258,13 @@ function RoomHeader({
           <span>{activeMemberCount} 位成员</span>
         </div>
       </div>
-      <button aria-label="搜索消息和文件" className="room-header__search" onClick={onOpenSearch} title="搜索" type="button">
-        <SearchIcon aria-hidden="true" size={16} strokeWidth={1.6} />
-      </button>
-      <div className="room-header__agents" aria-label="房间 Agent 状态">
-        {roomAgents.length === 0 ? (
-          <span className="room-header__no-agents">暂无 AI</span>
-        ) : null}
-        {roomAgents.map((agent) => {
-          const label = shortAgentName(agent.displayName);
-          const running = runningAgentIds.has(agent.principalId);
-          return (
-            <span data-running={running || undefined} key={agent.principalId} title={label}>
-              <i aria-hidden="true">{label.slice(0, 1)}</i>
-              <b>{label}</b>
-              <small>{running ? "执行中" : "在线"}</small>
-            </span>
-          );
-        })}
+      <div className="room-header__actions">
+        <button aria-label="搜索消息和文件" className="room-header__search" onClick={onOpenSearch} title="搜索" type="button">
+          <SearchIcon aria-hidden="true" size={16} strokeWidth={1.6} />
+        </button>
+        <button aria-label="打开会话详情" className="room-header__details" onClick={onOpenDetails} title="会话详情" type="button">
+          <MoreHorizontal aria-hidden="true" size={17} strokeWidth={1.7} />
+        </button>
       </div>
     </header>
   );
@@ -1297,35 +1283,40 @@ function formatRoomActivity(value: Date | string | undefined): string {
 
 function RoomRail({
   activeRoomId,
-  agents,
   archivedRooms,
   creating,
   creationState,
   name,
+  onArchive,
   onCancelCreate,
   onChangeName,
   onClose,
   onCreate,
+  onListState,
   onOpenDetails,
-  onOpenDirect,
+  onRename,
   onRestore,
   onSelect,
   onStartCreate,
   open,
   rooms,
 }: {
-  activeRoomId: string;
-  agents: CurrentWorkspace["agents"];
+  activeRoomId: string | null;
   archivedRooms: RoomSummaryRecord[];
   creating: boolean;
   creationState: "idle" | "creating" | "error";
   name: string;
+  onArchive: (room: RoomSummaryRecord) => Promise<void>;
   onCancelCreate: () => void;
   onChangeName: (value: string) => void;
   onClose: () => void;
   onCreate: () => void;
+  onListState: (
+    room: RoomSummaryRecord,
+    action: "pin" | "unpin" | "hide" | "show",
+  ) => Promise<void>;
   onOpenDetails: (room: RoomSummaryRecord) => void;
-  onOpenDirect: (agentPrincipalId: string) => void;
+  onRename: (room: RoomSummaryRecord, name: string) => Promise<void>;
   onRestore: (room: RoomSummaryRecord) => Promise<void>;
   onSelect: (room: RoomRecord) => void;
   onStartCreate: () => void;
@@ -1335,12 +1326,49 @@ function RoomRail({
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [mutationState, setMutationState] = useState<"idle" | "saving">("idle");
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const directRoomsByAgent = new Map(
-    rooms
-      .filter((room) => room.kind === "direct" && room.directAgentPrincipalId)
-      .map((room) => [room.directAgentPrincipalId!, room]),
-  );
-  const groupRooms = rooms.filter((room) => room.kind !== "direct");
+  const [menuRoomId, setMenuRoomId] = useState<string | null>(null);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [editedName, setEditedName] = useState("");
+  const [confirmation, setConfirmation] = useState<{
+    roomId: string;
+    action: "archive" | "hide";
+  } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressedRoomId = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }, []);
+
+  function clearLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
+  async function runMutation(action: () => Promise<void>, message: string) {
+    if (mutationState === "saving") return;
+    setMutationState("saving");
+    setMutationError(null);
+    try {
+      await action();
+      setMenuRoomId(null);
+      setConfirmation(null);
+      setEditingRoomId(null);
+    } catch {
+      setMutationError(message);
+    } finally {
+      setMutationState("idle");
+    }
+  }
+
+  async function saveRoomName(room: RoomSummaryRecord) {
+    const nextName = editedName.trim();
+    if (!nextName || nextName.length > 80) return;
+    await runMutation(
+      () => onRename(room, nextName),
+      "会话名称未能保存，请稍后重试。",
+    );
+  }
 
   async function restoreRoom(room: RoomSummaryRecord) {
     if (mutationState === "saving") return;
@@ -1412,69 +1440,198 @@ function RoomRail({
 
         {mutationError ? <p className="room-rail__error" role="alert">{mutationError}</p> : null}
 
-        <nav aria-label="房间列表" className="room-rail__list">
-          <div className="room-rail__section-label">私聊</div>
-          <div className="room-rail__direct-list">
-            {agents.map((agent) => {
-              const room = directRoomsByAgent.get(agent.principalId);
-              const active = room?.id === activeRoomId;
-              const label = shortAgentName(agent.displayName);
-              return (
-                <button
-                  aria-current={active ? "page" : undefined}
-                  aria-label={`与${label}单聊`}
-                  className="room-rail__direct"
-                  data-active={active || undefined}
-                  key={agent.principalId}
-                  onClick={() => onOpenDirect(agent.principalId)}
-                  type="button"
-                >
-                  <span aria-hidden="true">{label.slice(0, 1)}</span>
-                  <strong>{label}</strong>
-                  {room?.unreadCount ? (
-                    <b aria-label={`${room.unreadCount}条未读消息`}>
-                      {room.unreadCount > 99 ? "99+" : room.unreadCount}
-                    </b>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="room-rail__section-label">群聊</div>
-          {groupRooms.length === 0 ? (
-            <p>暂无房间</p>
-          ) : groupRooms.map((room) => {
+        <nav aria-label="会话列表" className="room-rail__list">
+          <div className="room-rail__section-label">会话</div>
+          {rooms.length === 0 ? (
+            <p>暂无会话</p>
+          ) : rooms.map((room) => {
             const active = room.id === activeRoomId;
+            const menuOpen = menuRoomId === room.id;
+            const editing = editingRoomId === room.id;
+            const pendingConfirmation = confirmation?.roomId === room.id
+              ? confirmation.action
+              : null;
             return (
-              <div className="room-rail__item" data-active={active || undefined} key={room.id}>
-                <button
-                  aria-current={active ? "page" : undefined}
-                  aria-label={`切换到${room.name}`}
-                  className="room-rail__room"
-                  onClick={() => onSelect(room)}
-                  type="button"
-                >
-                  <MessageCircle aria-hidden="true" size={15} strokeWidth={1.5} />
-                  <span className="room-rail__summary">
-                    <strong>{room.name}</strong>
-                    <small>{room.lastMessagePreview || "尚无消息"}</small>
-                  </span>
-                  {room.unreadCount ? (
-                    <b className="room-rail__unread" aria-label={`${room.unreadCount}条未读消息`}>
-                      {room.unreadCount > 99 ? "99+" : room.unreadCount}
-                    </b>
-                  ) : null}
-                  <time>{formatRoomActivity(room.lastActivityAt)}</time>
-                </button>
-                <button
-                  aria-label={`管理${room.name}`}
-                  className="room-rail__manage"
-                  onClick={() => onOpenDetails(room)}
-                  type="button"
-                >
-                  <MoreHorizontal aria-hidden="true" size={15} strokeWidth={1.7} />
-                </button>
+              <div
+                className="room-rail__item"
+                data-active={active || undefined}
+                data-menu-open={menuOpen || undefined}
+                key={room.id}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setConfirmation(null);
+                  setEditingRoomId(null);
+                  setMenuRoomId(room.id);
+                }}
+              >
+                {editing ? (
+                  <div className="room-rail__edit">
+                    <input
+                      aria-label={`重命名${room.name}`}
+                      autoFocus
+                      maxLength={80}
+                      onChange={(event) => setEditedName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void saveRoomName(room);
+                        if (event.key === "Escape") setEditingRoomId(null);
+                      }}
+                      value={editedName}
+                    />
+                    <button aria-label="保存会话名称" onClick={() => void saveRoomName(room)} type="button">
+                      <Check aria-hidden="true" size={14} strokeWidth={1.7} />
+                    </button>
+                    <button aria-label="取消重命名会话" onClick={() => setEditingRoomId(null)} type="button">
+                      <X aria-hidden="true" size={14} strokeWidth={1.6} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      aria-current={active ? "page" : undefined}
+                      aria-label={`切换到${room.name}`}
+                      className="room-rail__room"
+                      onClick={() => {
+                        if (longPressedRoomId.current === room.id) {
+                          longPressedRoomId.current = null;
+                          return;
+                        }
+                        setMenuRoomId(null);
+                        onSelect(room);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                          event.preventDefault();
+                          setMenuRoomId(room.id);
+                        }
+                      }}
+                      onPointerCancel={clearLongPress}
+                      onPointerDown={(event) => {
+                        if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+                        clearLongPress();
+                        longPressTimer.current = setTimeout(() => {
+                          longPressedRoomId.current = room.id;
+                          setMenuRoomId(room.id);
+                        }, 520);
+                      }}
+                      onPointerLeave={clearLongPress}
+                      onPointerUp={clearLongPress}
+                      type="button"
+                    >
+                      <MessageCircle aria-hidden="true" size={15} strokeWidth={1.5} />
+                      <span className="room-rail__summary">
+                        <strong>
+                          {room.name}
+                          {room.pinnedAt ? (
+                            <Pin aria-label="已置顶" size={10} strokeWidth={1.7} />
+                          ) : null}
+                        </strong>
+                        <small>{room.lastMessagePreview || "尚无消息"}</small>
+                      </span>
+                      {room.unreadCount ? (
+                        <b className="room-rail__unread" aria-label={`${room.unreadCount}条未读消息`}>
+                          {room.unreadCount > 99 ? "99+" : room.unreadCount}
+                        </b>
+                      ) : null}
+                      <time>{formatRoomActivity(room.lastActivityAt)}</time>
+                    </button>
+                    <button
+                      aria-expanded={menuOpen}
+                      aria-label={`管理${room.name}`}
+                      className="room-rail__manage"
+                      onClick={() => {
+                        setConfirmation(null);
+                        setEditingRoomId(null);
+                        setMenuRoomId((current) => current === room.id ? null : room.id);
+                      }}
+                      type="button"
+                    >
+                      <MoreHorizontal aria-hidden="true" size={15} strokeWidth={1.7} />
+                    </button>
+                  </>
+                )}
+                {menuOpen && !editing && !pendingConfirmation ? (
+                  <div aria-label={`${room.name}会话操作`} className="room-rail__menu" role="menu">
+                    <button
+                      onClick={() => void runMutation(
+                        () => onListState(room, room.pinnedAt ? "unpin" : "pin"),
+                        room.pinnedAt ? "取消置顶失败，请重试。" : "置顶失败，请重试。",
+                      )}
+                      role="menuitem"
+                      type="button"
+                    >
+                      {room.pinnedAt
+                        ? <PinOff aria-hidden="true" size={14} />
+                        : <Pin aria-hidden="true" size={14} />}
+                      {room.pinnedAt ? "取消置顶" : "置顶会话"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenuRoomId(null);
+                        onOpenDetails(room);
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      <MoreHorizontal aria-hidden="true" size={14} />
+                      会话详情
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditedName(room.name);
+                        setEditingRoomId(room.id);
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      <Pencil aria-hidden="true" size={14} />
+                      重命名
+                    </button>
+                    <button
+                      disabled={rooms.length <= 1}
+                      onClick={() => setConfirmation({ roomId: room.id, action: "hide" })}
+                      role="menuitem"
+                      title={rooms.length <= 1 ? "至少保留一个可见会话" : undefined}
+                      type="button"
+                    >
+                      <Trash2 aria-hidden="true" size={14} />
+                      从列表移除
+                    </button>
+                    <button
+                      disabled={rooms.length <= 1}
+                      onClick={() => setConfirmation({ roomId: room.id, action: "archive" })}
+                      role="menuitem"
+                      type="button"
+                    >
+                      <Archive aria-hidden="true" size={14} />
+                      归档会话
+                    </button>
+                  </div>
+                ) : null}
+                {pendingConfirmation ? (
+                  <div aria-label={pendingConfirmation === "hide" ? "确认移出会话" : "确认归档会话"} className="room-rail__confirm" role="alertdialog">
+                    <p>
+                      {pendingConfirmation === "hide"
+                        ? "仅从你的列表移出；收到新消息时会重新出现。"
+                        : "归档后历史消息仍保留，可从已归档中恢复。"}
+                    </p>
+                    <button
+                      aria-label={pendingConfirmation === "hide" ? "确认移出会话" : "确认归档会话"}
+                      disabled={mutationState === "saving"}
+                      onClick={() => void runMutation(
+                        () => pendingConfirmation === "hide"
+                          ? onListState(room, "hide")
+                          : onArchive(room),
+                        pendingConfirmation === "hide"
+                          ? "会话未能移出列表，请重试。"
+                          : "会话未能归档，请重试。",
+                      )}
+                      type="button"
+                    >
+                      确认
+                    </button>
+                    <button onClick={() => setConfirmation(null)} type="button">取消</button>
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -1529,6 +1686,7 @@ function RoomDetails({
   onClose,
   onMembershipChanged,
   onOpenMessage,
+  onPurpose,
   onRename,
   room,
 }: {
@@ -1538,6 +1696,7 @@ function RoomDetails({
   onClose: () => void;
   onMembershipChanged: () => Promise<void>;
   onOpenMessage: (messageId: string) => void;
+  onPurpose: (room: RoomSummaryRecord, purpose: string) => Promise<void>;
   onRename: (room: RoomSummaryRecord, name: string) => Promise<void>;
   room: RoomSummaryRecord;
 }) {
@@ -1548,8 +1707,9 @@ function RoomDetails({
   const [removePrincipalId, setRemovePrincipalId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(room.name);
+  const [purpose, setPurpose] = useState(room.purpose ?? "");
   const [archiveConfirmation, setArchiveConfirmation] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"id" | "link" | null>(null);
 
   const loadDetails = useCallback(async () => {
     setState("loading");
@@ -1620,13 +1780,37 @@ function RoomDetails({
     }
   }
 
+  async function savePurpose() {
+    const nextPurpose = purpose.trim();
+    if (nextPurpose.length > 500 || mutation) return;
+    setMutation("purpose");
+    setError(null);
+    try {
+      await onPurpose(room, nextPurpose);
+    } catch {
+      setError("会话用途未能保存，请重试。");
+    } finally {
+      setMutation(null);
+    }
+  }
+
+  async function copyRoomId() {
+    try {
+      await navigator.clipboard.writeText(room.id);
+      setCopied("id");
+      window.setTimeout(() => setCopied(null), 1_500);
+    } catch {
+      setError("当前浏览器无法复制会话 ID。");
+    }
+  }
+
   async function copyRoomLink() {
     try {
       const url = new URL(window.location.href);
       url.searchParams.set("room", room.id);
       await navigator.clipboard.writeText(url.toString());
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1_500);
+      setCopied("link");
+      window.setTimeout(() => setCopied(null), 1_500);
     } catch {
       setError("当前浏览器无法复制链接，请从地址栏复制。");
     }
@@ -1666,7 +1850,7 @@ function RoomDetails({
 
         <div className="room-details__identity">
           <strong>{room.name}</strong>
-          <small>{details?.members.length ?? 0} 位成员</small>
+          <small>{room.purpose || `${details?.members.length ?? 0} 位成员`}</small>
         </div>
 
         {state === "loading" ? (
@@ -1685,6 +1869,43 @@ function RoomDetails({
           </div>
         ) : (
           <div className="room-details__content">
+            <section className="room-details__section room-details__metadata">
+              <header><span>会话身份</span></header>
+              <button
+                aria-label="复制会话 ID"
+                className="room-details__id"
+                onClick={() => void copyRoomId()}
+                type="button"
+              >
+                <code>{room.id}</code>
+                {copied === "id"
+                  ? <Check aria-hidden="true" size={14} />
+                  : <Copy aria-hidden="true" size={14} />}
+              </button>
+              <label className="room-details__purpose">
+                <span>用途</span>
+                <textarea
+                  aria-label="会话用途"
+                  disabled={!details.canEditProfile}
+                  maxLength={500}
+                  onChange={(event) => setPurpose(event.target.value)}
+                  placeholder="说明这个会话负责什么"
+                  rows={3}
+                  value={purpose}
+                />
+              </label>
+              {details.canEditProfile ? (
+                <button
+                  className="room-details__purpose-save"
+                  disabled={mutation === "purpose" || purpose.trim() === (room.purpose ?? "")}
+                  onClick={() => void savePurpose()}
+                  type="button"
+                >
+                  {mutation === "purpose" ? "保存中…" : "保存用途"}
+                </button>
+              ) : null}
+            </section>
+
             <section className="room-details__section">
               <header>
                 <span>成员</span>
@@ -1829,7 +2050,7 @@ function RoomDetails({
               ) : null}
               <button onClick={() => void copyRoomLink()} type="button">
                 <Copy aria-hidden="true" size={14} strokeWidth={1.5} />
-                {copied ? "链接已复制" : "复制房间链接"}
+                {copied === "link" ? "链接已复制" : "复制房间链接"}
               </button>
               {details.canManage ? (
                 <>
@@ -2149,6 +2370,20 @@ function RoomEmpty({ roomName }: { roomName: string }) {
       <h2>{roomName}</h2>
       <p>等待第一条协作消息。</p>
     </div>
+  );
+}
+
+function RoomWorkspaceEmpty({ onCreate }: { onCreate: () => void }) {
+  return (
+    <section className="room-error room-workspace-empty">
+      <MessageCircle aria-hidden="true" size={22} strokeWidth={1.5} />
+      <h1>还没有会话</h1>
+      <p>创建第一个会话后，就可以邀请人或 AI 一起协作。</p>
+      <button aria-label="新建第一个会话" onClick={onCreate} type="button">
+        <Plus aria-hidden="true" size={16} strokeWidth={1.7} />
+        新建会话
+      </button>
+    </section>
   );
 }
 
