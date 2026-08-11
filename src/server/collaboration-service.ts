@@ -61,6 +61,14 @@ const renameRoomSchema = z
   })
   .strict();
 
+const roomPurposeSchema = z
+  .object({
+    roomId: databaseIdSchema,
+    principalId: databaseIdSchema,
+    purpose: z.string().trim().max(500),
+  })
+  .strict();
+
 const roomStatusSchema = z
   .object({
     roomId: databaseIdSchema,
@@ -132,6 +140,14 @@ const draftSchema = z
   })
   .strict();
 
+const roomListStateSchema = z
+  .object({
+    roomId: databaseIdSchema,
+    principalId: databaseIdSchema,
+    action: z.enum(["pin", "unpin", "hide", "show"]),
+  })
+  .strict();
+
 export class CollaborationService {
   constructor(
     private readonly rooms: RoomRepository,
@@ -167,6 +183,10 @@ export class CollaborationService {
     return this.rooms.rename(input);
   }
 
+  async updateRoomPurpose(rawInput: z.input<typeof roomPurposeSchema>) {
+    return this.rooms.updatePurpose(roomPurposeSchema.parse(rawInput));
+  }
+
   async setRoomStatus(rawInput: z.input<typeof roomStatusSchema>) {
     const input = roomStatusSchema.parse(rawInput);
     return this.rooms.setStatus(input);
@@ -183,8 +203,10 @@ export class CollaborationService {
         member.principalId === input.principalId && member.status === "active",
     );
     const canManage = currentMember?.role === "owner" && room.kind === "group";
+    const canEditProfile = currentMember?.role === "owner";
     return {
       canManage,
+      canEditProfile,
       members: allMembers.filter((member) => member.status === "active"),
       candidates: canManage
         ? await this.rooms.listEligibleMembers(input)
@@ -276,6 +298,11 @@ export class CollaborationService {
   async saveDraft(rawInput: z.input<typeof draftSchema>) {
     if (!this.memberStates) throw new Error("Room member state is not configured");
     return this.memberStates.saveDraft(draftSchema.parse(rawInput));
+  }
+
+  async updateRoomListState(rawInput: z.input<typeof roomListStateSchema>) {
+    if (!this.memberStates) throw new Error("Room member state is not configured");
+    return this.memberStates.updateListState(roomListStateSchema.parse(rawInput));
   }
 
   async editMessage(rawInput: z.input<typeof editMessageSchema>) {

@@ -14,6 +14,8 @@ interface MemberStateRow {
   last_read_at: Date | null;
   reading_position_updated_at: Date | null;
   draft_updated_at: Date | null;
+  pinned_at: Date | null;
+  hidden_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -33,6 +35,8 @@ function mapState(row: MemberStateRow): RoomMemberStateRecord {
     lastReadAt: row.last_read_at,
     readingPositionUpdatedAt: row.reading_position_updated_at,
     draftUpdatedAt: row.draft_updated_at,
+    pinnedAt: row.pinned_at,
+    hiddenAt: row.hidden_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -97,6 +101,93 @@ export class MemberStateRepository {
 
   async get(roomId: string, principalId: string): Promise<RoomMemberStateRecord> {
     return mapState(await ensureState(this.pool, roomId, principalId));
+  }
+
+  async updateListState(input: {
+    roomId: string;
+    principalId: string;
+    action: "pin" | "unpin" | "hide" | "show";
+  }): Promise<RoomMemberStateRecord> {
+    return withTransaction(this.pool, async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `room-list:${input.principalId}`,
+      ]);
+      const state = await lockState(client, input.roomId, input.principalId);
+      if (input.action === "hide" && state.room_status === "active") {
+        const visibility = await client.query<{
+          visible_count: string | number;
+          target_visible: boolean;
+        }>(
+          `WITH visible_rooms AS (
+             SELECT rooms.id
+             FROM rooms
+             JOIN room_members ON room_members.room_id = rooms.id
+             JOIN workspaces ON workspaces.id = rooms.workspace_id
+             JOIN workspace_members
+               ON workspace_members.workspace_id = rooms.workspace_id
+              AND workspace_members.principal_id = room_members.principal_id
+             JOIN principals ON principals.id = room_members.principal_id
+             LEFT JOIN room_member_states
+               ON room_member_states.room_id = rooms.id
+              AND room_member_states.principal_id = $1
+             LEFT JOIN LATERAL (
+               SELECT room_messages.created_at
+               FROM room_messages
+               WHERE room_messages.room_id = rooms.id
+                 AND room_messages.status = 'completed'
+                 AND room_messages.retracted_at IS NULL
+               ORDER BY room_messages.created_at DESC, room_messages.id DESC
+               LIMIT 1
+             ) AS last_message ON TRUE
+             WHERE rooms.workspace_id = (
+               SELECT workspace_id FROM rooms WHERE id = $2
+             )
+               AND rooms.status = 'active'
+               AND room_members.principal_id = $1
+               AND room_members.status = 'active'
+               AND workspace_members.status = 'active'
+               AND principals.status = 'active'
+               AND workspaces.status = 'active'
+               AND (
+                 room_member_states.hidden_at IS NULL
+                 OR last_message.created_at > room_member_states.hidden_at
+               )
+           )
+           SELECT COUNT(*)::text AS visible_count,
+                  COALESCE(BOOL_OR(id = $2), FALSE) AS target_visible
+           FROM visible_rooms`,
+          [input.principalId, input.roomId],
+        );
+        if (
+          visibility.rows[0].target_visible
+          && Number(visibility.rows[0].visible_count) <= 1
+        ) {
+          throw new RoomLifecycleConflictError(
+            "The final visible room cannot be hidden",
+          );
+        }
+      }
+      const result = await client.query<MemberStateRow>(
+        `UPDATE room_member_states SET
+           pinned_at = CASE $3::text
+             WHEN 'pin' THEN NOW()
+             WHEN 'unpin' THEN NULL
+             WHEN 'hide' THEN NULL
+             ELSE pinned_at
+           END,
+           hidden_at = CASE $3::text
+             WHEN 'pin' THEN NULL
+             WHEN 'hide' THEN NOW()
+             WHEN 'show' THEN NULL
+             ELSE hidden_at
+           END,
+           updated_at = NOW()
+         WHERE room_id = $1 AND principal_id = $2
+         RETURNING *`,
+        [input.roomId, input.principalId, input.action],
+      );
+      return mapState(result.rows[0]);
+    });
   }
 
   async updateRead(input: {
