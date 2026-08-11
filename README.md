@@ -1,14 +1,27 @@
 # Yoyoo Space
 
 Yoyoo Space is a shared workspace for humans and AI Agents. Its foundation
-supports multiple human and Agent principals; V0.9 exposes a daily-usable IM
+supports multiple human and Agent principals; V0.14 packages the verified IM
 slice: one human collaborating with multiple independently addressable Agents
 across persistent group and direct rooms. The repository is a clean
 implementation started on 2026-08-05 and does not inherit the retired Yoyoo
 application or Git history.
 
-Current status: the accepted concise homepage remains unchanged. The dedicated
-collaboration room now supports private file upload, preview and download,
+Current status: V0.14 is the internal daily-use release. It adds one-command
+production startup, readiness diagnosis, and verified local PostgreSQL + BlobStore
+backups without changing product behavior or adding public exposure. V0.13
+finalizes the optical glass material system, while V0.11 replaces the image-led
+interface with one semantic,
+image-free visual system across the homepage, conversation workspace, settings,
+and Live mode. Light, dark, and system preferences share the same spatial
+hierarchy and persist locally without a first-paint flash. V0.10 makes
+every person, Agent and conversation operationally addressable by its stable
+ID: the conversation rail contains only real direct/group rooms, personal
+pin/hide state follows the account, and the room details pane exposes its
+canonical `room_id` and editable purpose. An authenticated Agent can query only
+its authorized directory and proactively send to an exact `room_id`; display
+names remain presentation-only. The dedicated collaboration room also supports
+private file upload, preview and download,
 message and filename search, room file history, replies, revision-safe edits,
 soft retraction, unread counts, per-room drafts and reading position, and stable
 human/Agent direct rooms. Explicit Agent routing, parallel runs, typed
@@ -30,6 +43,39 @@ storage, malware scanning, or hard deletion.
 - A locally installed and authenticated Codex CLI for `dev:yos` mode. Run
   `codex login status` to verify the existing ChatGPT login.
 
+## Internal Daily Use
+
+For normal internal use with real Codex and YOS, run:
+
+```bash
+npm run internal:start
+```
+
+Open `http://127.0.0.1:4173`. The command checks prerequisites, starts the
+persistent PostgreSQL service, applies checksum-verified forward migrations,
+builds the production application, and keeps Yoyoo in the foreground. Press
+`Ctrl+C` to stop only the application; rooms, messages, and private blobs remain
+available for the next start.
+
+Use the deterministic fallback when Codex or YOS is unavailable:
+
+```bash
+npm run internal:start:local
+```
+
+Before maintenance, create and verify a non-destructive local backup:
+
+```bash
+npm run internal:doctor
+npm run internal:backup
+```
+
+The backup command writes only below ignored `output/backups/internal`, includes
+the PostgreSQL dump and private BlobStore, and verifies both inventories plus
+their SHA-256 manifest. Restore is intentionally not automated because it
+overwrites state. See [USAGE.md](./USAGE.md) for daily operation and recovery
+escalation.
+
 ## Local Development
 
 ```bash
@@ -42,6 +88,17 @@ npm run dev
 
 Open `http://127.0.0.1:3000`. The development server binds to localhost by
 default and is not intended for public exposure.
+
+## Appearance
+
+Open `http://127.0.0.1:3000/settings/agents` and choose **跟随系统**、**浅色**
+or **深色** under **空间主题**. The preference is stored in the browser and
+applies to every route before React hydrates. `跟随系统` also responds to a live
+operating-system color-scheme change.
+
+Both themes use the same layout and semantic surface hierarchy. No product page
+depends on a scenery bitmap; the fluid Orb remains the intentional digital-life
+visual inside Live mode.
 
 The normal command uses deterministic local Agents. To run the real Codex and
 YOS seats together without copying the YOS password into this repository:
@@ -93,6 +150,41 @@ time, and caps a YOS turn at 110 seconds so it can return before the 120-second
 lease expires. It never receives Yoyoo database credentials and never writes or
 logs the Agent token. Other providers can reuse
 `scripts/agent-gateway-client.mts` without importing Yoyoo server code.
+
+### Agent directory and exact room delivery
+
+An active Agent credential is also a scoped communication identity. It can list
+only rooms that the Agent has actively joined:
+
+```http
+GET /api/v1/agent-gateway/directory
+Authorization: Bearer $YOYOO_AGENT_TOKEN
+```
+
+The response includes the Agent's canonical `principalId`, each authorized
+`roomId`, the room's display name and purpose, and member `principalId` values.
+Names are for people to read; automation must retain and use these IDs.
+
+To proactively send a message, address one exact room and provide a unique
+idempotency key:
+
+```http
+POST /api/v1/agent-gateway/rooms/{room_id}/messages
+Authorization: Bearer $YOYOO_AGENT_TOKEN
+Idempotency-Key: agent-generated-unique-key
+Content-Type: application/json
+
+{
+  "content": "任务已经完成，结果见交付物。",
+  "mentionedPrincipalIds": ["principal_uuid"]
+}
+```
+
+The server derives the sender from the bearer credential, rejects sender fields
+in the body, returns the same submission for a repeated idempotency key, and
+does not reveal rooms outside the Agent's membership. A direct conversation is
+still a room: create or reuse it by the target `principal_id`, then deliver all
+messages by its resulting `room_id`.
 
 Because the current YOS Web Console accepts text rather than file uploads, the
 reference bridge materializes only authorized UTF-8 text resources. It limits
@@ -219,6 +311,8 @@ src/components/conversation/ Multi-room rail, Agent room timeline, and controls
 src/components/orb/      Isolated fluid-orb study and state preview
 src/components/shell/    Product navigation shell
 src/components/settings/ Owner-only external AI directory and credential UI
+src/components/theme/    Theme provider, no-flash bootstrap, and settings control
+src/theme/               Preference model, resolution, and persistence contract
 src/agents/              Portable Agent contract, registry, test adapter,
                          shared room context, Codex CLI adapter, and YOS adapter
 src/server/              Room routing, run coordination, delegation, and SSE
@@ -279,6 +373,15 @@ e2e/                      Playwright browser acceptance
   edit, and soft retraction.
 - `开发过程/026_Feature_未读草稿阅读位置与单聊.md`: unread, draft, reading
   position, direct rooms, and stale-refresh protection.
+- `开发过程/027_Feature_ID寻址与会话列表.md`: canonical ID addressing,
+  Agent-authorized directory/delivery, personal list state, and the unified
+  conversation rail.
+- `开发过程/028_Feature_无背景双主题视觉系统.md`: semantic light/dark/system
+  themes, image-free surfaces, responsive evidence, and rollback boundary.
+- `开发过程/029_Feature_旗舰对话界面.md`: readable conversation typography,
+  disciplined materials, semantic motion, and desktop/mobile evidence.
+- `开发过程/030_Feature_光学毛玻璃材质系统.md`: semantic optical glass for
+  light/dark navigation and conversation framing, with solid reading surfaces.
 
 ## Reference Policy
 
@@ -289,6 +392,6 @@ e2e/                      Playwright browser acceptance
   implementation plan identifies the file and tests the resulting behavior.
 - The fluid orb is adapted from SmoothUI's MIT-licensed Siri Orb. Attribution
   and the original license are preserved in `THIRD_PARTY_NOTICES.md`.
-- The current homepage uses a user-provided Yoyoo backdrop. The earlier
-  Three.js chamber remains outside the rendered route while this composition is
-  evaluated and does not enter the homepage bundle.
+- V0.11 product routes are image-free. The earlier city backdrop and Three.js
+  chamber remain outside the rendered routes and do not enter the interface
+  composition.
