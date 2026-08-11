@@ -1,5 +1,45 @@
 # Product Spec Changelog
 
+## v0.13 - 2026-08-11
+
+- Approved a restrained optical-glass system for shared navigation and the
+  conversation frame in both light and dark themes.
+- Reserved glass for navigation, composition, drawers, and temporary surfaces;
+  kept the timeline and messages substantially opaque for long-form reading.
+- Standardized navigation, panel, control, floating, edge, blur, saturation,
+  and shadow roles instead of one-off transparency values.
+- Rejected all-glass content, scenery images, decorative gradients, HUD grids,
+  ambient glow blobs, new visual dependencies, and business-layer changes.
+
+## v0.11 - 2026-08-11
+
+- Approved one image-free spatial interface system for light, dark, and system
+  preferences across every current Yoyoo route.
+- Moved future character from scenery images to semantic surface hierarchy,
+  precise borders, restrained glass, Agent presence, and measured motion.
+- Kept theme selection as a low-frequency setting and required flicker-free
+  first paint plus local preference persistence.
+- Preserved the existing information architecture, collaboration behavior,
+  database, Agent protocol, and mobile navigation.
+- Rejected image brightening, duplicate theme stylesheets, a human avatar, and a
+  generic flat IM clone.
+
+## v0.10 / Addressable Conversations - 2026-08-10
+
+- Made immutable IDs authoritative for every person, Agent, room, message,
+  permission check, delivery, mention, and audit operation.
+- Kept existing UUIDs and room/message history instead of introducing a second
+  identity store or routing by mutable display names.
+- Approved an authenticated Agent directory and proactive idempotent send to an
+  exact accessible `room_id`; sender identity is always derived from auth.
+- Added owner-editable room purpose plus per-member pin and remove-from-list
+  state. Removal preserves shared facts and reverses on newer activity.
+- Replaced static Agent shortcuts with one unified real-conversation rail and
+  replaced header Agent cards with search plus a details overflow action.
+- Kept hard deletion, natural-language auto-routing, public short IDs,
+  federation, public registration, notifications, voice, and homepage changes
+  outside V0.10.
+
 ## v0.9 / IM-1 - 2026-08-10
 
 - Approved the daily IM foundation for one human working with multiple AI
