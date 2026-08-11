@@ -210,6 +210,28 @@ describe("room HTTP boundary", () => {
     expect(workspace.rooms.length).toBeGreaterThan(0);
   });
 
+  it("updates the room purpose without changing its canonical room ID", async () => {
+    const createResponse = await createRoom(
+      roomRequest({ name: "学习室" }, randomUUID()),
+    );
+    const created = (await createResponse.json()) as { room: { id: string } };
+    const response = await patchRoom(
+      roomPatchRequest(created.room.id, { purpose: "长期整理机器学习资料" }),
+      routeContext(created.room.id),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: created.room.id,
+      purpose: "长期整理机器学习资料",
+    });
+    const invalid = await patchRoom(
+      roomPatchRequest(created.room.id, { purpose: "x".repeat(501) }),
+      routeContext(created.room.id),
+    );
+    expect(invalid.status).toBe(400);
+  });
+
   it("creates a named room idempotently and includes it in the accessible workspace", async () => {
     const idempotencyKey = randomUUID();
     const firstResponse = await createRoom(
@@ -264,11 +286,13 @@ describe("room HTTP boundary", () => {
     );
     const initial = (await initialResponse.json()) as {
       canManage: boolean;
+      canEditProfile: boolean;
       members: Array<{ principalId: string; status: string }>;
       candidates: Array<{ principalId: string }>;
     };
     expect(initialResponse.status).toBe(200);
     expect(initial.canManage).toBe(true);
+    expect(initial.canEditProfile).toBe(true);
     expect(initial.members).toHaveLength(4);
     expect(initial.candidates).toEqual([]);
 

@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as createDirectRoom } from "@/app/api/v1/direct-rooms/route";
 import { PUT as saveDraft } from "@/app/api/v1/rooms/[roomId]/draft/route";
 import { POST as postRoomMessage } from "@/app/api/v1/rooms/[roomId]/messages/route";
+import { PATCH as updateListState } from "@/app/api/v1/rooms/[roomId]/list-state/route";
 import { PUT as updateRead } from "@/app/api/v1/rooms/[roomId]/read/route";
 import { PATCH as patchRoom } from "@/app/api/v1/rooms/[roomId]/route";
 import { GET as getCurrentWorkspace } from "@/app/api/v1/workspaces/current/route";
@@ -52,6 +53,48 @@ afterAll(async () => {
 });
 
 describe("IM member state HTTP boundary", () => {
+  it("pins and removes a room from only the current member's conversation list", async () => {
+    const { room } = await createGroupRoom("个人会话列表测试室");
+    const url = `http://localhost/api/v1/rooms/${room.id}/list-state`;
+    const pinnedResponse = await updateListState(
+      jsonRequest(url, "PATCH", { action: "pin" }),
+      roomContext(room.id),
+    );
+    const pinned = (await pinnedResponse.json()) as {
+      memberState: RoomMemberStateRecord;
+    };
+    expect(pinnedResponse.status).toBe(200);
+    expect(pinned.memberState).toMatchObject({
+      roomId: room.id,
+      pinnedAt: expect.any(String),
+      hiddenAt: null,
+    });
+
+    const workspace = (await (await getCurrentWorkspace()).json()) as {
+      rooms: Array<{ id: string; pinnedAt: string | null }>;
+    };
+    expect(workspace.rooms[0]).toMatchObject({ id: room.id, pinnedAt: expect.any(String) });
+
+    const hiddenResponse = await updateListState(
+      jsonRequest(url, "PATCH", { action: "hide" }),
+      roomContext(room.id),
+    );
+    expect(hiddenResponse.status).toBe(200);
+    expect(await hiddenResponse.json()).toMatchObject({
+      memberState: { roomId: room.id, pinnedAt: null, hiddenAt: expect.any(String) },
+    });
+    const hiddenWorkspace = (await (await getCurrentWorkspace()).json()) as {
+      rooms: Array<{ id: string }>;
+    };
+    expect(hiddenWorkspace.rooms.map((candidate) => candidate.id)).not.toContain(room.id);
+
+    const invalid = await updateListState(
+      jsonRequest(url, "PATCH", { action: "delete" }),
+      roomContext(room.id),
+    );
+    expect(invalid.status).toBe(400);
+  });
+
   it("counts incoming messages as unread and never moves the read cursor backward", async () => {
     const { room } = await createGroupRoom("未读游标测试室");
     const { collaboration } = await getServerRuntime();
@@ -192,7 +235,58 @@ describe("IM member state HTTP boundary", () => {
     await expect(collaboration.service.getRoomMembershipDetails({
       roomId: first.room.id,
       principalId: collaboration.bootstrap.principal.id,
-    })).resolves.toMatchObject({ canManage: false, members: [{}, {}], candidates: [] });
+    })).resolves.toMatchObject({
+      canManage: false,
+      canEditProfile: true,
+      members: [{}, {}],
+      candidates: [],
+    });
+  });
+
+  it("rejects hiding the final visible active conversation", async () => {
+    const { room } = await createGroupRoom("最后可见会话测试室");
+    const current = (await (await getCurrentWorkspace()).json()) as {
+      rooms: Array<{ id: string }>;
+    };
+    const otherVisible = current.rooms.filter((candidate) => candidate.id !== room.id);
+
+    try {
+      for (const candidate of otherVisible) {
+        const response = await updateListState(
+          jsonRequest(
+            `http://localhost/api/v1/rooms/${candidate.id}/list-state`,
+            "PATCH",
+            { action: "hide" },
+          ),
+          roomContext(candidate.id),
+        );
+        expect(response.status).toBe(200);
+      }
+
+      const finalResponse = await updateListState(
+        jsonRequest(
+          `http://localhost/api/v1/rooms/${room.id}/list-state`,
+          "PATCH",
+          { action: "hide" },
+        ),
+        roomContext(room.id),
+      );
+      expect(finalResponse.status).toBe(409);
+      expect(await finalResponse.json()).toMatchObject({
+        error: { code: "ROOM_LIFECYCLE_CONFLICT" },
+      });
+    } finally {
+      for (const candidate of otherVisible) {
+        await updateListState(
+          jsonRequest(
+            `http://localhost/api/v1/rooms/${candidate.id}/list-state`,
+            "PATCH",
+            { action: "show" },
+          ),
+          roomContext(candidate.id),
+        );
+      }
+    }
   });
 
   it("keeps a failed send draft and rejects all new messages in archived rooms", async () => {

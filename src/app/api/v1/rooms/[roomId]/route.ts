@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const patchSchema = z.union([
   z.object({ name: z.string() }).strict(),
+  z.object({ purpose: z.string() }).strict(),
   z.object({ status: z.enum(["active", "archived"]) }).strict(),
 ]);
 
@@ -40,11 +41,17 @@ export async function PATCH(
     const principalId = collaboration.bootstrap.principal.id;
     const room = "name" in body
       ? await collaboration.service.renameRoom({ roomId, principalId, name: body.name })
-      : await collaboration.service.setRoomStatus({
-          roomId,
-          principalId,
-          status: body.status,
-        });
+      : "purpose" in body
+        ? await collaboration.service.updateRoomPurpose({
+            roomId,
+            principalId,
+            purpose: body.purpose,
+          })
+        : await collaboration.service.setRoomStatus({
+            roomId,
+            principalId,
+            status: body.status,
+          });
     return Response.json(room);
   } catch (error) {
     return errorResponse(error);
