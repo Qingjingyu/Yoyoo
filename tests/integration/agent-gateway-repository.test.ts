@@ -215,6 +215,17 @@ describe("AgentGatewayRepository", () => {
     });
     await expect(repository.authenticate(`yya_${"x".repeat(43)}`)).resolves.toBeNull();
 
+    await pool.query("UPDATE workspaces SET status = 'archived' WHERE id = $1", [
+      fixture.workspace.id,
+    ]);
+    try {
+      await expect(repository.authenticate(created.token)).resolves.toBeNull();
+    } finally {
+      await pool.query("UPDATE workspaces SET status = 'active' WHERE id = $1", [
+        fixture.workspace.id,
+      ]);
+    }
+
     await expect(
       pool.query(
         `SELECT 1

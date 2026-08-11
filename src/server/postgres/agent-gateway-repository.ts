@@ -284,11 +284,13 @@ export class AgentGatewayRepository {
        JOIN workspace_members
          ON workspace_members.workspace_id = credentials.workspace_id
         AND workspace_members.principal_id = credentials.principal_id
+       JOIN workspaces ON workspaces.id = credentials.workspace_id
        JOIN agent_bindings ON agent_bindings.principal_id = credentials.principal_id
        WHERE credentials.token_hash = $1
          AND credentials.status = 'active'
          AND principals.status = 'active'
          AND workspace_members.status = 'active'
+         AND workspaces.status = 'active'
          AND agent_bindings.status = 'enabled'
          AND agent_bindings.adapter_id = $2`,
       [tokenHash(token), GATEWAY_ADAPTER_ID],
