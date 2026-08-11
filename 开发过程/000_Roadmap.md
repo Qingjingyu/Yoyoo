@@ -1,8 +1,33 @@
 # Yoyoo Space Roadmap
 
-> Updated: 2026-08-10
+> Updated: 2026-08-11
 
 ## Current State
+
+- V0.14 internal daily release is implemented and locally verified. The product
+  now has one-command real and deterministic
+  production startup on `127.0.0.1:4173`, a redacted readiness doctor, and
+  additive PostgreSQL + BlobStore backups with inventory and SHA-256
+  verification. Startup preserves persistent data across foreground process
+  restarts. Restore, reset, public exposure, and background service installation
+  remain deliberately outside this release.
+
+- V0.11 image-free dual-theme interface is implemented and locally verified.
+  Light, dark, and system preferences share semantic surface,
+  typography, border, focus, status, and shadow tokens. The homepage,
+  conversation workspace, Agent settings, responsive navigation, overlays, and
+  Live mode no longer depend on the rain-city bitmap. The theme preference is
+  applied before hydration, persists locally, and follows live operating-system
+  changes when set to system. No API, database, Agent protocol, dependency, or
+  information-architecture change is included.
+
+- V0.10 addressable conversations is implemented and locally verified. Existing
+  UUIDs remain canonical for workspace, Principal, room, and message operations.
+  The active slice adds an authenticated Agent directory, exact `room_id`
+  delivery, room purpose, per-member pin/hide state, a unified real-conversation
+  rail, and a header overflow entry to the existing details pane. Names remain
+  presentation-only; hard deletion and natural-language auto-routing are out of
+  scope.
 
 - V0.9 / IM-1 six-stage daily IM loop is implemented and verified. It now
   includes private streamed resources and authorization, upload/preview/download,
@@ -171,6 +196,9 @@
 13. **V0.7 room details and membership** - Completed
    - Responsive details pane, owner-authorized human/AI membership changes,
      history preservation, active-run protection, and no-Agent empty state.
+14. **V0.14 internal daily release** - Completed
+   - One-command production start, prerequisite diagnosis, verified local
+     database + BlobStore backup, restart persistence, and operating handoff.
 
 ## Decisions
 
@@ -191,8 +219,9 @@
   conversation. It does not expand into a dashboard.
 - The digital life is functional voice feedback, not persistent homepage
   decoration. Text conversation stays visually quiet.
-- Spatial depth belongs to the owned background image, not to extra dashboard
-  cards or HUD decoration. Stateful motion is reserved for explicit Live mode.
+- Spatial depth belongs to semantic surface hierarchy, fine borders, local edge
+  light, and the Live Orb rather than scenery images, extra dashboard cards, or
+  HUD decoration. Stateful motion remains reserved for explicit Live mode.
 - Product navigation follows functional proximity: primary destinations live
   beneath the brand while settings remains a separate bottom action.
 - Third-party visual code is adapted behind a Yoyoo-owned component contract,
@@ -251,6 +280,12 @@
 
 ## Verified Evidence
 
+- V0.14 internal daily release evidence is recorded in
+  `031_Feature_内部日用版.md`: 139 unit/UI, 115 integration, 38 desktop/mobile
+  browser checks, empty-database forward migration, verified backup, restart
+  persistence, and real-mode readiness all passed on 2026-08-11. Seven
+  explicitly gated live-message checks were skipped and are not counted as
+  passed.
 - Verification for the Live-only digital-life revision is recorded in
   `003_Feature_语音专属数字生命.md`.
 - Interface-quality decisions and evidence are recorded in
@@ -363,5 +398,42 @@
   and credential revocation denied the next resource read. A full browser run
   also reproduced and closed a stale old-room event race before final acceptance.
   Phase evidence is recorded in `021` through `026` feature records.
+- V0.10 final local gate on 2026-08-10: lint, TypeScript, and production build
+  passed; 125 of 125 unit/UI checks passed; 115 of 115 default PostgreSQL/HTTP/
+  Gateway/AI Card integration checks passed with 7 explicitly gated external
+  live checks skipped by default; 32 of 32 Playwright checks passed across
+  desktop and mobile. Review hardening also proves conflicting idempotency
+  payloads return `409`, inactive workspace or Principal membership cannot
+  authorize Agent delivery or mentions, the final visible room cannot be hidden,
+  empty workspaces remain recoverable, and room actions work by pointer,
+  keyboard, and touch long-press. Manual `1440x900` production inspection found
+  no console errors, no horizontal overflow, a floating room menu, and a working
+  details pane with canonical room ID and owner-editable purpose. Full evidence
+  is recorded in `027_Feature_ID寻址与会话列表.md`.
+- V0.11 final local gate on 2026-08-11: lint, TypeScript, and production build
+  passed; 132 of 132 unit/UI checks passed; 115 of 115 default PostgreSQL/HTTP/
+  Gateway/AI Card integration checks passed with 7 explicitly gated external
+  live checks skipped by default; 38 of 38 Playwright checks passed across
+  desktop and mobile. Manual `1440x900`, `1024x768`, `390x844`, and `320x568`
+  inspection found no horizontal overflow or control overlap, and the production
+  preview console reported zero errors and warnings. Full evidence is recorded
+  in `028_Feature_无背景双主题视觉系统.md`.
+- V0.12 final local gate on 2026-08-11: lint, TypeScript, and production build
+  passed; 133 of 133 unit/UI checks passed; 115 of 115 default PostgreSQL/HTTP/
+  Gateway/AI Card integration checks passed with 7 explicitly gated external
+  live checks skipped by default; 38 of 38 Playwright checks passed across
+  desktop and mobile. The design detector reported zero issues. Production
+  screenshots covered light and dark `1440x900`, the responsive details pane,
+  and dark `390x844` without horizontal overflow or composer overlap. Full
+  evidence is recorded in `029_Feature_旗舰对话界面.md`.
+- V0.13 final local gate on 2026-08-11: the shared navigation and conversation
+  frame now use one semantic optical-glass system across light and dark themes,
+  while the timeline and messages remain opaque reading surfaces. Impeccable
+  reported zero issues; lint, TypeScript, and production build passed; 133 of
+  133 unit/UI checks passed; 115 of 115 default integration checks passed with
+  7 explicitly gated external checks skipped; and 38 of 38 desktop/mobile
+  Playwright checks passed. Production screenshots covered light/dark
+  `1440x900`, dark `390x844`, and the details pane. Full evidence is recorded
+  in `030_Feature_光学毛玻璃材质系统.md`.
 - Lighthouse scores of 99/100/100 belong to the previous homepage version and
   were not reused as evidence for this redesign.
