@@ -1,0 +1,7 @@
+services:
+  app:
+    ports:
+      - "127.0.0.1:${YOYOO_APP_PORT:-4173}:3000"
+
+  caddy:
+    profiles: ["dedicated-host"]

@@ -1,8 +1,11 @@
 # Yoyoo Public Deployment
 
-This package serves `app.yoyooai.com` with Caddy TLS, one private Next.js
-application, one private PostgreSQL database, and persistent BlobStore storage.
-It does not expose PostgreSQL or the application container directly.
+This package serves `app.yoyooai.com` with one private Next.js application, one
+private PostgreSQL database, and persistent BlobStore storage. A dedicated host
+can use the bundled Caddy service. A host that already runs Nginx must add
+`compose.nginx.yml`, which exposes the application only on
+`127.0.0.1:${YOYOO_APP_PORT:-4173}` and disables Caddy unless its explicit
+profile is selected. PostgreSQL is never exposed to the host network.
 
 ## Required evidence before production changes
 
@@ -27,6 +30,26 @@ docker compose --env-file .env -f compose.yml run --rm --no-deps app \
   node scripts/provision-public-owner.mts
 docker compose --env-file .env -f compose.yml up -d app caddy
 ```
+
+### Existing Nginx host
+
+On a server whose ports 80 and 443 are already owned by Nginx, use both Compose
+files for every command:
+
+```bash
+export COMPOSE="docker compose --env-file .env -f compose.yml -f compose.nginx.yml"
+$COMPOSE config --quiet
+$COMPOSE up -d postgres
+$COMPOSE run --rm migrate
+$COMPOSE run --rm bootstrap
+$COMPOSE run --rm --no-deps app node scripts/provision-public-owner.mts
+$COMPOSE up -d app
+```
+
+Proxy the dedicated hostname to `http://127.0.0.1:${YOYOO_APP_PORT:-4173}` and
+let the host's existing certificate tooling manage TLS. Back up the active
+Nginx configuration and verify unrelated virtual hosts before and after the
+change.
 
 The provisioning command asks for the password twice without echo and prints
 one recovery code once. Store that code in a password manager. It will only bind
