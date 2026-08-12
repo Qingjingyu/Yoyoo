@@ -2,6 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { vi } from "vitest";
 
 import { HumanLogin } from "@/components/auth/human-login";
@@ -9,6 +10,18 @@ import { HumanLogin } from "@/components/auth/human-login";
 describe("HumanLogin", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("fails closed before the login page has hydrated", () => {
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(<HumanLogin />);
+
+    const form = container.querySelector("form");
+    expect(form).toHaveAttribute("method", "post");
+    expect(form).toHaveAttribute("action", "/api/v1/auth/login");
+    expect(container.querySelector('input[name="loginHandle"]')).toBeDisabled();
+    expect(container.querySelector('input[name="password"]')).toBeDisabled();
+    expect(container.querySelector("button")).toBeDisabled();
   });
 
   it("signs in with a public AI Card ID and returns to a safe local path", async () => {

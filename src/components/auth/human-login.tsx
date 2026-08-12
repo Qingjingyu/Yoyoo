@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, LoaderCircle, ShieldCheck } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useSyncExternalStore } from "react";
 
 interface HumanLoginProps {
   nextPath?: string;
@@ -16,14 +16,27 @@ function safeNextPath(value: string | undefined): string {
   return value;
 }
 
+function subscribeToHydration(): () => void {
+  return () => undefined;
+}
+
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
+}
+
 export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
+  const ready = useHydrated();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    if (!ready || pending) return;
     setPending(true);
     setError(null);
 
@@ -65,13 +78,20 @@ export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
           <span>使用你的 AI Card 身份进入私人协作空间。</span>
         </div>
 
-        <form className="human-login-form" onSubmit={submit}>
+        <form
+          action="/api/v1/auth/login"
+          aria-busy={!ready || pending}
+          className="human-login-form"
+          method="post"
+          onSubmit={submit}
+        >
           <label>
             <span>AI Card ID</span>
             <input
               autoCapitalize="characters"
               autoComplete="username"
               autoFocus
+              disabled={!ready || pending || authenticated}
               inputMode="text"
               maxLength={64}
               name="loginHandle"
@@ -83,6 +103,7 @@ export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
             <span>密码</span>
             <input
               autoComplete="current-password"
+              disabled={!ready || pending || authenticated}
               maxLength={128}
               minLength={12}
               name="password"
@@ -97,10 +118,10 @@ export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
             <p className="human-login-message" role="status">身份验证成功，正在进入空间。</p>
           ) : null}
 
-          <button disabled={pending || authenticated} type="submit">
+          <button disabled={!ready || pending || authenticated} type="submit">
             {pending ? <LoaderCircle aria-hidden="true" className="human-login-spinner" size={17} /> : null}
-            <span>{pending || authenticated ? "正在验证" : "进入 Yoyoo"}</span>
-            {!pending && !authenticated ? <ArrowRight aria-hidden="true" size={17} /> : null}
+            <span>{!ready ? "正在准备" : pending || authenticated ? "正在验证" : "进入 Yoyoo"}</span>
+            {ready && !pending && !authenticated ? <ArrowRight aria-hidden="true" size={17} /> : null}
           </button>
         </form>
 
