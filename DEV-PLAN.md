@@ -1,7 +1,7 @@
 # Yoyoo V0.15 Public Preview Development Plan
 
-> Status: implementation and local release gate complete on 2026-08-12;
-> production deployment pending host, DNS, backup, and rollback verification
+> Status: production deployed on 2026-08-12; approved demo Agent cleanup in
+> progress
 
 ## Technical Direction
 
@@ -122,6 +122,27 @@
 - Desktop/mobile HTTPS login and authenticated IM smoke flow
 - Anonymous/private-resource denial checks
 - Backup verification and rollback rehearsal
+
+## Post-Release Cleanup: Empty Production Workspace
+
+### Deliverables
+
+- Add a validated `YOYOO_BUILTIN_AGENTS=none` production mode while preserving
+  the existing local demo default.
+- Deploy the new runtime before removing the three known demo Agent Principals,
+  their bindings, and memberships by exact ID.
+- Keep the owner account, workspace, empty collaboration room, legacy homepage
+  conversation, sessions, and production volumes intact.
+- Record a pre-cleanup PostgreSQL and BlobStore backup and retain the previous
+  application image for rollback.
+
+### Verification
+
+- Prove the disabled seed mode is empty and rejects unsupported values.
+- Verify the backup manifest, PostgreSQL dump inventory, and BlobStore archive.
+- After deletion and an application restart, verify two Principals remain
+  (`AI_100001` owner and the system Principal), zero Agent Principals remain,
+  the collaboration room remains accessible, and public login still succeeds.
 
 ## Primary Risks
 

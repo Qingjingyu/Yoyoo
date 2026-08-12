@@ -4,7 +4,7 @@
 >
 > Date: 2026-08-12
 >
-> Status: approved for implementation
+> Status: deployed; production cleanup in progress
 
 ## Goal
 
@@ -82,6 +82,9 @@ every private HTTP boundary, and a recoverable production deployment.
 - Perform a verified database and BlobStore backup before each deployment.
 - Provide health checks, structured redacted logs, deploy verification, and a
   documented rollback to the previous application artifact plus compatible data.
+- Start public production without built-in Planner, Builder, or Reviewer demo
+  Agents. Real Agents must enter through the existing Agent Gateway or AI Card
+  runtime path; local development keeps the deterministic demo seats by default.
 
 ## V2 / Later
 
@@ -128,6 +131,8 @@ every private HTTP boundary, and a recoverable production deployment.
 - `AI_100001` is bound to the existing owner without changing historical room,
   message, file, or membership foreign keys.
 - Agent Gateway authentication and exact `room_id` delivery remain operational.
+- A production restart does not recreate built-in demo Agent Principals or room
+  memberships when `YOYOO_BUILTIN_AGENTS=none`.
 - Backup verification, migration checks, lint, typecheck, unit/integration tests,
   production build, desktop/mobile Playwright, and public HTTPS smoke checks pass.
 
@@ -139,4 +144,6 @@ every private HTTP boundary, and a recoverable production deployment.
 - No migration from Principal UUID foreign keys to sequential public IDs.
 - No direct public exposure of PostgreSQL, BlobStore paths, YOS, or Codex
   credentials.
-- No production data deletion, automated restore, or migration rewrite.
+- No broad production reset, automated restore, or migration rewrite. The
+  approved cleanup is limited to the three known empty demo Agent identities and
+  their memberships after a verified database and BlobStore backup.
