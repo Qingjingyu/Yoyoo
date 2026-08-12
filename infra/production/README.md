@@ -54,7 +54,10 @@ until test fixtures and private data have been audited.
 Proxy the dedicated hostname to `http://127.0.0.1:${YOYOO_APP_PORT:-4173}` and
 let the host's existing certificate tooling manage TLS. Back up the active
 Nginx configuration and verify unrelated virtual hosts before and after the
-change.
+change. `nginx.app.conf` is the tracked HTTP bootstrap configuration; enable it
+only after confirming that port `4173` is bound to loopback and the application
+health endpoint returns `200`. Issue TLS and enable the HTTPS redirect after DNS
+for `app.yoyooai.com` resolves to the target host.
 
 The provisioning command asks for the password twice without echo and prints
 one recovery code once. Store that code in a password manager. It will only bind
