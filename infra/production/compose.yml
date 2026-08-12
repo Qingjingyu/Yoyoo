@@ -51,6 +51,7 @@ services:
       YOYOO_AUTH_PEPPER: ${YOYOO_AUTH_PEPPER:?YOYOO_AUTH_PEPPER is required}
       YOYOO_LOCAL_OWNER_ID: ${YOYOO_LOCAL_OWNER_ID:-local-owner-ui}
       YOYOO_AGENT_ADAPTER: ${YOYOO_AGENT_ADAPTER:-deterministic-test}
+      YOYOO_BUILTIN_AGENTS: ${YOYOO_BUILTIN_AGENTS:-none}
     volumes:
       - blob_data:/app/.data/blobs
     depends_on:
