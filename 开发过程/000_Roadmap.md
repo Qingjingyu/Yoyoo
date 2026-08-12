@@ -4,16 +4,16 @@
 
 ## Current State
 
-- V0.15 single-owner public preview is implemented and locally verified on an
-  isolated release database. It adds permanent AI Card IDs from `AI_100001`,
+- V0.15 single-owner public preview is deployed and publicly verified at
+  `https://app.yoyooai.com` on an isolated clean production database. It adds
+  permanent AI Card IDs from `AI_100001`,
   password and recovery credentials, revocable PostgreSQL sessions, login
   throttling, private page/API enforcement, responsive login/logout UX, health
-  readiness, and a Caddy + Next.js + PostgreSQL production package with
-  persistent data volumes. Real browser acceptance covered invalid password,
-  lockout, valid login, protected navigation, logout, and post-logout redirect.
-  `app.yoyooai.com` is not yet deployed: exact host/DNS ownership, a current
-  production backup, deploy secrets, and a recorded rollback image remain
-  mandatory release gates.
+  readiness, and Caddy or host-Nginx deployment with private Next.js +
+  PostgreSQL networking and persistent data volumes. Public acceptance covered
+  invalid password, valid login, protected workspace reads, logout, certificate
+  renewal, desktop rendering, and a 390x844 overflow check. Production currently
+  uses deterministic Agents; public YOS/Codex runtime acceptance remains pending.
 
 - V0.14 internal daily release is implemented and locally verified. The product
   now has one-command real and deterministic
