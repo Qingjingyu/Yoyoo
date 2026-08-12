@@ -6,6 +6,7 @@ import { hashPassword } from "@/server/auth/password";
 import {
   HumanAuthenticationError,
   HumanAuthService,
+  isHumanAuthenticationError,
   type HumanAuthStore,
 } from "@/server/auth/human-auth-service";
 import { hashOpaqueToken } from "@/server/auth/session-token";
@@ -33,6 +34,21 @@ function createStore(overrides: Partial<HumanAuthStore> = {}): HumanAuthStore {
 describe("human authentication service", () => {
   const now = new Date("2026-08-12T00:00:00.000Z");
   const pepper = randomBytes(32);
+
+  it("recognizes authentication errors across bundled module boundaries", () => {
+    expect(isHumanAuthenticationError({
+      name: "HumanAuthenticationError",
+      code: "INVALID_CREDENTIALS",
+      status: 401,
+      message: "账号或密码不正确。",
+    })).toBe(true);
+    expect(isHumanAuthenticationError({
+      name: "HumanAuthenticationError",
+      code: "UNEXPECTED",
+      status: 500,
+      message: "no",
+    })).toBe(false);
+  });
 
   it("creates a revocable opaque session after valid credentials", async () => {
     const password = "A-secure-password-2026";
@@ -69,6 +85,38 @@ describe("human authentication service", () => {
       now,
     });
     expect(store.clearThrottle).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses a valid credential outside the configured single-owner account", async () => {
+    const password = "A-secure-password-2026";
+    const hashed = await hashPassword(password);
+    const store = createStore({
+      findCredential: vi.fn().mockResolvedValue({
+        principalId: "another-human",
+        loginHandle: "ai_100002",
+        passwordHash: hashed.hash,
+        passwordSalt: hashed.salt,
+        passwordAlgorithm: hashed.algorithm,
+        recoveryCodeHash: null,
+        recoveryCodeUsedAt: null,
+        credentialVersion: 1,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    });
+    const service = new HumanAuthService(store, {
+      pepper,
+      allowedLoginHandle: "ai_100001",
+    });
+
+    await expect(service.login({
+      loginHandle: "AI_100002",
+      password,
+      source: "203.0.113.7",
+      now,
+    })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
+    expect(store.createSession).not.toHaveBeenCalled();
   });
 
   it("uses the same public failure for an unknown account and a wrong password", async () => {

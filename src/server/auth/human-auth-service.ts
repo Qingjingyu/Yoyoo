@@ -41,6 +41,17 @@ export class HumanAuthenticationError extends Error {
   }
 }
 
+export function isHumanAuthenticationError(
+  error: unknown,
+): error is HumanAuthenticationError {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as Partial<HumanAuthenticationError>;
+  return candidate.name === "HumanAuthenticationError"
+    && (candidate.code === "INVALID_CREDENTIALS" || candidate.code === "LOGIN_LOCKED")
+    && (candidate.status === 401 || candidate.status === 429)
+    && typeof candidate.message === "string";
+}
+
 function throttleHash(pepper: Buffer, type: "account" | "source", value: string): Buffer {
   return createHmac("sha256", pepper).update(`${type}:${value}`, "utf8").digest();
 }
@@ -52,16 +63,24 @@ function isLocked(record: LoginThrottleRecord | null, now: Date): boolean {
 export class HumanAuthService {
   private readonly pepper: Buffer;
   private readonly sessionTtlMs: number;
+  private readonly allowedLoginHandle: string | null;
 
   constructor(
     private readonly store: HumanAuthStore,
-    options: { pepper: Buffer; sessionTtlMs?: number },
+    options: {
+      pepper: Buffer;
+      sessionTtlMs?: number;
+      allowedLoginHandle?: string;
+    },
   ) {
     if (options.pepper.length < 32) {
       throw new Error("Human authentication pepper must be at least 256 bits");
     }
     this.pepper = options.pepper;
     this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
+    this.allowedLoginHandle = options.allowedLoginHandle
+      ? normalizeLoginHandle(options.allowedLoginHandle)
+      : null;
   }
 
   async login(input: {
@@ -104,7 +123,11 @@ export class HumanAuthService {
           salt: DUMMY_SALT,
         });
 
-    if (!credential || !passwordMatches) {
+    if (
+      !credential
+      || !passwordMatches
+      || (this.allowedLoginHandle && normalizedHandle !== this.allowedLoginHandle)
+    ) {
       await Promise.all([
         this.store.recordLoginFailure(accountScope, now),
         this.store.recordLoginFailure(sourceScope, now),

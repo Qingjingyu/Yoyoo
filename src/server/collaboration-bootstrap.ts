@@ -8,7 +8,7 @@ import type {
   WorkspaceRecord,
   RoomRecord,
 } from "@/domain/collaboration";
-import { withTransaction } from "@/server/postgres/transaction";
+import { withTransaction } from "./postgres/transaction.ts";
 
 export interface CollaborationAgentSeed {
   adapterId: string;

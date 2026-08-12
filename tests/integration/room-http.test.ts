@@ -563,13 +563,17 @@ describe("room HTTP boundary", () => {
     await runtime.collaboration.coordinator.waitFor(first.run.id);
   });
 
-  it("accepts a PostgreSQL GUID owner retained from the deterministic migration", async () => {
+  it("retains the PostgreSQL owner UUID across runtime restarts", async () => {
     await closeServerRuntime();
     process.env.YOYOO_LOCAL_OWNER_ID = "local-owner-ui";
-    const runtime = await getServerRuntime();
-    expect(runtime.collaboration.bootstrap.principal.id).toBe(
-      "ca6dfb20-8a88-88d7-00f3-72201c6f19ed",
+    const firstRuntime = await getServerRuntime();
+    const ownerPrincipalId = firstRuntime.collaboration.bootstrap.principal.id;
+    expect(ownerPrincipalId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
+    await closeServerRuntime();
+    const runtime = await getServerRuntime();
+    expect(runtime.collaboration.bootstrap.principal.id).toBe(ownerPrincipalId);
 
     await expect(
       runtime.collaboration.service.submitMessage({

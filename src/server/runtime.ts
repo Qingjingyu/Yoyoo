@@ -41,6 +41,9 @@ import { AttachmentService } from "@/server/attachment-service";
 import { LocalBlobStore } from "@/server/local-blob-store";
 import { SearchRepository } from "@/server/postgres/search-repository";
 import { SearchService } from "@/server/search-service";
+import { HumanAuthService } from "@/server/auth/human-auth-service";
+import { getHumanAuthConfig } from "@/server/auth/human-auth-http";
+import { HumanAuthRepository } from "@/server/postgres/human-auth-repository";
 
 export const DEFAULT_AGENT_ID = "yoyoo-test-agent";
 
@@ -196,6 +199,11 @@ export interface ServerRuntime {
     repository: AgentGatewayRepository;
     service: AgentGatewayService;
   };
+  humanAuth: {
+    mode: "local" | "password";
+    publicOrigin: string | null;
+    service: HumanAuthService | null;
+  };
 }
 
 const runtimeGlobal = globalThis as typeof globalThis & {
@@ -223,6 +231,8 @@ async function createRuntime(): Promise<ServerRuntime> {
   const memberStateRepository = new MemberStateRepository(pool);
   const collaborationRuns = new CollaborationRunRepository(pool);
   const gateway = new AgentGatewayRepository(pool);
+  const humanAuthRepository = new HumanAuthRepository(pool);
+  const humanAuthConfig = getHumanAuthConfig();
   const delegationRepository = new DelegationRepository(pool);
   const artifactRepository = new ArtifactRepository(pool);
   const attachmentRepository = new AttachmentRepository(pool);
@@ -325,6 +335,16 @@ async function createRuntime(): Promise<ServerRuntime> {
         gateway,
         getAICardRuntimeConfig(),
       ),
+    },
+    humanAuth: {
+      mode: humanAuthConfig.mode,
+      publicOrigin: humanAuthConfig.publicOrigin,
+      service: humanAuthConfig.pepper
+        ? new HumanAuthService(humanAuthRepository, {
+            pepper: humanAuthConfig.pepper,
+            allowedLoginHandle: "ai_100001",
+          })
+        : null,
     },
   };
 }

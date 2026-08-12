@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Pool } from "pg";
 
-import { withTransaction } from "@/server/postgres/transaction";
+import { withTransaction } from "./transaction.ts";
 
 const THROTTLE_WINDOW_MS = 15 * 60 * 1_000;
 const THROTTLE_LOCK_MS = 15 * 60 * 1_000;
@@ -98,7 +98,11 @@ function mapThrottle(row: ThrottleRow): LoginThrottleRecord {
 }
 
 export class HumanAuthRepository {
-  constructor(private readonly pool: Pool) {}
+  private readonly pool: Pool;
+
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
 
   async provisionCredential(input: {
     principalId: string;
@@ -141,6 +145,57 @@ export class HumanAuthRepository {
       }
       throw error;
     }
+  }
+
+  async replaceCredential(input: {
+    principalId: string;
+    loginHandle: string;
+    passwordHash: Buffer;
+    passwordSalt: Buffer;
+    passwordAlgorithm: "scrypt-v1";
+    recoveryCodeHash: Buffer;
+    now?: Date;
+  }): Promise<HumanCredentialRecord> {
+    const now = input.now ?? new Date();
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<CredentialRow>(
+        `UPDATE human_credentials AS credentials
+         SET login_handle = lower($2),
+             password_hash = $3,
+             password_salt = $4,
+             password_algorithm = $5,
+             recovery_code_hash = $6,
+             recovery_code_used_at = NULL,
+             credential_version = credentials.credential_version + 1,
+             status = 'active',
+             updated_at = $7
+         FROM principals
+         WHERE credentials.principal_id = $1
+           AND principals.id = credentials.principal_id
+           AND principals.kind = 'human'
+           AND principals.status = 'active'
+         RETURNING credentials.*`,
+        [
+          input.principalId,
+          input.loginHandle,
+          input.passwordHash,
+          input.passwordSalt,
+          input.passwordAlgorithm,
+          input.recoveryCodeHash,
+          now,
+        ],
+      );
+      if (!result.rows[0]) {
+        throw new HumanAuthConflictError("The human credential does not exist");
+      }
+      await client.query(
+        `UPDATE human_sessions
+         SET revoked_at = COALESCE(revoked_at, $2)
+         WHERE principal_id = $1 AND revoked_at IS NULL`,
+        [input.principalId, now],
+      );
+      return mapCredential(result.rows[0]);
+    });
   }
 
   async findCredential(loginHandle: string): Promise<HumanCredentialRecord | null> {

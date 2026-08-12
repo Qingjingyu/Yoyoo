@@ -132,6 +132,48 @@ describe("human authentication repository", () => {
     ).resolves.toBeNull();
   });
 
+  it("replaces owner credentials and invalidates every existing session", async () => {
+    const loginHandle = `auth-${humanId.slice(0, 12)}`;
+    await repository.provisionCredential({
+      principalId: humanId,
+      loginHandle,
+      passwordHash: randomBytes(64),
+      passwordSalt: randomBytes(16),
+      passwordAlgorithm: "scrypt-v1",
+      recoveryCodeHash: randomBytes(32),
+    });
+    const token = "yys_before-password-reset";
+    await repository.createSession({
+      principalId: humanId,
+      tokenHash: hashOpaqueToken(token),
+      expiresAt: new Date("2027-08-13T00:00:00.000Z"),
+      now: new Date("2027-08-12T00:00:00.000Z"),
+    });
+
+    const replacementHash = randomBytes(64);
+    const replacement = await repository.replaceCredential({
+      principalId: humanId,
+      loginHandle: loginHandle.toUpperCase(),
+      passwordHash: replacementHash,
+      passwordSalt: randomBytes(16),
+      passwordAlgorithm: "scrypt-v1",
+      recoveryCodeHash: randomBytes(32),
+      now: new Date("2027-08-12T02:00:00.000Z"),
+    });
+
+    expect(replacement).toMatchObject({
+      loginHandle,
+      passwordHash: replacementHash,
+      credentialVersion: 2,
+    });
+    await expect(
+      repository.resolveSession(
+        hashOpaqueToken(token),
+        new Date("2027-08-12T02:01:00.000Z"),
+      ),
+    ).resolves.toBeNull();
+  });
+
   it("persists throttle state by opaque scope hash and clears it after success", async () => {
     const scopeHash = randomBytes(32);
     const first = await repository.recordLoginFailure(
