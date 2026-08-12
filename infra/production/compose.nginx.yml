@@ -5,3 +5,9 @@ services:
 
   caddy:
     profiles: ["dedicated-host"]
+
+volumes:
+  postgres_data:
+    name: ${YOYOO_POSTGRES_VOLUME:-yoyoo-public_postgres_data}
+  blob_data:
+    name: ${YOYOO_BLOB_VOLUME:-yoyoo-public_blob_data}

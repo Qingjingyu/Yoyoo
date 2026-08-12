@@ -46,6 +46,11 @@ $COMPOSE run --rm --no-deps app node scripts/provision-public-owner.mts
 $COMPOSE up -d app
 ```
 
+Set `YOYOO_POSTGRES_VOLUME` and `YOYOO_BLOB_VOLUME` when a deployment must use
+new, empty production storage while retaining an imported or previous volume as
+a rollback source. Never point a public deployment at a development database
+until test fixtures and private data have been audited.
+
 Proxy the dedicated hostname to `http://127.0.0.1:${YOYOO_APP_PORT:-4173}` and
 let the host's existing certificate tooling manage TLS. Back up the active
 Nginx configuration and verify unrelated virtual hosts before and after the
