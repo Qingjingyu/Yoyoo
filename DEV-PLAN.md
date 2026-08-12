@@ -1,7 +1,7 @@
 # Yoyoo V0.15 Public Preview Development Plan
 
-> Status: production deployed on 2026-08-12; approved demo Agent cleanup in
-> progress
+> Status: production deployed on 2026-08-12; approved demo Agent cleanup
+> complete
 
 ## Technical Direction
 
