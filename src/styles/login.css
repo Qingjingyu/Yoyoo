@@ -1,0 +1,183 @@
+@layer components {
+  .human-login-shell {
+    display: grid;
+    min-height: 100dvh;
+    place-items: center;
+    padding: clamp(1.25rem, 5vw, 4rem);
+    background: var(--surface-canvas);
+  }
+
+  .human-login-panel {
+    width: min(100%, 25rem);
+    padding: clamp(1.5rem, 5vw, 2.25rem);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-surface);
+    background: var(--glass-panel);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      inset 0 -1px 0 var(--glass-lowlight),
+      var(--shadow-glass-floating);
+    backdrop-filter: blur(var(--glass-blur-floating)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur-floating)) saturate(var(--glass-saturation));
+  }
+
+  .human-login-mark {
+    display: grid;
+    width: 2.75rem;
+    aspect-ratio: 1;
+    place-items: center;
+    border: 1px solid var(--border-default);
+    border-radius: 50%;
+    background: var(--surface-interactive);
+    color: var(--text-primary);
+    box-shadow: inset 0 1px 0 var(--border-highlight);
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  .human-login-heading {
+    margin-top: 2rem;
+  }
+
+  .human-login-heading p,
+  .human-login-heading h1,
+  .human-login-heading span,
+  .human-login-security,
+  .human-login-message {
+    margin: 0;
+  }
+
+  .human-login-heading p {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+
+  .human-login-heading h1 {
+    margin-top: 0.625rem;
+    font-size: clamp(1.75rem, 6vw, 2.25rem);
+    font-weight: 590;
+    line-height: 1.15;
+  }
+
+  .human-login-heading span {
+    display: block;
+    margin-top: 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.65;
+  }
+
+  .human-login-form {
+    display: grid;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+
+  .human-login-form label {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .human-login-form label > span {
+    color: var(--text-secondary);
+    font-size: var(--type-label);
+    font-weight: 600;
+  }
+
+  .human-login-form input {
+    width: 100%;
+    height: 3rem;
+    padding: 0 0.875rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-control);
+    outline: 0;
+    background: var(--surface-input);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.9375rem;
+    letter-spacing: 0;
+    box-shadow: inset 0 1px 0 var(--border-highlight);
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
+  }
+
+  .human-login-form input::placeholder {
+    color: var(--text-disabled);
+  }
+
+  .human-login-form input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  .human-login-form button {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    margin-top: 0.25rem;
+    border: 1px solid var(--accent-strong);
+    border-radius: var(--radius-control);
+    background: var(--accent-strong);
+    color: var(--text-on-accent);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 650;
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+
+  .human-login-form button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .human-login-form button:disabled {
+    cursor: wait;
+    opacity: 0.68;
+  }
+
+  .human-login-message {
+    padding: 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-control);
+    background: var(--accent-soft);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  .human-login-message.is-error {
+    border-color: var(--danger-soft);
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+
+  .human-login-security {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    line-height: 1.55;
+  }
+
+  .human-login-security svg {
+    flex: 0 0 auto;
+    margin-top: 0.1rem;
+  }
+
+  .human-login-spinner {
+    animation: human-login-spin 900ms linear infinite;
+  }
+
+  @keyframes human-login-spin {
+    to { transform: rotate(360deg); }
+  }
+}

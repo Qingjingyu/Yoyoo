@@ -163,4 +163,21 @@ describe("AgentDirectory", () => {
     await user.click(screen.getByRole("button", { name: "重新载入" }));
     expect(await screen.findByText("尚未接入 AI")).toBeInTheDocument();
   });
+
+  it("revokes the browser session from settings", async () => {
+    const user = userEvent.setup();
+    const onSignedOut = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    renderWithTheme(
+      <AgentDirectory client={createClient()} onSignedOut={onSignedOut} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "退出登录" }));
+
+    expect(fetch).toHaveBeenCalledWith("/api/v1/auth/session", {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    expect(onSignedOut).toHaveBeenCalled();
+  });
 });

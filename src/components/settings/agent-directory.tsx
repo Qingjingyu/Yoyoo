@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   KeyRound,
+  LogOut,
   Plus,
   RefreshCw,
   RotateCw,
@@ -55,9 +56,11 @@ function statusLabel(agent: AgentDirectoryRecord): string {
 export function AgentDirectory({
   client = browserAgentDirectoryClient,
   aicardResult,
+  onSignedOut,
 }: {
   client?: AgentDirectoryClient;
   aicardResult?: AICardResult;
+  onSignedOut?: () => void;
 }) {
   const [agents, setAgents] = useState<AgentDirectoryRecord[]>([]);
   const [state, setState] = useState<DirectoryState>("loading");
@@ -69,6 +72,7 @@ export function AgentDirectory({
   const [credential, setCredential] = useState<OneTimeCredential | null>(null);
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const authorizationResult = aicardResult ?? null;
 
   const loadAgents = useCallback(async () => {
@@ -161,6 +165,24 @@ export function AgentDirectory({
     }
   }
 
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/v1/auth/session", {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error("sign out failed");
+      if (onSignedOut) onSignedOut();
+      else window.location.replace("/login");
+    } catch {
+      setNotice("暂时无法退出，请稍后再试。");
+      setSigningOut(false);
+    }
+  }
+
   return (
     <div className="space-shell agent-directory-shell">
       <a className="skip-link" href="#agent-directory-main">跳到 AI 接入</a>
@@ -189,6 +211,16 @@ export function AgentDirectory({
             >
               <Plus aria-hidden="true" size={16} strokeWidth={1.7} />
               兼容接入
+            </button>
+            <button
+              aria-label="退出登录"
+              disabled={signingOut}
+              onClick={() => void signOut()}
+              title="退出登录"
+              type="button"
+            >
+              <LogOut aria-hidden="true" size={16} strokeWidth={1.7} />
+              {signingOut ? "正在退出" : "退出"}
             </button>
           </div>
         </header>
