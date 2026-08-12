@@ -160,6 +160,8 @@ describe("V0.2 collaboration migration", () => {
         "010_message_revisions.sql",
         "011_im_member_state.sql",
         "012_addressable_conversations.sql",
+        "013_public_identity_auth.sql",
+        "014_reserve_first_human_ai_card_id.sql",
       ]);
       await expect(
         isolated.pool.query(
