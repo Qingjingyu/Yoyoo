@@ -109,7 +109,13 @@ const LOCAL_PLANNER_EXTERNAL_KEY = "agent:yoyoo-local-planner";
 export function createCollaborationAgentSeeds(
   selectedAdapter: AgentAdapter,
   codexAdapter?: AgentAdapter,
+  environment: AgentEnvironment = process.env,
 ): CollaborationAgentSeed[] {
+  const builtInAgents = environment.YOYOO_BUILTIN_AGENTS?.trim() || "demo";
+  if (builtInAgents === "none") return [];
+  if (builtInAgents !== "demo") {
+    throw new Error(`Unsupported YOYOO_BUILTIN_AGENTS: ${builtInAgents}`);
+  }
   const usesYos = selectedAdapter.descriptor.id === "yos-web-console";
   if (usesYos && !codexAdapter) {
     throw new Error("Codex CLI adapter is required when YOS is selected");
@@ -257,35 +263,38 @@ async function createRuntime(): Promise<ServerRuntime> {
   const agentByAdapterId = new Map(
     collaborationBootstrap.agents.map((agent) => [agent.binding.adapterId, agent]),
   );
-  const builderPrincipalId = agentByAdapterId.get("yoyoo-local-builder")!.principal.id;
-  const collaborationAdapters: AgentAdapter[] = [
-    codexAdapter ?? new CollaborationDemoAdapter({
+  const builderPrincipalId = agentByAdapterId.get("yoyoo-local-builder")?.principal.id;
+  const collaborationAdapters: AgentAdapter[] = [];
+  if (builderPrincipalId) {
+    collaborationAdapters.push(
+      codexAdapter ?? new CollaborationDemoAdapter({
         id: "yoyoo-local-planner",
         displayName: "Local Planner",
         role: "planner",
         delegatePrincipalId: builderPrincipalId,
         delayMs: demoDelay,
       }),
-    new CollaborationDemoAdapter({
-      id: "yoyoo-local-builder",
-      displayName: "Local Builder",
-      role: "builder",
-      delayMs: demoDelay,
-    }),
-    adapter.descriptor.id === "yos-web-console"
-      ? adapter
-      : new CollaborationDemoAdapter({
-          id: "yoyoo-local-reviewer",
-          displayName: "Local Reviewer",
-          role: "reviewer",
-          delayMs: demoDelay,
-          failurePattern: process.env.YOYOO_DEMO_REVIEWER_FAILURE_PATTERN,
-        }),
-    new AgentGatewayAdapter(gateway, {
+      new CollaborationDemoAdapter({
+        id: "yoyoo-local-builder",
+        displayName: "Local Builder",
+        role: "builder",
+        delayMs: demoDelay,
+      }),
+      adapter.descriptor.id === "yos-web-console"
+        ? adapter
+        : new CollaborationDemoAdapter({
+            id: "yoyoo-local-reviewer",
+            displayName: "Local Reviewer",
+            role: "reviewer",
+            delayMs: demoDelay,
+            failurePattern: process.env.YOYOO_DEMO_REVIEWER_FAILURE_PATTERN,
+          }),
+    );
+  }
+  collaborationAdapters.push(new AgentGatewayAdapter(gateway, {
       pollIntervalMs: optionalNumber(process.env.YOYOO_GATEWAY_POLL_INTERVAL_MS),
       responseTimeoutMs: optionalNumber(process.env.YOYOO_GATEWAY_RESPONSE_TIMEOUT_MS),
-    }),
-  ];
+  }));
   const collaborationCoordinator = new CollaborationRunCoordinator(
     collaborationRuns,
     new AgentRegistry(collaborationAdapters),

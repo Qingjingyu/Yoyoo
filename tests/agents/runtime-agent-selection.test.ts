@@ -92,6 +92,24 @@ describe("runtime Agent selection", () => {
     });
   });
 
+  it("does not seed built-in demo Agents when they are disabled", () => {
+    const seeds = createCollaborationAgentSeeds(
+      createConfiguredAgentAdapter({}),
+      undefined,
+      { YOYOO_BUILTIN_AGENTS: "none" },
+    );
+
+    expect(seeds).toEqual([]);
+  });
+
+  it("rejects an unknown built-in Agent mode", () => {
+    expect(() => createCollaborationAgentSeeds(
+      createConfiguredAgentAdapter({}),
+      undefined,
+      { YOYOO_BUILTIN_AGENTS: "typo" },
+    )).toThrow("Unsupported YOYOO_BUILTIN_AGENTS: typo");
+  });
+
   it("creates the real Codex CLI adapter without requiring an API key", () => {
     const adapter = createCodexCliAdapter({
       YOYOO_CODEX_COMMAND: "/opt/openai/bin/codex",
