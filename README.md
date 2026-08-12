@@ -8,8 +8,7 @@ across persistent group and direct rooms. The repository is a clean
 implementation started on 2026-08-05 and does not inherit the retired Yoyoo
 application or Git history.
 
-Current status: V0.15 is implemented and locally verified, but has not yet been
-deployed to `app.yoyooai.com`. It adds permanent sequential AI Card IDs starting
+Current status: V0.15 is deployed at `https://app.yoyooai.com`. It adds permanent sequential AI Card IDs starting
 at `AI_100001`, owner-only password login, revocable database sessions, private
 route enforcement, responsive login/logout UX, and a containerized HTTPS
 deployment package. V0.14 remains the internal daily-use release. It adds one-command
@@ -42,10 +41,11 @@ storage, malware scanning, or hard deletion.
 
 ## Public Preview
 
-The production package is under `infra/production`. It is intentionally not a
-one-command mutation of an unknown server: target-host ownership, DNS, current
-backup, the running image digest, and rollback availability must be verified
-before deploying. See `infra/production/README.md` for the staged runbook.
+The production package is under `infra/production`. Public production starts
+without the local Planner, Builder, and Reviewer demo Agents. Real Agents join
+through the Agent Gateway or AI Card runtime; local deterministic modes keep the
+three seats unless `YOYOO_BUILTIN_AGENTS=none` is set explicitly. See
+`infra/production/README.md` for the staged runbook.
 
 The first owner signs in with AI Card ID `AI_100001` and a separately provisioned
 password. The ID is public and memorable; it is never an authentication secret.

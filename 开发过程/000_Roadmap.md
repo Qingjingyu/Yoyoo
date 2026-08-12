@@ -12,8 +12,10 @@
   readiness, and Caddy or host-Nginx deployment with private Next.js +
   PostgreSQL networking and persistent data volumes. Public acceptance covered
   invalid password, valid login, protected workspace reads, logout, certificate
-  renewal, desktop rendering, and a 390x844 overflow check. Production currently
-  uses deterministic Agents; public YOS/Codex runtime acceptance remains pending.
+  renewal, desktop rendering, and a 390x844 overflow check. The approved
+  post-release cleanup removes the three empty deterministic demo Agents and
+  makes production restart into an Agent-empty workspace; public YOS/Codex
+  runtime acceptance remains pending.
 
 - V0.14 internal daily release is implemented and locally verified. The product
   now has one-command real and deterministic
@@ -210,6 +212,12 @@
 14. **V0.14 internal daily release** - Completed
    - One-command production start, prerequisite diagnosis, verified local
      database + BlobStore backup, restart persistence, and operating handoff.
+15. **V0.15 single-owner public preview** - Completed
+   - Password login, private routes, persistent production data, HTTPS,
+     verified backups, and public desktop/mobile acceptance.
+16. **Production demo Agent cleanup** - Completed
+   - Disable built-in demo seeding in production, delete only the three known
+     empty demo Agent identities and memberships, then prove restart stability.
 
 ## Decisions
 
@@ -454,5 +462,12 @@
   Public registration, multi-human UX, social login, SMS/email delivery, and
   production rollout remain outside the completed local gate; production still
   requires its explicit host, DNS, backup, and rollback approval.
+- Production demo Agent cleanup completed on 2026-08-12. Image
+  `yoyoo-space:c4159af` starts with `YOYOO_BUILTIN_AGENTS=none`; exact-ID cleanup
+  removed only the three empty demo Principals and their six workspace/room
+  membership rows. Two restarts retained 2 Principals, 1 room, 1 owner member,
+  and 0 Agents. HTTPS/SNI acceptance returned health `200`, anonymous workspace
+  `401`, login `200`, 1 room, and 0 Agents. Full evidence and rollback locations
+  are recorded in `033_Feature_公网演示Agent清理.md`.
 - Lighthouse scores of 99/100/100 belong to the previous homepage version and
   were not reused as evidence for this redesign.
