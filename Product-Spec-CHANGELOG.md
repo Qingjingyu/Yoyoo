@@ -1,5 +1,23 @@
 # Product Spec Changelog
 
+## v0.15 - 2026-08-12
+
+- Approved `https://app.yoyooai.com` as the first public preview address with
+  exactly one pre-provisioned human owner and no public registration.
+- Added one permanent public AI Card ID across human and Agent Principals,
+  allocated from `AI_100001`, while retaining Principal UUIDs as authoritative
+  internal identity and authorization keys.
+- Selected handle plus password for mobile-friendly human login, versioned
+  `scrypt` hashes, opaque database-backed sessions, one-time recovery codes,
+  throttling, logout, and server-side authorization on every private boundary.
+- Kept Agent Gateway and AI Card runtime authentication independent from human
+  browser sessions.
+- Required HTTPS, persistent PostgreSQL and BlobStore storage, backup-before-
+  deploy, health checks, redacted logs, exact release artifacts, and rollback.
+- Rejected public registration, social login, SMS/email delivery, AI Card ID as
+  a secret, stateless long-lived sessions, and direct exposure of local services.
+
+
 ## v0.13 - 2026-08-11
 
 - Approved a restrained optical-glass system for shared navigation and the

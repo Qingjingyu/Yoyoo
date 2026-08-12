@@ -1,98 +1,142 @@
 # Yoyoo Space Product Spec
 
-> Current version: V0.14 Internal Daily Release
+> Current version: V0.15 Single-Owner Public Preview
 >
-> Date: 2026-08-11
+> Date: 2026-08-12
 >
-> Status: implemented and locally verified
+> Status: approved for implementation
 
 ## Goal
 
-Turn the locally verified Yoyoo product into a repeatable internal daily-use
-release. One explicit command must prepare the existing database, apply only
-forward migrations, build the production application, and start the chosen
-local Agent mode on the stable loopback URL.
-
-This phase packages existing capabilities. It does not add another product
-module or change the accepted homepage and conversation information
-architecture.
+Publish the existing Yoyoo IM workspace at `https://app.yoyooai.com` so its
+owner can use the same persistent rooms, files, and Agents from desktop and
+mobile without exposing private data to anyone else.
 
 ## Target User
 
-- Su Bai using Yoyoo every day on this Mac with persistent rooms, messages,
-  files, Codex, and YOS.
-- A maintainer diagnosing local readiness, taking a recoverable backup, or
-  restarting the application without reconstructing commands from history.
+- One pre-provisioned human owner in V0.15.
+- Existing connected Agents continue to authenticate through the Agent Gateway;
+  they do not receive browser passwords or human sessions.
 
-## Scope
+## Problem
 
-### Internal launcher
+The current release is intentionally bound to `127.0.0.1` and derives every
+human request from `YOYOO_LOCAL_OWNER_ID`. Publishing that process directly
+would let an anonymous visitor act as the owner. Yoyoo therefore needs a real
+human identity, password authentication, server-side sessions, authorization at
+every private HTTP boundary, and a recoverable production deployment.
 
-- Provide one production-mode command for the real Codex + YOS configuration.
-- Provide an explicit deterministic local mode for offline acceptance.
-- Reuse the existing Docker Compose database, checksum-verified migration
-  runner, Next.js production build, and YOS environment wrapper.
-- Bind the product only to `127.0.0.1` on the stable internal port `4173`.
-- Forward termination signals to the application and leave PostgreSQL data and
-  uploaded files intact when the application stops.
+## MVP Scope
 
-### Readiness diagnosis
+### AI Card identity
 
-- Check the Node version, Docker CLI and daemon, local environment file,
-  database configuration, Codex login, YOS environment file, production build,
-  PostgreSQL health, blob-store access, and optional application reachability.
-- Separate required failures from optional or runtime warnings. Never report a
-  healthy product from process existence alone.
-- Keep credentials and private file contents out of output.
+- Add one public, permanent `AI Card ID` to every Principal.
+- Allocate IDs atomically from `AI_100001` upward across humans and Agents.
+- IDs are uppercase, immutable, unique, never reused, and presentation-safe.
+- Existing Principal UUIDs remain the authoritative database foreign keys.
+- Existing display names and handles remain mutable presentation fields.
+- V0.15 pre-provisions the current owner as `AI_100001`; subsequent existing
+  Principals receive deterministic ascending IDs during migration.
 
-### Recoverable local backup
+### Human account
 
-- Create a timestamped backup under the ignored local `output/backups/internal`
-  directory.
-- Include a PostgreSQL custom-format dump and the authoritative blob directory.
-- Write a manifest containing artifact sizes and SHA-256 digests without
-  secrets or machine-private configuration.
-- Verify the dump inventory, blob archive inventory, and manifest hashes after
-  creation. A backup is not accepted merely because files exist.
-- Document restoration as a separately approved destructive operation; do not
-  add an automatic restore command in this phase.
+- Add one unique, case-insensitive login handle and a password credential to the
+  existing owner Principal.
+- Login uses `handle + password`; it never accepts an AI Card ID as a secret.
+- Passwords are hashed with a unique salt and Node's built-in `scrypt`;
+  plaintext is never stored or logged.
+- Account provisioning is an explicit server-side command. There is no public
+  registration route.
+- The command prints one recovery code exactly once. Only its hash is stored.
 
-### Handoff
+### Browser session and authorization
 
-- Document daily start, local fallback, doctor, backup, verification, stop, and
-  recovery-escalation procedures.
-- Reconcile README, roadmap, feature evidence, Product Spec, and development
-  plan to V0.14.
+- A successful login creates a cryptographically random opaque session token.
+- The browser receives the token only through a `HttpOnly`, `Secure`,
+  `SameSite=Lax` cookie; PostgreSQL stores only its SHA-256 hash.
+- Sessions have an absolute expiry, can be revoked, and are deleted on logout.
+- Every page, browser API, attachment read, and event stream is denied unless a
+  valid active human session resolves to the authorized Principal.
+- State-changing browser requests validate same-origin metadata. Agent Gateway
+  bearer-token routes keep their existing independent authentication.
+- Production startup fails closed when required auth secrets or the owner
+  account are missing.
 
-## Success Criteria
+### User experience
 
-- A fresh production build starts at `http://127.0.0.1:4173` through one
-  command after non-destructive preparation.
-- Stopping and restarting the application preserves an existing room, message,
-  and attachment record.
-- The doctor returns a non-zero exit code for missing required prerequisites and
-  prints actionable, redacted results.
-- A generated backup passes both PostgreSQL and blob-archive verification and
-  its manifest digests match the produced files.
-- Existing unit, integration, production build, and desktop/mobile browser gates
-  remain green.
+- Add a responsive `/login` page using the current light/dark optical-glass
+  design system.
+- Show visible loading, invalid-credential, locked/rate-limited, and success
+  states without revealing whether a handle exists.
+- Preserve the requested destination after authentication when it is a safe
+  same-origin path.
+- Add logout under Settings. Expired sessions return to login without losing
+  persisted rooms or drafts.
 
-## Non-Goals
+### Production deployment
 
-- No public deployment, public authentication, public registration, reverse
-  proxy, domain, TLS, multi-human invitation, or external notification service.
-- No PM2, launchd, Electron, Docker image for the application, or new runtime
-  dependency.
-- No automatic database restore, database reset, volume deletion, hard room
-  deletion, or migration rewrite.
-- No production object storage, malware scanning, OCR, semantic search, or
-  native binary-Agent attachment interpretation.
-- No redesign, new navigation destination, or new chat feature.
+- Serve Yoyoo at `https://app.yoyooai.com` behind a TLS reverse proxy.
+- Run the Next.js application, PostgreSQL, and private BlobStore on persistent
+  storage; bind database and application origins privately.
+- Store all credentials in production environment/secrets, never in Git.
+- Perform a verified database and BlobStore backup before each deployment.
+- Provide health checks, structured redacted logs, deploy verification, and a
+  documented rollback to the previous application artifact plus compatible data.
 
-## Safety Boundary
+## V2 / Later
 
-- The launcher may create missing local runtime directories, start the existing
-  PostgreSQL service, apply forward migrations, build, and start Yoyoo.
-- Backup is additive and must never alter live records or blobs.
-- Restore, reset, deletion, public exposure, and credential rotation require a
-  separate plan, a current backup, and explicit approval.
+- Public registration, invitations, multiple human accounts, and admin UX.
+- Email or SMS verification and automated password recovery.
+- Passkeys, trusted-device management, and user-visible session management.
+- AI Card federation across products, cryptographic card proofs, payment,
+  reputation, and public profile discovery.
+- Cloud object storage, malware scanning, OCR, semantic search, and external
+  notifications.
+
+## Core Flows
+
+1. Maintainer deploys the schema and provisions the owner account once.
+2. Owner opens `app.yoyooai.com`, enters handle and password, and receives a
+   private server-side session.
+3. Server resolves the session to the owner Principal UUID; all existing room,
+   message, file, membership, and audit operations continue using that UUID.
+4. Owner logs out or the session expires; private routes become inaccessible.
+5. Connected Agents continue using scoped Agent Gateway or AI Card runtime
+   credentials and exact `room_id` delivery without depending on browser auth.
+
+## Non-Functional Requirements
+
+- Login failures are rate-limited by account and source without leaking account
+  existence; repeated failures cause a bounded temporary lock.
+- Authentication compares fixed-length hashes in constant-time operations.
+- Cookies are never readable by client JavaScript and are secure in production.
+- No private response may be cacheable by shared intermediaries.
+- Authentication and authorization failures are visible but redact secrets and
+  internal database details.
+- Forward migrations are immutable and tested from both an empty database and
+  the latest released migration ledger.
+- Desktop and mobile login/logout/session-expiry behavior must be browser-tested.
+
+## Acceptance Criteria
+
+- An anonymous request to every private page and browser API is redirected to
+  login or rejected with `401`; private bytes and event streams are included.
+- The pre-provisioned owner can log in on desktop and mobile, refresh, navigate,
+  send a message, and download an authorized file.
+- Wrong passwords, malformed input, expired/revoked sessions, cross-origin
+  mutations, and repeated login attempts fail with stable public errors.
+- `AI_100001` is bound to the existing owner without changing historical room,
+  message, file, or membership foreign keys.
+- Agent Gateway authentication and exact `room_id` delivery remain operational.
+- Backup verification, migration checks, lint, typecheck, unit/integration tests,
+  production build, desktop/mobile Playwright, and public HTTPS smoke checks pass.
+
+## Not Doing In V0.15
+
+- No public account creation or self-service account recovery.
+- No GitHub, Google, phone, or email login.
+- No use of AI Card ID, handle, nickname, email, or phone as authorization proof.
+- No migration from Principal UUID foreign keys to sequential public IDs.
+- No direct public exposure of PostgreSQL, BlobStore paths, YOS, or Codex
+  credentials.
+- No production data deletion, automated restore, or migration rewrite.
