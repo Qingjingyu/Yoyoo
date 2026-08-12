@@ -1,13 +1,18 @@
 # Yoyoo Space
 
 Yoyoo Space is a shared workspace for humans and AI Agents. Its foundation
-supports multiple human and Agent principals; V0.14 packages the verified IM
-slice: one human collaborating with multiple independently addressable Agents
+supports multiple human and Agent principals; V0.15 adds a deployable,
+single-owner public preview to the verified IM slice: one human collaborating
+with multiple independently addressable Agents
 across persistent group and direct rooms. The repository is a clean
 implementation started on 2026-08-05 and does not inherit the retired Yoyoo
 application or Git history.
 
-Current status: V0.14 is the internal daily-use release. It adds one-command
+Current status: V0.15 is implemented and locally verified, but has not yet been
+deployed to `app.yoyooai.com`. It adds permanent sequential AI Card IDs starting
+at `AI_100001`, owner-only password login, revocable database sessions, private
+route enforcement, responsive login/logout UX, and a containerized HTTPS
+deployment package. V0.14 remains the internal daily-use release. It adds one-command
 production startup, readiness diagnosis, and verified local PostgreSQL + BlobStore
 backups without changing product behavior or adding public exposure. V0.13
 finalizes the optical glass material system, while V0.11 replaces the image-led
@@ -31,9 +36,21 @@ ordered run events stream over SSE. Private bytes live behind an opaque local
 BlobStore and are authorized on every browser or Agent read. The provider-
 neutral Agent Gateway and AI Card runtime paths receive run-scoped attachment
 descriptors rather than local paths or permanent URLs. The product still does
-not include public-user authentication, visible multi-human invitation,
+not include public registration, visible multi-human invitation,
 external push notifications, semantic document/OCR search, production object
 storage, malware scanning, or hard deletion.
+
+## Public Preview
+
+The production package is under `infra/production`. It is intentionally not a
+one-command mutation of an unknown server: target-host ownership, DNS, current
+backup, the running image digest, and rollback availability must be verified
+before deploying. See `infra/production/README.md` for the staged runbook.
+
+The first owner signs in with AI Card ID `AI_100001` and a separately provisioned
+password. The ID is public and memorable; it is never an authentication secret.
+Password hashes, recovery-code hashes, and session-token hashes are stored in
+PostgreSQL. There is no registration endpoint.
 
 ## Requirements
 

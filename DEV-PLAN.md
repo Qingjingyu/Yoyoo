@@ -1,6 +1,7 @@
 # Yoyoo V0.15 Public Preview Development Plan
 
-> Status: approved for implementation on 2026-08-12
+> Status: implementation and local release gate complete on 2026-08-12;
+> production deployment pending host, DNS, backup, and rollback verification
 
 ## Technical Direction
 

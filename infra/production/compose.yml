@@ -1,0 +1,99 @@
+name: yoyoo-public
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: yoyoo_space
+      POSTGRES_USER: yoyoo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yoyoo -d yoyoo_space"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [private]
+
+  migrate:
+    image: ${YOYOO_IMAGE:?YOYOO_IMAGE is required}
+    restart: "no"
+    command: ["node", "scripts/db-migrate.mjs"]
+    environment:
+      DATABASE_URL: postgresql://yoyoo:${POSTGRES_PASSWORD}@postgres:5432/yoyoo_space
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [private]
+
+  bootstrap:
+    image: ${YOYOO_IMAGE:?YOYOO_IMAGE is required}
+    restart: "no"
+    command: ["node", "scripts/bootstrap-public-workspace.mts"]
+    environment:
+      DATABASE_URL: postgresql://yoyoo:${POSTGRES_PASSWORD}@postgres:5432/yoyoo_space
+      YOYOO_LOCAL_OWNER_ID: ${YOYOO_LOCAL_OWNER_ID:-local-owner-ui}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [private]
+
+  app:
+    image: ${YOYOO_IMAGE:?YOYOO_IMAGE is required}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://yoyoo:${POSTGRES_PASSWORD}@postgres:5432/yoyoo_space
+      YOYOO_BLOB_ROOT: /app/.data/blobs
+      YOYOO_HUMAN_AUTH_MODE: password
+      YOYOO_PUBLIC_ORIGIN: https://${YOYOO_DOMAIN:?YOYOO_DOMAIN is required}
+      YOYOO_AUTH_PEPPER: ${YOYOO_AUTH_PEPPER:?YOYOO_AUTH_PEPPER is required}
+      YOYOO_LOCAL_OWNER_ID: ${YOYOO_LOCAL_OWNER_ID:-local-owner-ui}
+      YOYOO_AGENT_ADAPTER: ${YOYOO_AGENT_ADAPTER:-deterministic-test}
+    volumes:
+      - blob_data:/app/.data/blobs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    networks: [private, outbound]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      YOYOO_DOMAIN: ${YOYOO_DOMAIN:?YOYOO_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [private, public]
+
+networks:
+  private:
+    internal: true
+  outbound:
+  public:
+
+volumes:
+  postgres_data:
+  blob_data:
+  caddy_data:
+  caddy_config:

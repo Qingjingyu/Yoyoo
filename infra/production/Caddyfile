@@ -1,0 +1,14 @@
+{$YOYOO_DOMAIN} {
+  encode zstd gzip
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    -Server
+  }
+
+  reverse_proxy app:3000 {
+    health_uri /api/health
+    health_interval 15s
+    health_timeout 3s
+  }
+}

@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 const e2ePort = 4183;
 const e2eOwnerId = `yoyoo-e2e-${process.pid}`;
+const e2eDatabaseUrl =
+  process.env.TEST_DATABASE_URL
+  ?? "postgresql://yoyoo:yoyoo_dev@127.0.0.1:55432/yoyoo_space";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -28,5 +31,9 @@ export default defineConfig({
     command: `YOYOO_LOCAL_OWNER_ID=${e2eOwnerId} npm run start -- --port ${e2ePort}`,
     url: `http://127.0.0.1:${e2ePort}`,
     reuseExistingServer: false,
+    env: {
+      DATABASE_URL: e2eDatabaseUrl,
+      YOYOO_HUMAN_AUTH_MODE: "local",
+    },
   },
 });

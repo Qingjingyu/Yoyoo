@@ -27,6 +27,8 @@
     "internal:verify-backup": "node --env-file-if-exists=.env.local scripts/internal-ops.mts verify",
     "internal:start": "node --env-file-if-exists=.env.local scripts/internal-ops.mts start --mode=yos --port=4173",
     "internal:start:local": "node --env-file-if-exists=.env.local scripts/internal-ops.mts start --mode=local --port=4173",
+    "auth:bootstrap-owner": "node --env-file-if-exists=.env.local scripts/bootstrap-public-workspace.mts",
+    "auth:provision-owner": "node --env-file-if-exists=.env.local scripts/provision-public-owner.mts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
