@@ -435,5 +435,12 @@
   Playwright checks passed. Production screenshots covered light/dark
   `1440x900`, dark `390x844`, and the details pane. Full evidence is recorded
   in `030_Feature_光学毛玻璃材质系统.md`.
+- V0.15 public preview was approved on 2026-08-12 and is now in development on
+  an isolated feature branch. Its target is `https://app.yoyooai.com` with one
+  pre-provisioned human owner, permanent sequential AI Card IDs beginning at
+  `AI_100001`, password login, revocable server sessions, complete private-route
+  authorization, persistent production data, and a recoverable deployment.
+  Public registration, multi-human UX, social login, SMS/email delivery, and
+  production rollout remain unimplemented until their explicit gates pass.
 - Lighthouse scores of 99/100/100 belong to the previous homepage version and
   were not reused as evidence for this redesign.
