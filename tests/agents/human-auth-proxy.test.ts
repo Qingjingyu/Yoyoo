@@ -15,6 +15,8 @@ describe("human authentication proxy policy", () => {
   it("exposes only login, health, framework assets, and Agent Gateway paths", () => {
     expect(isPublicHumanPath("/login")).toBe(true);
     expect(isPublicHumanPath("/api/v1/auth/login")).toBe(true);
+    expect(isPublicHumanPath("/api/v1/auth/aicard/start")).toBe(true);
+    expect(isPublicHumanPath("/auth/aicard/callback")).toBe(true);
     expect(isPublicHumanPath("/api/health")).toBe(true);
     expect(isPublicHumanPath("/_next/static/app.js")).toBe(true);
     expect(isPublicHumanPath("/api/v1/agent-gateway/heartbeat")).toBe(true);

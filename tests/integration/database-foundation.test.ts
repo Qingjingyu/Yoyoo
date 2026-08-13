@@ -70,6 +70,10 @@ describe("PostgreSQL foundation", () => {
       "012_addressable_conversations.sql",
       "013_public_identity_auth.sql",
       "014_reserve_first_human_ai_card_id.sql",
+      "015_aicard_authority_migration.sql",
+      "016_federated_human_sessions.sql",
+      "017_aicard_authorization_replay_guard.sql",
+      "018_aicard_session_authority.sql",
     ]);
 
     const migrationCounts = await pool.query<{ version: string; count: string }>(
