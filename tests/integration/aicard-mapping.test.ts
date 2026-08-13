@@ -1,10 +1,13 @@
 /** @vitest-environment node */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { PrincipalRepository } from '@/server/postgres/principal-repository';
+import {
+  AICardIdentityConflictError,
+  PrincipalRepository,
+} from '@/server/postgres/principal-repository';
 import {
   AgentGatewayRepository,
   GATEWAY_ADAPTER_ID,
@@ -18,6 +21,12 @@ const databaseUrl =
   process.env.TEST_DATABASE_URL ??
   'postgresql://yoyoo:yoyoo_dev@127.0.0.1:55432/yoyoo_space';
 const pool = createPostgresPool(databaseUrl, { max: 4 });
+let cardSequence = BigInt(Date.now()) * 1_000n;
+
+function nextCardId(): string {
+  cardSequence += 1n;
+  return `AI_${cardSequence}`;
+}
 
 afterAll(async () => {
   await pool.end();
@@ -33,11 +42,13 @@ describe('AI Card identity mapping', () => {
       displayName: '苏白',
     });
     const subject = `sub_${randomUUID().replaceAll('-', '').padEnd(43, 'e').slice(0, 43)}`;
+    const cardId = nextCardId();
 
     const linked = await repository.mapAICardIdentity({
       issuer: 'http://127.0.0.1:3000',
       clientId: 'yoyoo_dev',
       subject,
+      cardId,
       principalType: 'human',
       displayName: '苏白',
       handle: `subai_${randomUUID().slice(0, 8)}`,
@@ -53,10 +64,12 @@ describe('AI Card identity mapping', () => {
   it('maps repeated pairwise subject authorization to one stable local Principal', async () => {
     const repository = new PrincipalRepository(pool);
     const subject = `sub_${randomUUID().replaceAll('-', '').padEnd(43, 'a').slice(0, 43)}`;
+    const cardId = nextCardId();
     const first = await repository.mapAICardIdentity({
       issuer: 'http://127.0.0.1:3000',
       clientId: 'yoyoo_dev',
       subject,
+      cardId,
       principalType: 'ai',
       displayName: '研究员小悠',
       handle: `researcher_${randomUUID().slice(0, 8)}`,
@@ -65,6 +78,7 @@ describe('AI Card identity mapping', () => {
       issuer: 'http://127.0.0.1:3000',
       clientId: 'yoyoo_dev',
       subject,
+      cardId,
       principalType: 'ai',
       displayName: '研究员小悠（更新）',
       handle: first.principal.handle,
@@ -84,6 +98,45 @@ describe('AI Card identity mapping', () => {
     expect(repeated.principal.externalKey).not.toContain(subject);
   });
 
+  it('refuses to silently reuse a mapped Subject when a different local owner is required', async () => {
+    const repository = new PrincipalRepository(pool);
+    const subject = `sub_${randomUUID().replaceAll('-', '').padEnd(43, 'm').slice(0, 43)}`;
+    const cardId = nextCardId();
+    const existing = await repository.mapAICardIdentity({
+      issuer: 'http://127.0.0.1:3000',
+      clientId: 'yoyoo_dev',
+      subject,
+      cardId,
+      principalType: 'human',
+      displayName: 'Existing Human',
+      handle: `existing-${randomUUID().slice(0, 8)}`,
+    });
+    const requiredOwner = await repository.create({
+      kind: 'human',
+      externalKey: `human:required-owner-${randomUUID()}`,
+      handle: `required-${randomUUID().slice(0, 8)}`,
+      displayName: 'Required Owner',
+    });
+
+    await expect(repository.mapAICardIdentity({
+      issuer: 'http://127.0.0.1:3000',
+      clientId: 'yoyoo_dev',
+      subject,
+      cardId,
+      principalType: 'human',
+      displayName: 'Attempted Owner',
+      handle: `attempted-${randomUUID().slice(0, 8)}`,
+      principalId: requiredOwner.id,
+    })).rejects.toBeInstanceOf(AICardIdentityConflictError);
+
+    const mapping = await pool.query<{ principal_id: string }>(
+      `SELECT principal_id FROM aicard_identity_mappings
+       WHERE issuer = $1 AND client_id = $2 AND subject = $3`,
+      ['http://127.0.0.1:3000', 'yoyoo_dev', subject],
+    );
+    expect(mapping.rows[0]?.principal_id).toBe(existing.principal.id);
+  });
+
   it('atomically activates an AI Card Agent in the selected workspace', async () => {
     const principals = new PrincipalRepository(pool);
     const workspaces = new WorkspaceRepository(pool);
@@ -99,11 +152,13 @@ describe('AI Card identity mapping', () => {
       ownerPrincipalId: owner.id,
     });
     const subject = `sub_${randomUUID().replaceAll('-', '').padEnd(43, 'd').slice(0, 43)}`;
+    const cardId = nextCardId();
 
     const first = await principals.mapAICardIdentity({
       issuer: 'http://127.0.0.1:3000',
       clientId: 'yoyoo_dev',
       subject,
+      cardId,
       principalType: 'ai',
       displayName: 'AI Card 研究员',
       handle: `aicard-agent-${randomUUID().slice(0, 8)}`,
@@ -113,6 +168,7 @@ describe('AI Card identity mapping', () => {
       issuer: 'http://127.0.0.1:3000',
       clientId: 'yoyoo_dev',
       subject,
+      cardId,
       principalType: 'ai',
       displayName: 'AI Card 研究员（更新）',
       handle: first.principal.handle,
@@ -151,10 +207,12 @@ describe('AI Card identity mapping', () => {
       ownerPrincipalId: owner.id,
     });
     const subject = `sub_${randomUUID().replaceAll('-', '').padEnd(43, 'r').slice(0, 43)}`;
+    const cardId = nextCardId();
     const mapped = await principals.mapAICardIdentity({
       issuer: 'http://127.0.0.1:3000',
       clientId: 'yoyoo_dev',
       subject,
+      cardId,
       principalType: 'ai',
       displayName: '运行研究员',
       handle: `runtime-agent-${randomUUID().slice(0, 8)}`,
@@ -243,6 +301,7 @@ describe('AI Card identity mapping', () => {
     const shared = {
       issuer: 'http://127.0.0.1:3000',
       clientId: 'yoyoo_dev',
+      cardId: nextCardId(),
       principalType: 'human' as const,
       displayName: '苏白',
       handle: `subai_${randomUUID().slice(0, 8)}`,
@@ -253,10 +312,49 @@ describe('AI Card identity mapping', () => {
     });
     const second = await repository.mapAICardIdentity({
       ...shared,
+      cardId: nextCardId(),
       subject: `sub_${suffix.padEnd(43, 'c').slice(0, 42)}c`,
     });
 
     expect(second.principal.id).not.toBe(first.principal.id);
     expect(second.principal.kind).toBe('human');
+  });
+
+  it('does not bind one authoritative Card ID to two pairwise subjects', async () => {
+    const repository = new PrincipalRepository(pool);
+    const cardId = nextCardId();
+    const firstSubject = `sub_${randomUUID().replaceAll('-', '').padEnd(43, 'x').slice(0, 43)}`;
+    const secondSubject = `sub_${randomUUID().replaceAll('-', '').padEnd(43, 'y').slice(0, 43)}`;
+    await repository.mapAICardIdentity({
+      issuer: 'http://127.0.0.1:3000',
+      clientId: 'yoyoo_dev',
+      subject: firstSubject,
+      cardId,
+      principalType: 'human',
+      displayName: '同一卡片',
+      handle: `card-conflict-${randomUUID().slice(0, 8)}`,
+    });
+
+    await expect(repository.mapAICardIdentity({
+      issuer: 'http://127.0.0.1:3000',
+      clientId: 'yoyoo_dev',
+      subject: secondSubject,
+      cardId,
+      principalType: 'human',
+      displayName: '伪造身份',
+      handle: `card-conflict-${randomUUID().slice(0, 8)}`,
+    })).rejects.toBeInstanceOf(AICardIdentityConflictError);
+
+    const duplicatePrincipal = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::TEXT AS count
+       FROM principals
+       WHERE external_key = $1`,
+      [
+        `aicard:${createHash('sha256')
+          .update(JSON.stringify(['http://127.0.0.1:3000', 'yoyoo_dev', secondSubject]))
+          .digest('hex')}`,
+      ],
+    );
+    expect(duplicatePrincipal.rows[0].count).toBe('0');
   });
 });

@@ -39,6 +39,7 @@ interface AICardMappingRow {
   client_id: string;
   subject: string;
   principal_id: string;
+  card_id: string | null;
   created_at: Date;
   updated_at: Date;
   last_verified_at: Date;
@@ -49,6 +50,7 @@ export interface AICardIdentityMappingRecord {
   clientId: string;
   subject: string;
   principalId: string;
+  cardId: string;
   createdAt: Date;
   updatedAt: Date;
   lastVerifiedAt: Date;
@@ -103,11 +105,17 @@ function mapAgentBinding(row: AgentBindingRow): AgentBindingRecord {
 }
 
 function mapAICardMapping(row: AICardMappingRow): AICardIdentityMappingRecord {
+  if (!row.card_id) {
+    throw new AICardIdentityConflictError(
+      "The AI Card mapping is missing its authoritative card ID",
+    );
+  }
   return {
     issuer: row.issuer,
     clientId: row.client_id,
     subject: row.subject,
     principalId: row.principal_id,
+    cardId: row.card_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastVerifiedAt: row.last_verified_at,
@@ -120,7 +128,7 @@ async function selectAICardMapping(
 ): Promise<{ mapping: AICardMappingRow; principal: PrincipalRow } | null> {
   const result = await client.query<AICardMappingRow & PrincipalRow>(
     `SELECT mappings.issuer, mappings.client_id, mappings.subject,
-            mappings.principal_id, mappings.created_at,
+            mappings.principal_id, mappings.card_id, mappings.created_at,
             mappings.updated_at, mappings.last_verified_at,
             principals.id, principals.kind, principals.external_key,
             principals.handle, principals.display_name, principals.status,
@@ -331,6 +339,7 @@ export class PrincipalRepository {
     issuer: string;
     clientId: string;
     subject: string;
+    cardId: string;
     principalType: "human" | "ai";
     displayName: string;
     handle: string;
@@ -353,6 +362,11 @@ export class PrincipalRepository {
       const existing = await selectAICardMapping(client, input);
 
       if (existing) {
+        if (input.principalId && existing.principal.id !== input.principalId) {
+          throw new AICardIdentityConflictError(
+            "The AI Card identity is linked to a different local Yoyoo Principal",
+          );
+        }
         if (existing.principal.kind !== expectedKind) {
           throw new AICardIdentityConflictError(
             "AI Card principal type conflicts with the existing Yoyoo identity",
@@ -372,11 +386,18 @@ export class PrincipalRepository {
         }
         const mappingResult = await client.query<AICardMappingRow>(
           `UPDATE aicard_identity_mappings
-           SET updated_at = NOW(), last_verified_at = NOW()
+           SET card_id = COALESCE(card_id, $4),
+               updated_at = NOW(), last_verified_at = NOW()
            WHERE issuer = $1 AND client_id = $2 AND subject = $3
+             AND (card_id IS NULL OR card_id = $4)
            RETURNING *`,
-          [input.issuer, input.clientId, input.subject],
+          [input.issuer, input.clientId, input.subject, input.cardId],
         );
+        if (!mappingResult.rows[0]) {
+          throw new AICardIdentityConflictError(
+            "The AI Card public ID conflicts with the existing identity mapping",
+          );
+        }
         if (input.workspaceId) {
           await activateAICardAgentMembership(client, input.workspaceId, existing.principal.id);
         }
@@ -403,10 +424,16 @@ export class PrincipalRepository {
         try {
           const mappingResult = await client.query<AICardMappingRow>(
             `INSERT INTO aicard_identity_mappings
-              (issuer, client_id, subject, principal_id)
-             VALUES ($1, $2, $3, $4)
+              (issuer, client_id, subject, principal_id, card_id)
+             VALUES ($1, $2, $3, $4, $5)
              RETURNING *`,
-            [input.issuer, input.clientId, input.subject, input.principalId],
+            [
+              input.issuer,
+              input.clientId,
+              input.subject,
+              input.principalId,
+              input.cardId,
+            ],
           );
           if (input.workspaceId) {
             await activateAICardAgentMembership(client, input.workspaceId, input.principalId);
@@ -444,13 +471,23 @@ export class PrincipalRepository {
           JSON.stringify({ identityProvider: "aicard" }),
         ],
       );
-      const mappingResult = await client.query<AICardMappingRow>(
-        `INSERT INTO aicard_identity_mappings
-          (issuer, client_id, subject, principal_id)
-         VALUES ($1, $2, $3, $4)
-         RETURNING *`,
-        [input.issuer, input.clientId, input.subject, principalId],
-      );
+      let mappingResult;
+      try {
+        mappingResult = await client.query<AICardMappingRow>(
+          `INSERT INTO aicard_identity_mappings
+            (issuer, client_id, subject, principal_id, card_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [input.issuer, input.clientId, input.subject, principalId, input.cardId],
+        );
+      } catch (error) {
+        if ((error as { code?: string }).code === "23505") {
+          throw new AICardIdentityConflictError(
+            "The AI Card identity is already linked to another Yoyoo Principal",
+          );
+        }
+        throw error;
+      }
       if (input.workspaceId) {
         await activateAICardAgentMembership(client, input.workspaceId, principalId);
       }
