@@ -1,73 +1,116 @@
 # Yoyoo Space Product Spec
 
-> Current version: V0.15 Single-Owner Public Preview
+> Current version: V0.16 Unified AI Card Identity
 >
-> Date: 2026-08-12
+> Date: 2026-08-13
 >
-> Status: deployed; production cleanup complete
+> Status: local implementation and verification complete; production cutover pending
 
 ## Goal
 
-Publish the existing Yoyoo IM workspace at `https://app.yoyooai.com` so its
-owner can use the same persistent rooms, files, and Agents from desktop and
-mobile without exposing private data to anyone else.
+Make AI Card the only identity issuer for Yoyoo humans and Agents while keeping
+Yoyoo responsible for workspace membership, permissions, rooms, messages,
+files, tasks, and audit. Existing Yoyoo history must remain attached to the same
+local Principal UUID after the authority migration.
 
 ## Target User
 
-- One pre-provisioned human owner in V0.15.
-- Existing connected Agents continue to authenticate through the Agent Gateway;
-  they do not receive browser passwords or human sessions.
+- The existing human owner, migrated without changing their Principal UUID.
+- Future invited humans who first enter through Yoyoo and automatically receive
+  or reuse an authoritative AI Card identity. V0.16 production access remains
+  limited to the existing owner until workspace invitations are implemented.
+- New AI participants, including YOS instances, already own an authoritative AI
+  Card before entering Yoyoo. A human controller explicitly authorizes that
+  Card into a workspace; Yoyoo never creates the AI identity locally.
+- Existing legacy Gateway Agents continue to authenticate through their current
+  credentials for compatibility; they do not receive browser passwords or
+  human sessions, and Yoyoo does not issue new local Gateway identities.
 
 ## Problem
 
-The current release is intentionally bound to `127.0.0.1` and derives every
-human request from `YOYOO_LOCAL_OWNER_ID`. Publishing that process directly
-would let an anonymous visitor act as the owner. Yoyoo therefore needs a real
-human identity, password authentication, server-side sessions, authorization at
-every private HTTP boundary, and a recoverable production deployment.
+V0.15 is publicly deployed but still issues local `AI_` numbers and authenticates
+the owner with a Yoyoo-only password. This creates a second identity authority:
+the same person could receive one identity in Yoyoo and another in AI Card.
+Yoyoo must instead accept only a verified AI Card authorization result, map its
+pairwise Subject to a stable local Principal UUID, and fail closed when the
+identity authority is unavailable.
 
 ## MVP Scope
 
-### AI Card identity
+### AI Card identity authority
 
-- Add one public, permanent `AI Card ID` to every Principal.
-- Allocate IDs atomically from `AI_100001` upward across humans and Agents.
-- IDs are uppercase, immutable, unique, never reused, and presentation-safe.
-- Existing Principal UUIDs remain the authoritative database foreign keys.
-- Existing display names and handles remain mutable presentation fields.
-- V0.15 pre-provisions the current owner as `AI_100001`; subsequent existing
-  Principals receive deterministic ascending IDs during migration.
+- AI Card is the only system allowed to create identities or allocate permanent
+  `AI_` numbers. Yoyoo never chooses, generates, renumbers, or reuses one.
+- Yoyoo stores the authoritative Card ID only as a verified projection for UI
+  and reconciliation; it is never a Yoyoo database foreign key or login secret.
+- Pairwise AI Card Subject plus issuer and client ID identify the external
+  account. Existing Principal UUIDs remain the authoritative Yoyoo foreign keys.
+- Display names and handles remain mutable presentation fields synchronized from
+  verified AI Card claims.
+- The existing owner may be linked to authoritative `AI_100001` only after AI
+  Card authentication returns both the expected Card ID and a valid pairwise
+  Subject. A matching string in the legacy Yoyoo column is not proof.
 
-### Human account
+### Unified registration and login
 
-- Add one unique, case-insensitive login handle and a password credential to the
-  existing owner Principal.
-- Login uses `handle + password`; it never accepts an AI Card ID as a secret.
-- Passwords are hashed with a unique salt and Node's built-in `scrypt`;
-  plaintext is never stored or logged.
-- Account provisioning is an explicit server-side command. There is no public
-  registration route.
-- The command prints one recovery code exactly once. Only its hash is stored.
+- `/login` offers unified AI Card registration and login. Credentials are
+  entered and verified by AI Card, not collected or validated by Yoyoo.
+- First-time registration from Yoyoo atomically creates the AI Card identity and
+  current product authorization. Yoyoo creates a local Principal mapping and
+  session only when that identity is allowed into the requested workspace.
+- An existing AI Card account reuses the same Card. Yoyoo must not ask the user
+  to register or bind another Card.
+- AI Card unavailability produces a visible retryable failure. Yoyoo does not
+  fall back to local registration, local numbering, or inferred identity.
+- V0.15 password credentials remain compatibility data during the reversible
+  cutover. The local form is hidden behind an explicitly temporary fallback and
+  is removed from the normal path only after production acceptance.
+
+### External AI authorization
+
+- A YOS instance or other external AI must first create and claim its own AI
+  Card through the identity authority. That Card remains the AI's permanent
+  cross-product identity.
+- The workspace owner starts `授权 AI 接入`, selects an AI Card they control,
+  and grants it access to the current Yoyoo workspace.
+- After a verified callback, Yoyoo creates or reuses only a local Principal,
+  workspace membership, permissions, room membership and service mapping. It
+  does not mint a second identity, Card number, local handle-based account or
+  long-lived `yya_` credential.
+- Names and handles are display metadata. Automation and delivery use verified
+  AI Card identity mappings plus Yoyoo Principal and room UUIDs.
+- Existing `yya_` Gateway Agents remain listable, rotatable and revocable during
+  migration, but the browser client and public Agent-creation endpoint cannot
+  create another one.
 
 ### Browser session and authorization
 
-- A successful login creates a cryptographically random opaque session token.
+- A successful AI Card callback creates a cryptographically random Yoyoo session
+  bound to the mapped local Principal UUID.
 - The browser receives the token only through a `HttpOnly`, `Secure`,
   `SameSite=Lax` cookie; PostgreSQL stores only its SHA-256 hash.
 - Sessions have an absolute expiry, can be revoked, and are deleted on logout.
+- Federated sessions revalidate their central AI Card grant every five minutes.
+  A refresh grant is encrypted at rest with AES-256-GCM, rotated with a stable
+  idempotency key, and erased on local logout or authoritative rejection.
+- A temporary provider outage may reuse the last verified grant for at most 15
+  minutes. After that Yoyoo denies access without deleting the identity mapping,
+  so service can recover when AI Card becomes reachable again.
 - Every page, browser API, attachment read, and event stream is denied unless a
   valid active human session resolves to the authorized Principal.
 - State-changing browser requests validate same-origin metadata. Agent Gateway
   bearer-token routes keep their existing independent authentication.
-- Production startup fails closed when required auth secrets or the owner
-  account are missing.
+- Production startup fails closed when AI Card issuer/client/callback settings,
+  session secrets, or authoritative owner mapping are missing.
 
 ### User experience
 
-- Add a responsive `/login` page using the current light/dark optical-glass
-  design system.
-- Show visible loading, invalid-credential, locked/rate-limited, and success
-  states without revealing whether a handle exists.
+- Keep the responsive `/login` page and expose one primary `使用 AI Card 继续`
+  action. AI Card decides whether the user signs in or creates an identity, so
+  Yoyoo does not present two competing account flows.
+- Show loading, provider-unavailable, consent-denied, invalid callback,
+  identity-conflict, workspace-access-denied, and success states without
+  exposing protocol details or secrets.
 - Preserve the requested destination after authentication when it is a safe
   same-origin path.
 - Add logout under Settings. Expired sessions return to login without losing
@@ -88,24 +131,29 @@ every private HTTP boundary, and a recoverable production deployment.
 
 ## V2 / Later
 
-- Public registration, invitations, multiple human accounts, and admin UX.
+- Invitations, multi-human workspace administration, and account recovery UX.
 - Email or SMS verification and automated password recovery.
 - Passkeys, trusted-device management, and user-visible session management.
-- AI Card federation across products, cryptographic card proofs, payment,
-  reputation, and public profile discovery.
+- Payment, reputation, public profile discovery, and third-party federation.
 - Cloud object storage, malware scanning, OCR, semantic search, and external
   notifications.
 
 ## Core Flows
 
-1. Maintainer deploys the schema and provisions the owner account once.
-2. Owner opens `app.yoyooai.com`, enters handle and password, and receives a
+1. User opens `app.yoyooai.com` and chooses registration or login.
+2. Yoyoo starts an AI Card authorization transaction with PKCE and state. AI
+   Card creates or authenticates the identity and obtains explicit consent.
+3. Yoyoo verifies the returned token, Subject, Principal type, Card ID, issuer,
+   client, and scopes; it maps the identity to a local Principal and creates a
    private server-side session.
-3. Server resolves the session to the owner Principal UUID; all existing room,
+4. Server resolves the session to that Principal UUID; all existing room,
    message, file, membership, and audit operations continue using that UUID.
-4. Owner logs out or the session expires; private routes become inaccessible.
-5. Connected Agents continue using scoped Agent Gateway or AI Card runtime
-   credentials and exact `room_id` delivery without depending on browser auth.
+5. User logs out or the session expires; private routes become inaccessible.
+6. A YOS or other AI first owns and claims an AI Card; its controller authorizes
+   that Card into Yoyoo, which creates only the local workspace projection.
+7. Connected Agents use scoped AI Card runtime credentials and exact `room_id`
+   delivery without depending on browser auth. Existing `yya_` credentials keep
+   working only as migration compatibility.
 
 ## Non-Functional Requirements
 
@@ -118,32 +166,47 @@ every private HTTP boundary, and a recoverable production deployment.
   internal database details.
 - Forward migrations are immutable and tested from both an empty database and
   the latest released migration ledger.
+- Authorization callback identity linking is transactional and concurrency-safe;
+  it never maps one AI Card Subject to two Principals or one Principal to two
+  AI Card Subjects for the same issuer and client.
 - Desktop and mobile login/logout/session-expiry behavior must be browser-tested.
 
 ## Acceptance Criteria
 
 - An anonymous request to every private page and browser API is redirected to
   login or rejected with `401`; private bytes and event streams are included.
-- The pre-provisioned owner can log in on desktop and mobile, refresh, navigate,
+- The existing owner can log in through AI Card on desktop and mobile, refresh, navigate,
   send a message, and download an authorized file.
-- Wrong passwords, malformed input, expired/revoked sessions, cross-origin
-  mutations, and repeated login attempts fail with stable public errors.
-- `AI_100001` is bound to the existing owner without changing historical room,
+- Denied authorization, malformed callbacks, expired/revoked grants or sessions,
+  cross-origin mutations, and identity conflicts fail with stable public errors.
+- Authoritative `AI_100001` is bound to the existing owner only after verified
+  AI Card authentication, without changing historical room,
   message, file, or membership foreign keys.
 - Agent Gateway authentication and exact `room_id` delivery remain operational.
+- `POST /api/v1/workspaces/current/agents` refuses local identity creation with
+  `AI_CARD_REQUIRED`, while Settings exposes only `授权 AI 接入` for new AI.
+- A claimed YOS AI Card can be authorized into Yoyoo, maps to one stable local
+  Principal on repeated authorization, and can provide service under that
+  identity without receiving a second Card or local account.
 - A production restart does not recreate built-in demo Agent Principals or room
   memberships when `YOYOO_BUILTIN_AGENTS=none`.
 - Backup verification, migration checks, lint, typecheck, unit/integration tests,
   production build, desktop/mobile Playwright, and public HTTPS smoke checks pass.
+- Migration reconciliation proves room, message, file, task, membership, and
+  audit counts and ownership references are unchanged.
 
-## Not Doing In V0.15
+## Not Doing In V0.16
 
-- No public account creation or self-service account recovery.
+- No Yoyoo-local account creation, password recovery, or AI Card numbering.
+- No Yoyoo-local Agent creation, nickname/handle identity matching, or new
+  Gateway token issuance through the public UI/API.
 - No GitHub, Google, phone, or email login.
-- No use of AI Card ID, handle, nickname, email, or phone as authorization proof.
+- No use of Card ID, handle, nickname, email, or string equality as authorization
+  proof; only the verified protocol Subject and claims may establish a mapping.
 - No migration from Principal UUID foreign keys to sequential public IDs.
 - No direct public exposure of PostgreSQL, BlobStore paths, YOS, or Codex
   credentials.
-- No broad production reset, automated restore, or migration rewrite. The
-  approved cleanup is limited to the three known empty demo Agent identities and
-  their memberships after a verified database and BlobStore backup.
+- No broad production reset, automated restore, historical Principal deletion,
+  or rewrite of applied migrations.
+- No automatic merge of two existing Cards and no identity guessing from names,
+  handles, emails, or legacy IDs.

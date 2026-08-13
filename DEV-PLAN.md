@@ -1,7 +1,7 @@
-# Yoyoo V0.15 Public Preview Development Plan
+# Yoyoo V0.16 Unified AI Card Identity Development Plan
 
-> Status: production deployed on 2026-08-12; approved demo Agent cleanup
-> complete
+> Status: V0.15 production remains active; V0.16 local implementation and
+> verification complete, production integration and cutover pending
 
 ## Technical Direction
 
@@ -11,8 +11,130 @@
   recovery-code hashing, random opaque session tokens, and database-backed
   revocation.
 - Reuse existing Principal UUIDs for all authorization and resource ownership.
-- Add a public sequential AI Card ID only as an addressable identity attribute.
+- Store the public sequential AI Card ID only as a verified addressable identity
+  projection. Yoyoo never allocates it.
 - Keep Agent Gateway bearer authentication separate from human web sessions.
+- Reuse the existing AI Card authorization-code, PKCE, pairwise Subject, and
+  runtime-token implementation. Do not create a second federation protocol.
+- Add only forward migrations. Migrations `001` through `014` remain byte-for-byte
+  immutable because production has already applied them.
+
+## Phase 8C-1: Authority Migration Contract
+
+### Deliverables
+
+- Forward migration removes the Yoyoo allocation trigger and default while
+  retaining legacy `ai_card_id` values as compatibility projections.
+- Identity mappings persist the authoritative Card ID returned with the verified
+  issuer, client ID, pairwise Subject, and last verification time.
+- New Yoyoo Principals can only be created from a verified AI Card result; the
+  existing owner is linked to the current Principal UUID only when the returned
+  Card ID is exactly the expected migration identity.
+- Existing rooms, messages, files, tasks, memberships, Agent bindings, and audit
+  records continue to reference their current Principal UUIDs.
+
+### Verification
+
+- Write migration-upgrade tests from the exact released `001`-`014` ledger and
+  from an empty schema before implementation.
+- Snapshot counts and representative ownership foreign keys before migration and
+  assert byte-for-byte identity after migration.
+- Prove direct Principal insertion without a verified Card ID no longer receives
+  a locally generated `AI_` number.
+
+## Phase 8C-2: Federated Human Session
+
+### Deliverables
+
+- Extend the existing callback to validate Subject, Principal type, scopes, and
+  authoritative Card ID, then transactionally map the Principal and create a
+  revocable Yoyoo session.
+- Generalize Yoyoo sessions so federated sessions do not require an active local
+  password credential. Keep local credential/session tables readable for rollback.
+- Persist only AES-256-GCM protected refresh material, rotate it every five
+  minutes with a deterministic idempotency key, and propagate authoritative
+  grant rejection to the local session. Keep a bounded 15-minute availability
+  grace without turning provider downtime into permanent identity deletion.
+- Make authorization start and callback public paths while keeping state, PKCE,
+  callback cookie, safe return path, no-store, and same-origin protections.
+- Fail closed when AI Card is unavailable, claims conflict, or the current owner
+  has not completed the explicit migration link.
+
+### Verification
+
+- Unit tests cover valid callback, denied consent, bad state, Subject mismatch,
+  Card ID mismatch, wrong Principal type, missing scope, replay, and unavailable
+  issuer.
+- Integration tests prove the same verified Subject returns the same Principal,
+  concurrent callback is idempotent, and conflicting mappings are rejected.
+- Session tests prove refresh, logout, expiry, revocation, and private-route
+  enforcement without a local password credential.
+
+## Phase 8C-3: Unified Entry UX
+
+### Deliverables
+
+- Make `使用 AI Card 继续` the primary entry. AI Card owns the register-or-login
+  decision; keep the local password form collapsed only for reversible cutover.
+- Preserve a validated same-origin destination across the federation round trip.
+- Add loading, denied, unavailable, invalid-session, identity-conflict,
+  workspace-access-denied, and success states.
+- Show the current verified Card directly in Yoyoo; do not ask the user to bind or
+  register it again.
+- Keep V0.16 workspace admission owner-only. A valid but uninvited Card receives
+  an explicit access-denied state and never creates a Yoyoo Principal.
+
+### Verification
+
+- Component and Playwright tests cover desktop/mobile, keyboard focus, overflow,
+  retry, registration, existing-account login, callback, session persistence,
+  and logout.
+- A second reference product resolves the same Card to a different pairwise
+  Subject without creating another Card.
+
+## Phase 8C-4: Cutover And Rollback
+
+### Deliverables
+
+- Produce read-only inventory, verified PostgreSQL and BlobStore backup, mapping
+  reconciliation report, exact release artifact, and previous-image rollback.
+- Deploy schema/application additively, complete the owner AI Card link, verify it,
+  then disable the normal local-password entry. Do not delete legacy credentials.
+- Keep Agent Gateway compatibility and current exact `room_id` delivery unchanged.
+
+### Verification
+
+- Local lint, typecheck, unit, integration, build, and desktop/mobile E2E pass.
+- Staging rehearses forward migration and application rollback against a copy of
+  the released ledger.
+- Production cutover requires a new explicit approval after backup and rollback
+  evidence. Public real login, history attribution, message/file operations,
+  logout, anonymous denial, health, and Agent Gateway smoke checks must pass.
+
+## Phase 8C-5: AI Card Only Agent Admission
+
+### Deliverables
+
+- Remove local Agent creation from the Settings client and expose one
+  `授权 AI 接入` path for YOS and other external AI identities that already own
+  an AI Card.
+- Make the former public Agent-creation POST fail visibly with
+  `AI_CARD_REQUIRED` and no database mutation.
+- Preserve listing, credential rotation and revocation for already-connected
+  legacy `yya_` Agents until a separate migration is approved.
+- Keep internal legacy Agent fixtures only for protocol regression tests; they
+  are not a product admission path.
+
+### Verification
+
+- Component and desktop/mobile browser tests prove there is no local display
+  name, handle or credential-creation form and that both normal and empty states
+  route to AI Card authorization.
+- HTTP integration proves a local creation request returns `409`, does not add
+  the requested handle, and existing Gateway protocol tests still pass through
+  explicitly internal compatibility fixtures.
+- Cross-repository acceptance proves a claimed YOS AI Card maps to one stable
+  Yoyoo Principal and can serve an authorized room without a second identity.
 
 ## Phase 1: Identity And Credential Schema
 
@@ -156,6 +278,11 @@
   verified persistent storage before file features are accepted.
 - Agent runtimes may live outside the public server. Gateway reachability and
   secrets must be configured independently from browser authentication.
+- Mapping the legacy `AI_100001` string without a verified AI Card Subject would
+  allow account takeover; migration linkage must require a successful authority
+  callback and exact expected Card claim.
+- Disabling local login before a verified federated owner session would lock out
+  production; the cutover remains additive and reversible until acceptance.
 
 ## Rejected Alternatives
 
@@ -166,3 +293,8 @@
 - AI Card ID as the login secret: memorable but enumerable and therefore unsafe.
 - Stateless long-lived signed cookies only: simpler, but weakens immediate
   revocation and session audit.
+- Copying AI Card accounts into Yoyoo: keeps login locally available but creates
+  a second credential authority and violates the unified-account requirement.
+- Replacing Yoyoo Principal UUIDs with AI Card IDs: appears simpler but would
+  rewrite every resource relationship and expose an enumerable public ID as an
+  internal ownership key.
