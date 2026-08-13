@@ -22,6 +22,20 @@ describe("HumanLogin", () => {
     expect(container.querySelector('input[name="loginHandle"]')).toBeDisabled();
     expect(container.querySelector('input[name="password"]')).toBeDisabled();
     expect(container.querySelector("button")).toBeDisabled();
+    expect(container.querySelector('.human-login-primary')).toHaveAttribute(
+      "href",
+      "/api/v1/auth/aicard/start?next=%2F",
+    );
+  });
+
+  it("uses AI Card as the primary path and preserves a safe local return path", () => {
+    render(<HumanLogin nextPath="/conversation?room=room-1" />);
+
+    expect(screen.getByRole("link", { name: "使用 AI Card 继续" })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/aicard/start?next=%2Fconversation%3Froom%3Droom-1",
+    );
+    expect(screen.getByText(/进入当前空间仍需已有授权/)).toBeInTheDocument();
   });
 
   it("signs in with a public AI Card ID and returns to a safe local path", async () => {
@@ -40,6 +54,7 @@ describe("HumanLogin", () => {
       />,
     );
 
+    await user.click(screen.getByText("使用临时本地账号"));
     await user.type(screen.getByLabelText("AI Card ID"), "AI_100001");
     await user.type(screen.getByLabelText("密码"), "a-secure-password");
     await user.click(screen.getByRole("button", { name: "进入 Yoyoo" }));
@@ -68,6 +83,11 @@ describe("HumanLogin", () => {
       />,
     );
 
+    expect(screen.getByRole("link", { name: "使用 AI Card 继续" })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/aicard/start?next=%2F",
+    );
+    await user.click(screen.getByText("使用临时本地账号"));
     await user.type(screen.getByLabelText("AI Card ID"), "AI_100001");
     await user.type(screen.getByLabelText("密码"), "a-secure-password");
     await user.click(screen.getByRole("button", { name: "进入 Yoyoo" }));
@@ -86,6 +106,7 @@ describe("HumanLogin", () => {
       }));
     render(<HumanLogin onAuthenticated={() => undefined} />);
 
+    await user.click(screen.getByText("使用临时本地账号"));
     await user.type(screen.getByLabelText("AI Card ID"), "AI_100001");
     await user.type(screen.getByLabelText("密码"), "wrong-password");
     await user.click(screen.getByRole("button", { name: "进入 Yoyoo" }));
