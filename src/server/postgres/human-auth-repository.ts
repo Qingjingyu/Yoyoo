@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Pool } from "pg";
 
+import type { FederatedAuthorizationMaterial } from "@/server/auth/aicard-session-authority";
 import { withTransaction } from "./transaction.ts";
 
 const THROTTLE_WINDOW_MS = 15 * 60 * 1_000;
@@ -28,7 +29,17 @@ interface SessionRow {
   ai_card_id: string;
   login_handle: string;
   display_name: string;
+  auth_method: "password" | "aicard";
   expires_at: Date;
+  identity_issuer: string | null;
+  identity_client_id: string | null;
+  identity_subject: string | null;
+  authorization_state_hash: Buffer | null;
+  aicard_refresh_ciphertext: Buffer | null;
+  aicard_refresh_iv: Buffer | null;
+  aicard_refresh_tag: Buffer | null;
+  aicard_refresh_expires_at: Date | null;
+  aicard_last_validated_at: Date | null;
 }
 
 interface ThrottleRow {
@@ -57,7 +68,16 @@ export interface HumanSessionRecord {
   aiCardId: string;
   loginHandle: string;
   displayName: string;
+  authMethod: "password" | "aicard";
   expiresAt: Date;
+  federatedAuthorization: {
+    issuer: string;
+    clientId: string;
+    subject: string;
+    authorizationStateHash: Buffer;
+    material: FederatedAuthorizationMaterial;
+    lastValidatedAt: Date;
+  } | null;
 }
 
 export interface LoginThrottleRecord {
@@ -190,7 +210,10 @@ export class HumanAuthRepository {
       }
       await client.query(
         `UPDATE human_sessions
-         SET revoked_at = COALESCE(revoked_at, $2)
+         SET revoked_at = COALESCE(revoked_at, $2),
+             aicard_refresh_ciphertext = NULL,
+             aicard_refresh_iv = NULL,
+             aicard_refresh_tag = NULL
          WHERE principal_id = $1 AND revoked_at IS NULL`,
         [input.principalId, now],
       );
@@ -244,23 +267,147 @@ export class HumanAuthRepository {
     };
   }
 
-  async resolveSession(tokenHash: Buffer, now = new Date()): Promise<HumanSessionRecord | null> {
-    const result = await this.pool.query<SessionRow>(
-      `UPDATE human_sessions AS sessions
-       SET last_seen_at = $2
-       FROM human_credentials AS credentials, principals
-       WHERE sessions.token_hash = $1
-         AND sessions.principal_id = credentials.principal_id
-         AND principals.id = credentials.principal_id
-         AND sessions.revoked_at IS NULL
-         AND sessions.expires_at > $2
-         AND sessions.credential_version = credentials.credential_version
-         AND credentials.status = 'active'
+  async createFederatedSession(input: {
+    principalId: string;
+    issuer: string;
+    clientId: string;
+    subject: string;
+    authorizationStateHash: Buffer;
+    federatedAuthorization: FederatedAuthorizationMaterial;
+    tokenHash: Buffer;
+    expiresAt: Date;
+    now?: Date;
+  }): Promise<{ sessionId: string; expiresAt: Date }> {
+    const sessionId = randomUUID();
+    const now = input.now ?? new Date();
+    let result;
+    try {
+      result = await this.pool.query<{ id: string; expires_at: Date }>(
+        `INSERT INTO human_sessions
+        (id, principal_id, token_hash, credential_version, auth_method,
+         identity_issuer, identity_client_id, identity_subject, expires_at,
+         authorization_state_hash, aicard_refresh_ciphertext,
+         aicard_refresh_iv, aicard_refresh_tag, aicard_refresh_expires_at,
+         aicard_last_validated_at, last_seen_at, created_at)
+       SELECT $1, mappings.principal_id, $6, NULL, 'aicard',
+              mappings.issuer, mappings.client_id, mappings.subject, $8, $7,
+              $9, $10, $11, $12, $13, $13, $13
+       FROM aicard_identity_mappings AS mappings
+       JOIN principals ON principals.id = mappings.principal_id
+       WHERE mappings.principal_id = $2
+         AND mappings.issuer = $3
+         AND mappings.client_id = $4
+         AND mappings.subject = $5
+         AND mappings.card_id IS NOT NULL
          AND principals.kind = 'human'
          AND principals.status = 'active'
-       RETURNING sessions.id AS session_id, sessions.principal_id,
-                 principals.ai_card_id, credentials.login_handle,
-                 principals.display_name, sessions.expires_at`,
+       RETURNING id, expires_at`,
+        [
+          sessionId,
+          input.principalId,
+          input.issuer,
+          input.clientId,
+          input.subject,
+          input.tokenHash,
+          input.authorizationStateHash,
+          input.expiresAt,
+          input.federatedAuthorization.ciphertext,
+          input.federatedAuthorization.iv,
+          input.federatedAuthorization.tag,
+          input.federatedAuthorization.refreshExpiresAt,
+          now,
+        ],
+      );
+    } catch (error) {
+      if (
+        (error as { code?: string; constraint?: string }).code === "23505"
+        && (error as { constraint?: string }).constraint
+          === "human_sessions_authorization_state_hash_unique"
+      ) {
+        throw new HumanAuthConflictError(
+          "The AI Card authorization transaction was already consumed",
+        );
+      }
+      throw error;
+    }
+    if (!result.rows[0]) {
+      throw new HumanAuthConflictError(
+        "The verified AI Card identity is not linked to an active human Principal",
+      );
+    }
+    return {
+      sessionId: result.rows[0].id,
+      expiresAt: result.rows[0].expires_at,
+    };
+  }
+
+  async resolveSession(tokenHash: Buffer, now = new Date()): Promise<HumanSessionRecord | null> {
+    const result = await this.pool.query<SessionRow>(
+      `WITH valid_session AS (
+         SELECT sessions.id,
+                CASE
+                  WHEN sessions.auth_method = 'aicard' THEN mappings.card_id
+                  ELSE principals.ai_card_id
+                END AS ai_card_id,
+                CASE
+                  WHEN sessions.auth_method = 'aicard' THEN principals.handle
+                  ELSE credentials.login_handle
+                END AS login_handle,
+                principals.display_name,
+                sessions.auth_method,
+                sessions.identity_issuer,
+                sessions.identity_client_id,
+                sessions.identity_subject,
+                sessions.authorization_state_hash,
+                sessions.aicard_refresh_ciphertext,
+                sessions.aicard_refresh_iv,
+                sessions.aicard_refresh_tag,
+                sessions.aicard_refresh_expires_at,
+                sessions.aicard_last_validated_at
+         FROM human_sessions AS sessions
+         JOIN principals ON principals.id = sessions.principal_id
+         LEFT JOIN human_credentials AS credentials
+           ON credentials.principal_id = sessions.principal_id
+         LEFT JOIN aicard_identity_mappings AS mappings
+           ON mappings.issuer = sessions.identity_issuer
+          AND mappings.client_id = sessions.identity_client_id
+          AND mappings.subject = sessions.identity_subject
+          AND mappings.principal_id = sessions.principal_id
+         WHERE sessions.token_hash = $1
+           AND sessions.revoked_at IS NULL
+           AND sessions.expires_at > $2
+           AND principals.kind = 'human'
+           AND principals.status = 'active'
+           AND (
+             (
+               sessions.auth_method = 'password'
+               AND sessions.credential_version = credentials.credential_version
+               AND credentials.status = 'active'
+             )
+             OR
+             (
+               sessions.auth_method = 'aicard'
+               AND mappings.card_id IS NOT NULL
+             )
+           )
+       ), updated_session AS (
+         UPDATE human_sessions AS sessions
+         SET last_seen_at = $2
+         FROM valid_session
+         WHERE sessions.id = valid_session.id
+         RETURNING sessions.id AS session_id, sessions.principal_id,
+                   sessions.expires_at, valid_session.ai_card_id,
+                   valid_session.login_handle, valid_session.display_name,
+                   valid_session.auth_method, valid_session.identity_issuer,
+                   valid_session.identity_client_id, valid_session.identity_subject,
+                   valid_session.authorization_state_hash,
+                   valid_session.aicard_refresh_ciphertext,
+                   valid_session.aicard_refresh_iv,
+                   valid_session.aicard_refresh_tag,
+                   valid_session.aicard_refresh_expires_at,
+                   valid_session.aicard_last_validated_at
+       )
+       SELECT * FROM updated_session`,
       [tokenHash, now],
     );
     const row = result.rows[0];
@@ -271,15 +418,81 @@ export class HumanAuthRepository {
           aiCardId: row.ai_card_id,
           loginHandle: row.login_handle,
           displayName: row.display_name,
+          authMethod: row.auth_method,
           expiresAt: row.expires_at,
+          federatedAuthorization: row.auth_method === "aicard"
+            && row.identity_issuer
+            && row.identity_client_id
+            && row.identity_subject
+            && row.authorization_state_hash
+            && row.aicard_refresh_ciphertext
+            && row.aicard_refresh_iv
+            && row.aicard_refresh_tag
+            && row.aicard_refresh_expires_at
+            && row.aicard_last_validated_at
+            ? {
+                issuer: row.identity_issuer,
+                clientId: row.identity_client_id,
+                subject: row.identity_subject,
+                authorizationStateHash: row.authorization_state_hash,
+                material: {
+                  ciphertext: row.aicard_refresh_ciphertext,
+                  iv: row.aicard_refresh_iv,
+                  tag: row.aicard_refresh_tag,
+                  refreshExpiresAt: row.aicard_refresh_expires_at,
+                },
+                lastValidatedAt: row.aicard_last_validated_at,
+              }
+            : null,
         }
       : null;
+  }
+
+  async updateFederatedSessionAuthorization(input: {
+    sessionId: string;
+    federatedAuthorization: FederatedAuthorizationMaterial;
+    validatedAt: Date;
+  }): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE human_sessions
+       SET aicard_refresh_ciphertext = $2,
+           aicard_refresh_iv = $3,
+           aicard_refresh_tag = $4,
+           aicard_refresh_expires_at = $5,
+           aicard_last_validated_at = $6
+       WHERE id = $1 AND auth_method = 'aicard' AND revoked_at IS NULL`,
+      [
+        input.sessionId,
+        input.federatedAuthorization.ciphertext,
+        input.federatedAuthorization.iv,
+        input.federatedAuthorization.tag,
+        input.federatedAuthorization.refreshExpiresAt,
+        input.validatedAt,
+      ],
+    );
+    return result.rowCount === 1;
+  }
+
+  async revokeSessionById(sessionId: string, now = new Date()): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE human_sessions
+       SET revoked_at = COALESCE(revoked_at, $2),
+           aicard_refresh_ciphertext = NULL,
+           aicard_refresh_iv = NULL,
+           aicard_refresh_tag = NULL
+       WHERE id = $1 AND revoked_at IS NULL`,
+      [sessionId, now],
+    );
+    return result.rowCount === 1;
   }
 
   async revokeSession(tokenHash: Buffer, now = new Date()): Promise<boolean> {
     const result = await this.pool.query(
       `UPDATE human_sessions
-       SET revoked_at = COALESCE(revoked_at, $2)
+       SET revoked_at = COALESCE(revoked_at, $2),
+           aicard_refresh_ciphertext = NULL,
+           aicard_refresh_iv = NULL,
+           aicard_refresh_tag = NULL
        WHERE token_hash = $1 AND revoked_at IS NULL`,
       [tokenHash, now],
     );

@@ -23,8 +23,9 @@ describe("human authentication repository", () => {
   beforeAll(async () => {
     humanId = randomUUID();
     await pool.query(
-      `INSERT INTO principals (id, kind, external_key, handle, display_name)
-       VALUES ($1, 'human', $2, 'auth-owner', 'Auth owner')`,
+      `INSERT INTO principals
+        (id, kind, external_key, handle, display_name, ai_card_id)
+       VALUES ($1, 'human', $2, 'auth-owner', 'Auth owner', 'AI_990001')`,
       [humanId, `human:auth-test:${humanId}`],
     );
   });
@@ -33,9 +34,17 @@ describe("human authentication repository", () => {
     await pool.query(`DELETE FROM login_throttles`);
     await pool.query(`DELETE FROM human_sessions WHERE principal_id = $1`, [humanId]);
     await pool.query(`DELETE FROM human_credentials WHERE principal_id = $1`, [humanId]);
+    await pool.query(
+      `DELETE FROM aicard_identity_mappings WHERE principal_id = $1`,
+      [humanId],
+    );
   });
 
   afterAll(async () => {
+    await pool.query(
+      `DELETE FROM aicard_identity_mappings WHERE principal_id = $1`,
+      [humanId],
+    );
     await pool.query(`DELETE FROM principals WHERE id = $1`, [humanId]);
     await pool.end();
   });
@@ -121,6 +130,7 @@ describe("human authentication repository", () => {
       principalId: humanId,
       aiCardId: expect.stringMatching(/^AI_/),
       loginHandle: "subai",
+      authMethod: "password",
     });
     await expect(
       repository.resolveSession(hashOpaqueToken(token), new Date("2026-08-14T00:00:00.000Z")),
@@ -130,6 +140,96 @@ describe("human authentication repository", () => {
     await expect(
       repository.resolveSession(hashOpaqueToken(token), new Date("2026-08-12T02:01:00.000Z")),
     ).resolves.toBeNull();
+  });
+
+  it("creates an AI Card session without provisioning a Yoyoo password", async () => {
+    const subject = `sub_${"F".repeat(43)}`;
+    await pool.query(
+      `INSERT INTO aicard_identity_mappings
+        (issuer, client_id, subject, principal_id, card_id)
+       VALUES ('https://id.yoyooai.test', 'yoyoo_dev', $1, $2, 'AI_990001')`,
+      [subject, humanId],
+    );
+    const token = "yys_aicard-session";
+    const session = await repository.createFederatedSession({
+      principalId: humanId,
+      issuer: "https://id.yoyooai.test",
+      clientId: "yoyoo_dev",
+      subject,
+      authorizationStateHash: hashOpaqueToken("authorization-state"),
+      federatedAuthorization: {
+        ciphertext: randomBytes(48),
+        iv: randomBytes(12),
+        tag: randomBytes(16),
+        refreshExpiresAt: new Date("2026-09-11T00:00:00.000Z"),
+      },
+      tokenHash: hashOpaqueToken(token),
+      expiresAt: new Date("2026-08-13T00:00:00.000Z"),
+      now: new Date("2026-08-12T00:00:00.000Z"),
+    });
+
+    await expect(
+      repository.resolveSession(
+        hashOpaqueToken(token),
+        new Date("2026-08-12T01:00:00.000Z"),
+      ),
+    ).resolves.toMatchObject({
+      sessionId: session.sessionId,
+      principalId: humanId,
+      aiCardId: "AI_990001",
+      loginHandle: "auth-owner",
+      authMethod: "aicard",
+      federatedAuthorization: expect.objectContaining({
+        issuer: "https://id.yoyooai.test",
+        clientId: "yoyoo_dev",
+        subject,
+        lastValidatedAt: new Date("2026-08-12T00:00:00.000Z"),
+      }),
+    });
+    await expect(repository.findCredential("auth-owner")).resolves.toBeNull();
+
+    const rotated = {
+      ciphertext: randomBytes(48),
+      iv: randomBytes(12),
+      tag: randomBytes(16),
+      refreshExpiresAt: new Date("2026-09-10T23:55:00.000Z"),
+    };
+    await expect(repository.updateFederatedSessionAuthorization({
+      sessionId: session.sessionId,
+      federatedAuthorization: rotated,
+      validatedAt: new Date("2026-08-12T00:05:00.000Z"),
+    })).resolves.toBe(true);
+    await expect(repository.resolveSession(
+      hashOpaqueToken(token),
+      new Date("2026-08-12T00:06:00.000Z"),
+    )).resolves.toMatchObject({
+      federatedAuthorization: {
+        material: rotated,
+        lastValidatedAt: new Date("2026-08-12T00:05:00.000Z"),
+      },
+    });
+
+    await expect(repository.revokeSessionById(
+      session.sessionId,
+      new Date("2026-08-12T00:07:00.000Z"),
+    )).resolves.toBe(true);
+    const revoked = await pool.query<{
+      revoked_at: Date | null;
+      aicard_refresh_ciphertext: Buffer | null;
+      aicard_refresh_iv: Buffer | null;
+      aicard_refresh_tag: Buffer | null;
+    }>(
+      `SELECT revoked_at, aicard_refresh_ciphertext, aicard_refresh_iv,
+              aicard_refresh_tag
+       FROM human_sessions WHERE id = $1`,
+      [session.sessionId],
+    );
+    expect(revoked.rows[0]).toMatchObject({
+      revoked_at: new Date("2026-08-12T00:07:00.000Z"),
+      aicard_refresh_ciphertext: null,
+      aicard_refresh_iv: null,
+      aicard_refresh_tag: null,
+    });
   });
 
   it("replaces owner credentials and invalidates every existing session", async () => {
