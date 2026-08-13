@@ -8,7 +8,6 @@ import {
   Copy,
   KeyRound,
   LogOut,
-  Plus,
   RefreshCw,
   RotateCw,
   X,
@@ -24,7 +23,7 @@ import {
 } from "@/lib/agent-directory-client";
 
 type DirectoryState = "loading" | "ready" | "error";
-type PendingAction = `rotate:${string}` | `revoke:${string}` | "create" | null;
+type PendingAction = `rotate:${string}` | `revoke:${string}` | null;
 export type AICardResult =
   | "connected"
   | "agent_connected"
@@ -56,17 +55,16 @@ function statusLabel(agent: AgentDirectoryRecord): string {
 export function AgentDirectory({
   client = browserAgentDirectoryClient,
   aicardResult,
+  myCardUrl,
   onSignedOut,
 }: {
   client?: AgentDirectoryClient;
   aicardResult?: AICardResult;
+  myCardUrl?: string;
   onSignedOut?: () => void;
 }) {
   const [agents, setAgents] = useState<AgentDirectoryRecord[]>([]);
   const [state, setState] = useState<DirectoryState>("loading");
-  const [creating, setCreating] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [handle, setHandle] = useState("");
   const [pending, setPending] = useState<PendingAction>(null);
   const [confirming, setConfirming] = useState<PendingAction>(null);
   const [credential, setCredential] = useState<OneTimeCredential | null>(null);
@@ -89,29 +87,6 @@ export function AgentDirectory({
     const timer = window.setTimeout(() => void loadAgents(), 0);
     return () => window.clearTimeout(timer);
   }, [loadAgents]);
-
-  async function createAgent() {
-    const nextName = displayName.trim();
-    const nextHandle = handle.trim();
-    if (!nextName || !nextHandle || pending) return;
-    setPending("create");
-    setNotice(null);
-    try {
-      const created = await client.createAgent({
-        displayName: nextName,
-        handle: nextHandle,
-      });
-      setAgents((current) => [...current, created.agent]);
-      setCredential({ displayName: created.agent.displayName, token: created.token });
-      setCreating(false);
-      setDisplayName("");
-      setHandle("");
-    } catch {
-      setNotice("AI 未能接入。请检查标识是否重复后重试。");
-    } finally {
-      setPending(null);
-    }
-  }
 
   async function rotate(agent: AgentDirectoryRecord) {
     const action: PendingAction = `rotate:${agent.principalId}`;
@@ -197,21 +172,14 @@ export function AgentDirectory({
           <div className="agent-directory-header__actions">
             <a href="/api/v1/auth/aicard/start?purpose=agent">
               <BadgeCheck aria-hidden="true" size={16} strokeWidth={1.7} />
-              接入 AI Card
+              授权 AI 接入
             </a>
-            <a href="/api/v1/auth/aicard/start">
-              <BadgeCheck aria-hidden="true" size={16} strokeWidth={1.7} />
-              连接我的身份
-            </a>
-            <button
-              aria-label="兼容接入 AI"
-              disabled={state !== "ready" || creating}
-              onClick={() => setCreating(true)}
-              type="button"
-            >
-              <Plus aria-hidden="true" size={16} strokeWidth={1.7} />
-              兼容接入
-            </button>
+            {myCardUrl ? (
+              <a href={myCardUrl}>
+                <BadgeCheck aria-hidden="true" size={16} strokeWidth={1.7} />
+                我的 AI Card
+              </a>
+            ) : null}
             <button
               aria-label="退出登录"
               disabled={signingOut}
@@ -263,58 +231,6 @@ export function AgentDirectory({
             </div>
           ) : null}
 
-          {creating ? (
-            <form
-              className="agent-create"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void createAgent();
-              }}
-            >
-              <label>
-                <span>显示名称</span>
-                <input
-                  aria-label="显示名称"
-                  autoFocus
-                  maxLength={120}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="例如 Researcher"
-                  value={displayName}
-                />
-              </label>
-              <label>
-                <span>Agent 标识</span>
-                <input
-                  aria-label="Agent 标识"
-                  maxLength={80}
-                  onChange={(event) =>
-                    setHandle(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
-                  }
-                  placeholder="researcher"
-                  value={handle}
-                />
-              </label>
-              <div className="agent-create__actions">
-                <button
-                  disabled={!displayName.trim() || !handle.trim() || pending === "create"}
-                  type="submit"
-                >
-                  {pending === "create" ? "正在创建" : "创建接入凭据"}
-                </button>
-                <button
-                  onClick={() => {
-                    setCreating(false);
-                    setDisplayName("");
-                    setHandle("");
-                  }}
-                  type="button"
-                >
-                  取消
-                </button>
-              </div>
-            </form>
-          ) : null}
-
           {authorizationResult ? (
             <p
               className="agent-directory-notice"
@@ -332,7 +248,7 @@ export function AgentDirectory({
               }
             >
               {{
-                connected: "AI Card 已连接到当前 Yoyoo 身份。",
+                connected: "统一 AI Card 身份已确认。",
                 agent_connected: "AI Card 身份已加入当前工作空间，等待运行节点连接。",
                 denied: "你已取消 AI Card 授权。",
                 failed: "AI Card 身份校验失败，请重新连接。",
@@ -363,10 +279,11 @@ export function AgentDirectory({
             <div className="agent-directory-state">
               <Bot aria-hidden="true" size={24} strokeWidth={1.4} />
               <h2>尚未接入 AI</h2>
-              <button onClick={() => setCreating(true)} type="button">
-                <Plus aria-hidden="true" size={15} />
-                接入第一个 AI
-              </button>
+              <p>YOS 或其他 AI 需先拥有 AI Card，再由你授权加入当前空间。</p>
+              <a href="/api/v1/auth/aicard/start?purpose=agent">
+                <BadgeCheck aria-hidden="true" size={15} strokeWidth={1.7} />
+                授权 AI 接入
+              </a>
             </div>
           ) : (
             <div className="agent-list">

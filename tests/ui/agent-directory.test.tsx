@@ -36,17 +36,6 @@ function createClient(
 ): AgentDirectoryClient {
   return {
     listAgents: async () => [existingAgent],
-    createAgent: async (input) => ({
-      agent: {
-        ...existingAgent,
-        principalId: "agent-2",
-        handle: input.handle,
-        displayName: input.displayName,
-        connectionStatus: "never_connected",
-        tokenHint: "newtoken",
-      },
-      token: `yya_${"n".repeat(43)}`,
-    }),
     rotateCredential: async () => ({
       agent: { ...existingAgent, credentialVersion: 2 },
       token: `yya_${"r".repeat(43)}`,
@@ -61,21 +50,45 @@ function createClient(
 }
 
 describe("AgentDirectory", () => {
-  it("offers AI Card authorization and renders callback outcomes", async () => {
-    const { rerender } = renderWithTheme(
-      <AgentDirectory client={createClient()} aicardResult="connected" />,
+  it("only authorizes AI identities that already own an AI Card", async () => {
+    renderWithTheme(
+      <AgentDirectory client={createClient({ listAgents: async () => [] })} />,
     );
 
-    expect(screen.getByRole("link", { name: "接入 AI Card" })).toHaveAttribute(
+    expect(await screen.findByText("尚未接入 AI")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "授权 AI 接入" })).toHaveLength(2);
+    for (const link of screen.getAllByRole("link", { name: "授权 AI 接入" })) {
+      expect(link).toHaveAttribute(
+        "href",
+        "/api/v1/auth/aicard/start?purpose=agent",
+      );
+    }
+    expect(screen.getByText("YOS 或其他 AI 需先拥有 AI Card，再由你授权加入当前空间。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "兼容接入 AI" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "显示名称" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Agent 标识" })).not.toBeInTheDocument();
+  });
+
+  it("opens the current unified AI Card without offering a second identity binding", async () => {
+    const { rerender } = renderWithTheme(
+      <AgentDirectory
+        client={createClient()}
+        aicardResult="connected"
+        myCardUrl="https://card.yoyooai.com/me/card"
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "授权 AI 接入" })).toHaveAttribute(
       "href",
       "/api/v1/auth/aicard/start?purpose=agent",
     );
-    expect(screen.getByRole("link", { name: "连接我的身份" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "我的 AI Card" })).toHaveAttribute(
       "href",
-      "/api/v1/auth/aicard/start",
+      "https://card.yoyooai.com/me/card",
     );
+    expect(screen.queryByRole("link", { name: "连接我的身份" })).not.toBeInTheDocument();
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "AI Card 已连接到当前 Yoyoo 身份",
+      "统一 AI Card 身份已确认",
     );
 
     rerender(<AgentDirectory client={createClient()} aicardResult="invalid_session" />);
@@ -106,8 +119,7 @@ describe("AgentDirectory", () => {
     expect(screen.queryByRole("button", { name: /撤销 悠悠研究员/ })).not.toBeInTheDocument();
   });
 
-  it("renders connected Agents and reveals a new credential only once", async () => {
-    const user = userEvent.setup();
+  it("renders connected legacy Agents without offering local identity creation", async () => {
     const client = createClient();
     renderWithTheme(<AgentDirectory client={client} />);
 
@@ -119,14 +131,8 @@ describe("AgentDirectory", () => {
       "page",
     );
 
-    await user.click(screen.getByRole("button", { name: "兼容接入 AI" }));
-    await user.type(screen.getByRole("textbox", { name: "显示名称" }), "Writer");
-    await user.type(screen.getByRole("textbox", { name: "Agent 标识" }), "writer");
-    await user.click(screen.getByRole("button", { name: "创建接入凭据" }));
-
-    expect(await screen.findByText("凭据仅显示一次")).toBeInTheDocument();
-    expect(screen.getByDisplayValue(`yya_${"n".repeat(43)}`)).toBeInTheDocument();
-    expect(screen.getAllByText("Writer")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "兼容接入 AI" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "创建接入凭据" })).not.toBeInTheDocument();
   });
 
   it("requires inline confirmation for credential rotation and revocation", async () => {
