@@ -15,6 +15,9 @@ profile is selected. PostgreSQL is never exposed to the host network.
 4. Record the currently running image digest and keep it available for rollback.
 5. Generate `POSTGRES_PASSWORD` and `YOYOO_AUTH_PEPPER` on the host; never paste
    them into Git, chat, shell arguments, or deployment logs.
+6. Require a healthy `https://id.yoyooai.com`, a passing AI Card production
+   doctor, and the exact registered `yoyoo_prod` callback before setting the
+   five `YOYOO_AICARD_*` values.
 
 ## Staging sequence
 
@@ -63,6 +66,11 @@ The provisioning command asks for the password twice without echo and prints
 one recovery code once. Store that code in a password manager. It will only bind
 the active human workspace owner whose AI Card ID is `AI_100001`.
 
+The first unified-identity release intentionally keeps
+`YOYOO_HUMAN_AUTH_MODE=password`. AI Card is the primary login entry, while the
+collapsed local password form remains a temporary recovery route. Removing that
+route is a later, separately accepted cutover.
+
 ## Verification
 
 ```bash
@@ -77,6 +85,8 @@ Then verify in a private browser window:
 - `AI_100001` plus the owner password can log in;
 - rooms, one text message, one file download, refresh, and logout work;
 - mobile layout has no overflow and the browser console stays clean.
+- AI Card login returns to the exact callback, maps `AI_100001` to the existing
+  owner Principal, and a second browser reuses the same Card.
 
 ## Rollback
 
@@ -85,6 +95,10 @@ Application rollback is image-only while the forward schema remains compatible:
 1. Set `YOYOO_IMAGE` back to the recorded prior image digest.
 2. Run `docker compose --env-file .env -f compose.yml up -d app`.
 3. Re-run health, login, room, and attachment smoke checks.
+
+For an identity-provider rollback, first restore the backed-up `.env` without
+the five `YOYOO_AICARD_*` values, then restart the recorded previous image and
+verify local password login. Do not change Principal, room, or message IDs.
 
 Do not automatically restore PostgreSQL or BlobStore. Data restore overwrites
 current state and requires a new backup, an exact restore point, and separate

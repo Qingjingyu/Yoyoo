@@ -1,6 +1,6 @@
 # Yoyoo Space Roadmap
 
-> Updated: 2026-08-13
+> Updated: 2026-08-14
 
 ## Current State
 
@@ -34,6 +34,9 @@
   `AI_CARD_REQUIRED`. Existing `yya_` identities remain manageable only as
   migration compatibility. Cross-repository YOS admission is self-verified;
   independent security review and production deployment are still pending.
+  The production Compose, environment contract and rollback runbook now include
+  the independent `id.yoyooai.com` authority and `yoyoo_prod` client, but no
+  production service, schema or identity was changed by that preparation.
 
 - V0.15 single-owner public preview is deployed and publicly verified at
   `https://app.yoyooai.com` on an isolated clean production database. It adds
