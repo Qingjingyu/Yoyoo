@@ -50,6 +50,37 @@ async function createIsolatedSchema(adminPool: Pool): Promise<{
   };
 }
 
+async function copyReleasedMigrations(
+  prefix: string,
+  filenames: string[],
+): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), prefix));
+  for (const filename of filenames) {
+    await copyFile(
+      join(migrationsDirectory, filename),
+      join(directory, filename),
+    );
+  }
+  return directory;
+}
+
+const releasedThrough014 = [
+  "001_conversation_core.sql",
+  "002_retry_idempotency.sql",
+  "003_multi_principal_workspace.sql",
+  "004_agent_gateway.sql",
+  "005_aicard_identity_mapping.sql",
+  "006_aicard_agent_runtime.sql",
+  "007_im_resources.sql",
+  "008_attachment_filename_constraint.sql",
+  "009_attachment_only_messages.sql",
+  "010_message_revisions.sql",
+  "011_im_member_state.sql",
+  "012_addressable_conversations.sql",
+  "013_public_identity_auth.sql",
+  "014_reserve_first_human_ai_card_id.sql",
+] as const;
+
 describe("V0.15 public identity and auth migration", () => {
   const adminPool = createPostgresPool(databaseUrl, { max: 2 });
   const schemas: string[] = [];
@@ -150,6 +181,10 @@ describe("V0.15 public identity and auth migration", () => {
       expect(migration.applied).toEqual([
         "013_public_identity_auth.sql",
         "014_reserve_first_human_ai_card_id.sql",
+        "015_aicard_authority_migration.sql",
+        "016_federated_human_sessions.sql",
+        "017_aicard_authorization_replay_guard.sql",
+        "018_aicard_session_authority.sql",
       ]);
 
       const identities = await isolated.pool.query<{
@@ -187,9 +222,13 @@ describe("V0.15 public identity and auth migration", () => {
   it("allocates unique ascending IDs and never reuses a deleted number", async () => {
     const isolated = await createIsolatedSchema(adminPool);
     schemas.push(isolated.name);
+    const releasedMigrations = await copyReleasedMigrations(
+      "yoyoo-v015-migrations-",
+      [...releasedThrough014],
+    );
 
     try {
-      await runMigrations(scopedDatabaseUrl(isolated.name));
+      await runMigrations(scopedDatabaseUrl(isolated.name), releasedMigrations);
       const firstHumanId = randomUUID();
       const firstHuman = await isolated.pool.query<{ ai_card_id: string }>(
         `INSERT INTO principals
@@ -249,6 +288,151 @@ describe("V0.15 public identity and auth migration", () => {
       ).rejects.toMatchObject({ message: expect.stringContaining("immutable") });
     } finally {
       await isolated.pool.end();
+      await rm(releasedMigrations, { recursive: true, force: true });
+    }
+  });
+
+  it("upgrades 001-014 without changing history and stops local AI Card issuance", async () => {
+    const isolated = await createIsolatedSchema(adminPool);
+    schemas.push(isolated.name);
+    const releasedMigrations = await copyReleasedMigrations(
+      "yoyoo-v016-migrations-",
+      [...releasedThrough014],
+    );
+
+    try {
+      await runMigrations(scopedDatabaseUrl(isolated.name), releasedMigrations);
+      const ownerId = randomUUID();
+      const workspaceId = randomUUID();
+      const roomId = randomUUID();
+      const messageId = randomUUID();
+      const subject = `sub_${"A".repeat(43)}`;
+
+      const owner = await isolated.pool.query<{ ai_card_id: string }>(
+        `INSERT INTO principals
+          (id, kind, external_key, handle, display_name)
+         VALUES ($1, 'human', 'human:authority-owner', 'authority-owner', 'Authority Owner')
+         RETURNING ai_card_id`,
+        [ownerId],
+      );
+      expect(owner.rows[0].ai_card_id).toBe("AI_100001");
+      await isolated.pool.query(
+        `INSERT INTO workspaces (id, slug, name)
+         VALUES ($1, 'authority-migration', 'Authority migration')`,
+        [workspaceId],
+      );
+      await isolated.pool.query(
+        `INSERT INTO workspace_members (workspace_id, principal_id, role)
+         VALUES ($1, $2, 'owner')`,
+        [workspaceId, ownerId],
+      );
+      await isolated.pool.query(
+        `INSERT INTO rooms (id, workspace_id, name, created_by_principal_id)
+         VALUES ($1, $2, 'Preserved room', $3)`,
+        [roomId, workspaceId, ownerId],
+      );
+      await isolated.pool.query(
+        `INSERT INTO room_members (room_id, principal_id, role)
+         VALUES ($1, $2, 'owner')`,
+        [roomId, ownerId],
+      );
+      await isolated.pool.query(
+        `INSERT INTO room_messages
+          (id, room_id, sender_principal_id, content, status)
+         VALUES ($1, $2, $3, 'authority migration preserves me', 'completed')`,
+        [messageId, roomId, ownerId],
+      );
+
+      const before = await isolated.pool.query<{
+        principals: string;
+        workspaces: string;
+        workspace_members: string;
+        rooms: string;
+        room_members: string;
+        room_messages: string;
+      }>(
+        `SELECT
+          (SELECT COUNT(*) FROM principals)::TEXT AS principals,
+          (SELECT COUNT(*) FROM workspaces)::TEXT AS workspaces,
+          (SELECT COUNT(*) FROM workspace_members)::TEXT AS workspace_members,
+          (SELECT COUNT(*) FROM rooms)::TEXT AS rooms,
+          (SELECT COUNT(*) FROM room_members)::TEXT AS room_members,
+          (SELECT COUNT(*) FROM room_messages)::TEXT AS room_messages`,
+      );
+
+      const migration = await runMigrations(scopedDatabaseUrl(isolated.name));
+      expect(migration.applied).toEqual([
+        "015_aicard_authority_migration.sql",
+        "016_federated_human_sessions.sql",
+        "017_aicard_authorization_replay_guard.sql",
+        "018_aicard_session_authority.sql",
+      ]);
+
+      const after = await isolated.pool.query<typeof before.rows[number]>(
+        `SELECT
+          (SELECT COUNT(*) FROM principals)::TEXT AS principals,
+          (SELECT COUNT(*) FROM workspaces)::TEXT AS workspaces,
+          (SELECT COUNT(*) FROM workspace_members)::TEXT AS workspace_members,
+          (SELECT COUNT(*) FROM rooms)::TEXT AS rooms,
+          (SELECT COUNT(*) FROM room_members)::TEXT AS room_members,
+          (SELECT COUNT(*) FROM room_messages)::TEXT AS room_messages`,
+      );
+      expect(after.rows[0]).toEqual(before.rows[0]);
+
+      const preserved = await isolated.pool.query<{
+        ai_card_id: string;
+        sender_principal_id: string;
+      }>(
+        `SELECT principals.ai_card_id, messages.sender_principal_id
+         FROM principals
+         JOIN room_messages AS messages ON messages.sender_principal_id = principals.id
+         WHERE principals.id = $1 AND messages.id = $2`,
+        [ownerId, messageId],
+      );
+      expect(preserved.rows[0]).toEqual({
+        ai_card_id: "AI_100001",
+        sender_principal_id: ownerId,
+      });
+
+      const unissued = await isolated.pool.query<{ ai_card_id: string | null }>(
+        `INSERT INTO principals
+          (id, kind, external_key, handle, display_name)
+         VALUES ($1, 'human', 'human:federated-new', 'federated-new', 'Federated New')
+         RETURNING ai_card_id`,
+        [randomUUID()],
+      );
+      expect(unissued.rows[0].ai_card_id).toBeNull();
+
+      await isolated.pool.query(
+        `INSERT INTO aicard_identity_mappings
+          (issuer, client_id, subject, principal_id, card_id)
+         VALUES ('https://id.yoyooai.test', 'yoyoo_dev', $1, $2, 'AI_100001')`,
+        [subject, ownerId],
+      );
+      const mapping = await isolated.pool.query<{ card_id: string }>(
+        `SELECT card_id FROM aicard_identity_mappings
+         WHERE issuer = 'https://id.yoyooai.test'
+           AND client_id = 'yoyoo_dev'
+           AND subject = $1`,
+        [subject],
+      );
+      expect(mapping.rows[0].card_id).toBe("AI_100001");
+
+      const allocator = await isolated.pool.query<{ exists: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM pg_trigger
+           JOIN pg_class ON pg_class.oid = pg_trigger.tgrelid
+           JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+           WHERE pg_trigger.tgname = 'principals_assign_ai_card_public_id'
+             AND NOT pg_trigger.tgisinternal
+             AND pg_namespace.nspname = current_schema()
+         )`,
+      );
+      expect(allocator.rows[0].exists).toBe(false);
+    } finally {
+      await isolated.pool.end();
+      await rm(releasedMigrations, { recursive: true, force: true });
     }
   });
 
@@ -275,6 +459,8 @@ describe("V0.15 public identity and auth migration", () => {
         "human_credentials.password_salt",
         "human_credentials.recovery_code_hash",
         "human_sessions.token_hash",
+        "human_sessions.auth_method",
+        "human_sessions.identity_subject",
         "login_throttles.scope_hash",
       ]));
       expect(names.some((name) => /plaintext|raw_password|raw_token/.test(name))).toBe(false);
