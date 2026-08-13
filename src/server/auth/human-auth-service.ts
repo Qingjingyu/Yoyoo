@@ -4,6 +4,12 @@ import {
   normalizeLoginHandle,
   verifyPassword,
 } from "@/server/auth/password";
+import {
+  FederatedAuthorizationRejectedError,
+  FederatedAuthorizationUnavailableError,
+  type AICardSessionAuthorityPort,
+  type FederatedAuthorizationMaterial,
+} from "@/server/auth/aicard-session-authority";
 import { hashOpaqueToken, issueSessionToken } from "@/server/auth/session-token";
 import type {
   HumanCredentialRecord,
@@ -12,6 +18,8 @@ import type {
 } from "@/server/postgres/human-auth-repository";
 
 const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+const FEDERATED_VALIDATION_INTERVAL_MS = 5 * 60 * 1_000;
+const FEDERATED_VALIDATION_GRACE_MS = 15 * 60 * 1_000;
 const DUMMY_SALT = Buffer.alloc(16, 71);
 const DUMMY_HASH = Buffer.alloc(64, 113);
 
@@ -23,8 +31,25 @@ export interface HumanAuthStore {
     expiresAt: Date;
     now?: Date;
   }): Promise<{ sessionId: string; expiresAt: Date }>;
+  createFederatedSession(input: {
+    principalId: string;
+    issuer: string;
+    clientId: string;
+    subject: string;
+    authorizationStateHash: Buffer;
+    federatedAuthorization: FederatedAuthorizationMaterial;
+    tokenHash: Buffer;
+    expiresAt: Date;
+    now?: Date;
+  }): Promise<{ sessionId: string; expiresAt: Date }>;
   resolveSession(tokenHash: Buffer, now?: Date): Promise<HumanSessionRecord | null>;
   revokeSession(tokenHash: Buffer, now?: Date): Promise<boolean>;
+  updateFederatedSessionAuthorization(input: {
+    sessionId: string;
+    federatedAuthorization: FederatedAuthorizationMaterial;
+    validatedAt: Date;
+  }): Promise<boolean>;
+  revokeSessionById(sessionId: string, now?: Date): Promise<boolean>;
   getThrottle(scopeHash: Buffer): Promise<LoginThrottleRecord | null>;
   recordLoginFailure(scopeHash: Buffer, now?: Date): Promise<LoginThrottleRecord>;
   clearThrottle(scopeHash: Buffer): Promise<void>;
@@ -61,26 +86,29 @@ function isLocked(record: LoginThrottleRecord | null, now: Date): boolean {
 }
 
 export class HumanAuthService {
-  private readonly pepper: Buffer;
+  private readonly pepper: Buffer | null;
   private readonly sessionTtlMs: number;
   private readonly allowedLoginHandle: string | null;
+  private readonly aicardAuthority: AICardSessionAuthorityPort | null;
 
   constructor(
     private readonly store: HumanAuthStore,
     options: {
-      pepper: Buffer;
+      pepper?: Buffer;
       sessionTtlMs?: number;
       allowedLoginHandle?: string;
+      aicardAuthority?: AICardSessionAuthorityPort;
     },
   ) {
-    if (options.pepper.length < 32) {
+    if (options.pepper && options.pepper.length < 32) {
       throw new Error("Human authentication pepper must be at least 256 bits");
     }
-    this.pepper = options.pepper;
+    this.pepper = options.pepper ?? null;
     this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
     this.allowedLoginHandle = options.allowedLoginHandle
       ? normalizeLoginHandle(options.allowedLoginHandle)
       : null;
+    this.aicardAuthority = options.aicardAuthority ?? null;
   }
 
   async login(input: {
@@ -89,6 +117,9 @@ export class HumanAuthService {
     source: string;
     now?: Date;
   }): Promise<{ token: string; sessionId: string; expiresAt: Date }> {
+    if (!this.pepper) {
+      throw new Error("Password login requires a configured authentication pepper");
+    }
     const now = input.now ?? new Date();
     let normalizedHandle: string;
     try {
@@ -154,14 +185,95 @@ export class HumanAuthService {
     return { token, sessionId: session.sessionId, expiresAt: session.expiresAt };
   }
 
-  resolveSession(token: string, now = new Date()): Promise<HumanSessionRecord | null> {
-    return this.store.resolveSession(hashOpaqueToken(token), now);
+  async loginWithAICard(input: {
+    principalId: string;
+    issuer: string;
+    clientId: string;
+    subject: string;
+    authorizationStateHash: Buffer;
+    refreshToken: string;
+    refreshExpiresIn: number;
+    now?: Date;
+  }): Promise<{ token: string; sessionId: string; expiresAt: Date }> {
+    if (!this.aicardAuthority) {
+      throw new Error("AI Card login requires a configured session authority");
+    }
+    const now = input.now ?? new Date();
+    const token = issueSessionToken();
+    const refreshExpiresAt = new Date(
+      now.getTime() + input.refreshExpiresIn * 1_000,
+    );
+    const expiresAt = new Date(Math.min(
+      now.getTime() + this.sessionTtlMs,
+      refreshExpiresAt.getTime(),
+    ));
+    const federatedAuthorization = this.aicardAuthority.protectRefreshToken({
+      refreshToken: input.refreshToken,
+      authorizationStateHash: input.authorizationStateHash,
+      refreshExpiresAt,
+    });
+    const session = await this.store.createFederatedSession({
+      principalId: input.principalId,
+      issuer: input.issuer,
+      clientId: input.clientId,
+      subject: input.subject,
+      authorizationStateHash: input.authorizationStateHash,
+      federatedAuthorization,
+      tokenHash: hashOpaqueToken(token),
+      expiresAt,
+      now,
+    });
+    return { token, sessionId: session.sessionId, expiresAt: session.expiresAt };
+  }
+
+  async resolveSession(token: string, now = new Date()): Promise<HumanSessionRecord | null> {
+    const session = await this.store.resolveSession(hashOpaqueToken(token), now);
+    if (!session || session.authMethod !== "aicard") return session;
+    const authorization = session.federatedAuthorization;
+    if (!authorization || !this.aicardAuthority) return null;
+    const validationAge = now.getTime() - authorization.lastValidatedAt.getTime();
+    if (validationAge < FEDERATED_VALIDATION_INTERVAL_MS) return session;
+
+    try {
+      const rotated = await this.aicardAuthority.refreshAuthorization({
+        issuer: authorization.issuer,
+        clientId: authorization.clientId,
+        subject: authorization.subject,
+        authorizationStateHash: authorization.authorizationStateHash,
+        material: authorization.material,
+        now,
+      });
+      const updated = await this.store.updateFederatedSessionAuthorization({
+        sessionId: session.sessionId,
+        federatedAuthorization: rotated,
+        validatedAt: now,
+      });
+      return updated ? session : null;
+    } catch (error) {
+      if (error instanceof FederatedAuthorizationRejectedError) {
+        await this.store.revokeSessionById(session.sessionId, now);
+        return null;
+      }
+      if (error instanceof FederatedAuthorizationUnavailableError) {
+        return validationAge <= FEDERATED_VALIDATION_GRACE_MS ? session : null;
+      }
+      throw error;
+    }
   }
 
   logout(token: string, now = new Date()): Promise<boolean> {
     return this.store.revokeSession(hashOpaqueToken(token), now);
   }
 }
+
+export {
+  FederatedAuthorizationRejectedError,
+  FederatedAuthorizationUnavailableError,
+};
+export type {
+  AICardSessionAuthorityPort as AICardSessionAuthority,
+  FederatedAuthorizationMaterial,
+};
 
 export function createAuthenticationPepper(value: string): Buffer {
   const decoded = Buffer.from(value, "base64url");

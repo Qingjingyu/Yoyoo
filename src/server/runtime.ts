@@ -42,6 +42,8 @@ import { LocalBlobStore } from "@/server/local-blob-store";
 import { SearchRepository } from "@/server/postgres/search-repository";
 import { SearchService } from "@/server/search-service";
 import { HumanAuthService } from "@/server/auth/human-auth-service";
+import { AICardSessionAuthority } from "@/server/auth/aicard-session-authority";
+import { getAICardIntegrationConfig } from "@/server/aicard-integration-config";
 import { getHumanAuthConfig } from "@/server/auth/human-auth-http";
 import { HumanAuthRepository } from "@/server/postgres/human-auth-repository";
 
@@ -239,6 +241,9 @@ async function createRuntime(): Promise<ServerRuntime> {
   const gateway = new AgentGatewayRepository(pool);
   const humanAuthRepository = new HumanAuthRepository(pool);
   const humanAuthConfig = getHumanAuthConfig();
+  const aicardIntegrationConfig = humanAuthConfig.mode === "password"
+    ? getAICardIntegrationConfig()
+    : null;
   const delegationRepository = new DelegationRepository(pool);
   const artifactRepository = new ArtifactRepository(pool);
   const attachmentRepository = new AttachmentRepository(pool);
@@ -349,9 +354,15 @@ async function createRuntime(): Promise<ServerRuntime> {
       mode: humanAuthConfig.mode,
       publicOrigin: humanAuthConfig.publicOrigin,
       service: humanAuthConfig.pepper
-        ? new HumanAuthService(humanAuthRepository, {
+          ? new HumanAuthService(humanAuthRepository, {
             pepper: humanAuthConfig.pepper,
             allowedLoginHandle: "ai_100001",
+            aicardAuthority: aicardIntegrationConfig
+              ? new AICardSessionAuthority(
+                  aicardIntegrationConfig,
+                  aicardIntegrationConfig.sessionSecret,
+                )
+              : undefined,
           })
         : null,
     },
