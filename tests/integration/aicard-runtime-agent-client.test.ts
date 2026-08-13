@@ -36,6 +36,7 @@ describe("AICardRuntimeTokenProvider", () => {
         issuer: "http://127.0.0.1:3000",
         clientId: "yoyoo_dev",
         subject,
+        cardId: `AI_${BigInt(Date.now()) * 1_000n + 7n}`,
         principalType: "ai",
         displayName: "Workspace AI Card Agent",
         handle: `workspace-agent-${randomUUID().slice(0, 8)}`,
