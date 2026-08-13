@@ -1,8 +1,39 @@
 # Yoyoo Space Roadmap
 
-> Updated: 2026-08-12
+> Updated: 2026-08-13
 
 ## Current State
+
+- V0.16 / AI Card Phase 8C is implemented and locally verified but not deployed.
+  Forward migrations `015` through `018` stop Yoyoo-local Card allocation, persist a
+  verified authoritative `card_id` beside issuer/client/pairwise Subject, and
+  support password-independent federated human sessions without changing any
+  resource Principal UUID, and prevent one authorization transaction from
+  issuing multiple Yoyoo sessions. Federated browser sessions now retain only an
+  AES-256-GCM protected refresh grant, revalidate AI Card every five minutes,
+  erase protected material on logout or rejection, and allow no more than a
+  15-minute provider-outage grace. Identity-authority requests are bounded to
+  eight seconds; local harnesses without browser integration omit the Card link,
+  while password-mode deployments still fail closed on missing configuration.
+  The login page now has one primary AI Card entry and keeps the V0.15 password
+  form collapsed only for reversible cutover. The full local-auth browser
+  regression is 38/38 across desktop and mobile, with 188/188 unit/UI and
+  130/130 default PostgreSQL integration checks passing. A separate cross-repo
+  acceptance starts real AI Card and Yoyoo production builds behind temporary
+  HTTPS proxies and proves first registration plus second-browser identity
+  reuse against isolated databases. It now also proves a claimed YOS Card is
+  authorized as `AI_100002`, maps to one stable Yoyoo Agent Principal without
+  a `yya_` credential, obtains a two-minute runtime token, discovers an exact
+  authorized room ID and persists a message under that Principal. Current
+  production behavior remains V0.15 local password login; production issuer,
+  callback, owner mapping, backup, rollback rehearsal and public acceptance are
+  still required before this can be described as deployed unified identity.
+  The new-AI admission boundary is also locked locally: YOS and other external
+  AI must own an AI Card before the owner authorizes them into Yoyoo. Settings
+  no longer offers local Agent creation, and the former public POST returns
+  `AI_CARD_REQUIRED`. Existing `yya_` identities remain manageable only as
+  migration compatibility. Cross-repository YOS admission is self-verified;
+  independent security review and production deployment are still pending.
 
 - V0.15 single-owner public preview is deployed and publicly verified at
   `https://app.yoyooai.com` on an isolated clean production database. It adds
@@ -77,9 +108,11 @@
   pairwise Subject to the existing local owner Principal. It is additive: the
   Agent Gateway and all historical attribution remain unchanged. Real hardware
   Passkey, independent security, and production acceptance remain pending.
-- V0.8 external Agent Gateway: implemented and verified. Workspace owners
-  can create external Agent Principals in `/settings/agents`, receive a
-  one-time credential, and rotate or revoke it. Active external processes use
+- V0.8 external Agent Gateway: implemented and verified as the historical
+  compatibility transport. Its original release allowed workspace owners to
+  create external Agent Principals and one-time credentials. V0.16 closes that
+  public creation path while retaining rotation/revocation for existing
+  identities. Active legacy external processes use
   a provider-neutral heartbeat / claim / result protocol with durable
   single-job leases and idempotent settlement. Connected Agents become eligible
   room members through the existing details pane. The YOS bridge is the first
@@ -221,9 +254,14 @@
 
 ## Decisions
 
-- Gateway Agents are first-class Principals, not provider configuration rows.
-  Yoyoo owns identity, room permission, durable delivery, run state, and audit;
-  the external process owns reasoning, memory, tools, and reply generation.
+- AI Card is the identity authority for both humans and AI. An external AI such
+  as YOS owns its Card before Yoyoo admission; Yoyoo owns only the local
+  Principal projection, workspace and room permission, durable delivery, run
+  state and audit. The external process owns reasoning, memory, tools and reply
+  generation.
+- New AI admission is authorization, not creation: display names and handles
+  cannot create or identify an AI. Existing Gateway Agents remain first-class
+  Principals during migration, but new identities enter only through AI Card.
 - External Agents pull jobs over the public HTTPS boundary. V0.8 does not store
   arbitrary callback URLs or provider secrets and does not grant database
   access to bridge processes.
