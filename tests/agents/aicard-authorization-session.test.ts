@@ -14,6 +14,7 @@ const transaction = {
   codeVerifier: 'verifier_abcdefghijklmnopqrstuvwxyz0123456789ABCDE',
   idempotencyKey: 'idem_abcdefghijklmnopqrstuvwxyz123456',
   purpose: 'owner' as const,
+  returnTo: '/',
   createdAt: new Date('2026-08-09T00:00:00.000Z').getTime(),
 };
 

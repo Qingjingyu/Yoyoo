@@ -11,7 +11,8 @@ const sessionSchema = z.object({
   state: z.string().regex(/^[A-Za-z0-9._~-]{16,256}$/),
   codeVerifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/),
   idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{22,128}$/),
-  purpose: z.enum(['owner', 'agent']),
+  purpose: z.enum(['login', 'owner', 'agent']),
+  returnTo: z.string().regex(/^\/(?!\/)[^\r\n]*$/),
   createdAt: z.number().int().nonnegative(),
 }).strict();
 

@@ -13,22 +13,50 @@ export const dynamic = 'force-dynamic';
 
 export const AICARD_AUTHORIZATION_COOKIE = 'yoyoo_aicard_authorization';
 
+function safeReturnTo(value: string | null, origin: string): string {
+  if (!value?.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
+    return '/';
+  }
+  try {
+    const target = new URL(value, origin);
+    return target.origin === origin
+      ? `${target.pathname}${target.search}${target.hash}`
+      : '/';
+  } catch {
+    return '/';
+  }
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   try {
     const requestedPurpose = request.nextUrl.searchParams.get('purpose');
-    if (requestedPurpose !== null && requestedPurpose !== 'owner' && requestedPurpose !== 'agent') {
+    if (
+      requestedPurpose !== null
+      && requestedPurpose !== 'login'
+      && requestedPurpose !== 'owner'
+      && requestedPurpose !== 'agent'
+    ) {
       return Response.json(
         { error: { code: 'INVALID_AICARD_PURPOSE', message: 'AI Card 接入类型无效。' } },
         { status: 400, headers: { 'cache-control': 'no-store' } },
       );
     }
-    const purpose = requestedPurpose === 'agent' ? 'agent' : 'owner';
+    const purpose = requestedPurpose === 'agent'
+      ? 'agent'
+      : requestedPurpose === 'owner'
+        ? 'owner'
+        : 'login';
     const config = getAICardIntegrationConfig();
     const canonicalUrl = new URL(config.redirectUri);
+    const returnTo = safeReturnTo(
+      request.nextUrl.searchParams.get('next'),
+      canonicalUrl.origin,
+    );
     const requestHost = request.headers.get('host') ?? request.nextUrl.host;
     if (requestHost !== canonicalUrl.host) {
       const target = new URL('/api/v1/auth/aicard/start', canonicalUrl.origin);
-      if (purpose === 'agent') target.searchParams.set('purpose', 'agent');
+      if (purpose !== 'login') target.searchParams.set('purpose', purpose);
+      if (returnTo !== '/') target.searchParams.set('next', returnTo);
       return NextResponse.redirect(target, 307);
     }
     const client = new AICardClient(config);
@@ -40,6 +68,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       codeVerifier: transaction.codeVerifier,
       idempotencyKey: `idem_${randomBytes(24).toString('base64url')}`,
       purpose,
+      returnTo,
       createdAt: Date.now(),
     }, config.sessionSecret);
     const response = NextResponse.redirect(transaction.authorizationUrl, 303);
