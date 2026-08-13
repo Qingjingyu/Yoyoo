@@ -1,23 +1,9 @@
-import { z } from "zod";
-
 import { errorResponse } from "@/server/http-response";
 import { PrincipalRepository } from "@/server/postgres/principal-repository";
 import { getServerRuntime } from "@/server/runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const createAgentSchema = z
-  .object({
-    handle: z
-      .string()
-      .trim()
-      .min(1)
-      .max(80)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-    displayName: z.string().trim().min(1).max(120),
-  })
-  .strict();
 
 export async function GET(): Promise<Response> {
   try {
@@ -43,17 +29,14 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  try {
-    const body = createAgentSchema.parse(await request.json());
-    const { collaboration, gateway } = await getServerRuntime();
-    const created = await gateway.repository.createAgent({
-      workspaceId: collaboration.bootstrap.workspace.id,
-      actorPrincipalId: collaboration.bootstrap.principal.id,
-      handle: body.handle,
-      displayName: body.displayName,
-    });
-    return Response.json(created, { status: 201 });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  void request;
+  return Response.json(
+    {
+      error: {
+        code: "AI_CARD_REQUIRED",
+        message: "新的 AI 必须先拥有 AI Card，再由你授权接入当前空间。",
+      },
+    },
+    { status: 409, headers: { "Cache-Control": "no-store" } },
+  );
 }

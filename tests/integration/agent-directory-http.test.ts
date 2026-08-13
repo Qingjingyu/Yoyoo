@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { GET as getDirectory } from "@/app/api/v1/agent-gateway/directory/route";
 import { POST as sendRoomMessage } from "@/app/api/v1/agent-gateway/rooms/[roomId]/messages/route";
-import { POST as createAgent } from "@/app/api/v1/workspaces/current/agents/route";
 import { RoomRepository } from "@/server/postgres/room-repository";
 import { closeServerRuntime, getServerRuntime } from "@/server/runtime";
 
@@ -22,6 +21,18 @@ function jsonRequest(url: string, body: Record<string, unknown>, token?: string)
     headers,
     body: JSON.stringify(body),
   });
+}
+
+async function createAgent(request: Request): Promise<Response> {
+  const input = (await request.json()) as { handle: string; displayName: string };
+  const { collaboration, gateway } = await getServerRuntime();
+  const created = await gateway.repository.createAgent({
+    workspaceId: collaboration.bootstrap.workspace.id,
+    actorPrincipalId: collaboration.bootstrap.principal.id,
+    handle: input.handle,
+    displayName: input.displayName,
+  });
+  return Response.json(created, { status: 201 });
 }
 
 function roomContext(roomId: string) {

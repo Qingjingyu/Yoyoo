@@ -15,10 +15,6 @@ export interface AgentDirectoryRecord {
 
 export interface AgentDirectoryClient {
   listAgents(): Promise<AgentDirectoryRecord[]>;
-  createAgent(input: {
-    handle: string;
-    displayName: string;
-  }): Promise<{ agent: AgentDirectoryRecord; token: string }>;
   rotateCredential(
     principalId: string,
   ): Promise<{ agent: AgentDirectoryRecord; token: string }>;
@@ -56,12 +52,6 @@ export function createAgentDirectoryClient(
       );
       return response.agents;
     },
-    createAgent: (input) =>
-      requestJson(fetcher, "/api/v1/workspaces/current/agents", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(input),
-      }),
     rotateCredential: (principalId) =>
       requestJson(
         fetcher,
