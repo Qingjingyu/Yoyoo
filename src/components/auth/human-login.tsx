@@ -5,6 +5,7 @@ import { FormEvent, useState, useSyncExternalStore } from "react";
 
 interface HumanLoginProps {
   nextPath?: string;
+  authorizationError?: string;
   onAuthenticated?: (path: string) => void;
 }
 interface LoginErrorPayload {
@@ -28,11 +29,17 @@ function useHydrated(): boolean {
   );
 }
 
-export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
+export function HumanLogin({
+  nextPath,
+  authorizationError,
+  onAuthenticated,
+}: HumanLoginProps) {
   const ready = useHydrated();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
+  const destination = safeNextPath(nextPath);
+  const authorizationUrl = `/api/v1/auth/aicard/start?next=${encodeURIComponent(destination)}`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,7 +63,6 @@ export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
         throw new Error(payload?.error?.message || "暂时无法登录，请稍后再试。");
       }
 
-      const destination = safeNextPath(nextPath);
       setAuthenticated(true);
       if (onAuthenticated) onAuthenticated(destination);
       else window.location.assign(destination);
@@ -74,17 +80,33 @@ export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
         </div>
         <div className="human-login-heading">
           <p>YOYOO SPACE</p>
-          <h1 id="human-login-title">欢迎回来</h1>
-          <span>使用你的 AI Card 身份进入私人协作空间。</span>
+          <h1 id="human-login-title">使用 AI Card 进入</h1>
+          <span>一个统一身份，进入 Yoyoo 以及之后支持 AI Card 的产品。</span>
         </div>
 
-        <form
-          action="/api/v1/auth/login"
-          aria-busy={!ready || pending}
-          className="human-login-form"
-          method="post"
-          onSubmit={submit}
-        >
+        {authorizationError ? (
+          <p className="human-login-message is-error" role="alert">
+            {authorizationError}
+          </p>
+        ) : null}
+
+        <a className="human-login-primary" href={authorizationUrl}>
+          <span>使用 AI Card 继续</span>
+          <ArrowRight aria-hidden="true" size={17} />
+        </a>
+        <p className="human-login-onboarding">
+          还没有 AI Card？继续后可自动创建永久编号；进入当前空间仍需已有授权。
+        </p>
+
+        <details className="human-login-fallback">
+          <summary>使用临时本地账号</summary>
+          <form
+            action="/api/v1/auth/login"
+            aria-busy={!ready || pending}
+            className="human-login-form"
+            method="post"
+            onSubmit={submit}
+          >
           <label>
             <span>AI Card ID</span>
             <input
@@ -123,11 +145,12 @@ export function HumanLogin({ nextPath, onAuthenticated }: HumanLoginProps) {
             <span>{!ready ? "正在准备" : pending || authenticated ? "正在验证" : "进入 Yoyoo"}</span>
             {ready && !pending && !authenticated ? <ArrowRight aria-hidden="true" size={17} /> : null}
           </button>
-        </form>
+          </form>
+        </details>
 
         <p className="human-login-security">
           <ShieldCheck aria-hidden="true" size={14} />
-          密码只用于验证，不会在页面或日志中显示。
+          AI Card 编号由统一身份服务颁发，Yoyoo 不会再次创建第二套身份。
         </p>
       </section>
     </main>

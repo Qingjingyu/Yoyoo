@@ -75,6 +75,56 @@
     margin-top: 2rem;
   }
 
+  .human-login-primary {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    margin-top: 2rem;
+    border: 1px solid var(--accent-strong);
+    border-radius: var(--radius-control);
+    background: var(--accent-strong);
+    color: var(--text-on-accent);
+    font-size: 0.875rem;
+    font-weight: 650;
+    text-decoration: none;
+    transition: transform var(--duration-fast) var(--ease-out);
+  }
+
+  .human-login-primary:hover {
+    transform: translateY(-1px);
+  }
+
+  .human-login-onboarding {
+    margin: 0.75rem 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.55;
+    text-align: center;
+  }
+
+  .human-login-fallback {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--border-default);
+    padding-top: 1rem;
+  }
+
+  .human-login-fallback summary {
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+
+  .human-login-fallback[open] summary {
+    color: var(--text-secondary);
+  }
+
+  .human-login-fallback .human-login-form {
+    margin-top: 1rem;
+  }
+
   .human-login-form label {
     display: grid;
     gap: 0.5rem;
