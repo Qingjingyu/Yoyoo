@@ -1,5 +1,7 @@
 import { HumanAuthService } from "@/server/auth/human-auth-service";
+import { AICardSessionAuthority } from "@/server/auth/aicard-session-authority";
 import { getHumanAuthConfig } from "@/server/auth/human-auth-http";
+import { getAICardIntegrationConfig } from "@/server/aicard-integration-config";
 import { createPostgresPool } from "@/server/postgres/client";
 import { HumanAuthRepository } from "@/server/postgres/human-auth-repository";
 
@@ -13,6 +15,21 @@ interface HumanAuthRuntime {
 const authRuntimeGlobal = globalThis as typeof globalThis & {
   __yoyooHumanAuthRuntime?: HumanAuthRuntime;
 };
+
+interface HealthQueryable {
+  query(text: string): Promise<unknown>;
+}
+
+export function createHumanAuthHealthCheck(pool: HealthQueryable) {
+  return async (): Promise<boolean> => {
+    try {
+      await pool.query("SELECT 1");
+      return true;
+    } catch {
+      return false;
+    }
+  };
+}
 
 export function getHumanAuthRuntime(): HumanAuthRuntime {
   if (authRuntimeGlobal.__yoyooHumanAuthRuntime) {
@@ -30,29 +47,19 @@ export function getHumanAuthRuntime(): HumanAuthRuntime {
     return runtime;
   }
   const pool = createPostgresPool();
+  const aicardConfig = getAICardIntegrationConfig();
   const service = new HumanAuthService(new HumanAuthRepository(pool), {
     pepper: config.pepper!,
     allowedLoginHandle: "ai_100001",
+    aicardAuthority: new AICardSessionAuthority(
+      aicardConfig,
+      aicardConfig.sessionSecret,
+    ),
   });
   const runtime = {
     config,
     service,
-    health: async () => {
-      try {
-        const result = await pool.query(
-          `SELECT 1
-           FROM human_credentials AS credentials
-           JOIN principals ON principals.id = credentials.principal_id
-           WHERE principals.ai_card_id = 'AI_100001'
-             AND principals.kind = 'human'
-             AND principals.status = 'active'
-             AND credentials.status = 'active'`,
-        );
-        return result.rowCount === 1;
-      } catch {
-        return false;
-      }
-    },
+    health: createHumanAuthHealthCheck(pool),
     close: () => pool.end(),
   };
   authRuntimeGlobal.__yoyooHumanAuthRuntime = runtime;

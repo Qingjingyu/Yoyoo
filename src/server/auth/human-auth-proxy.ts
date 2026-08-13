@@ -17,6 +17,8 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/login",
   "/api/health",
   "/api/v1/auth/login",
+  "/api/v1/auth/aicard/start",
+  "/auth/aicard/callback",
 ]);
 
 export function isPublicHumanPath(pathname: string): boolean {
