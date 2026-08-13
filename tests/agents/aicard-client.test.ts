@@ -2,13 +2,18 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { AICardClient, AICardProtocolError } from '@/server/aicard-client';
+import {
+  AICardClient,
+  AICardProtocolError,
+  AICardRefreshRejectedError,
+  AICardUnavailableError,
+} from '@/server/aicard-client';
 
 const config = {
   issuer: 'http://127.0.0.1:3000',
   clientId: 'yoyoo_dev',
   redirectUri: 'http://localhost:4173/auth/aicard/callback',
-  scopes: ['card.basic', 'card.handle', 'offline_access'] as const,
+  scopes: ['card.basic', 'card.handle', 'card.id', 'offline_access'] as const,
 };
 
 describe('AICardClient', () => {
@@ -67,6 +72,7 @@ describe('AICardClient', () => {
         principal_type: 'ai',
         avatar_url: null,
         handle: 'researcher_yoyo',
+        card_id: 'AI_200001',
       }),
     ];
     const requests: Request[] = [];
@@ -87,6 +93,7 @@ describe('AICardClient', () => {
       displayName: '小悠研究员',
       principalType: 'ai',
       handle: 'researcher_yoyo',
+      cardId: 'AI_200001',
     });
     expect(requests[0]?.headers.get('idempotency-key')).toBe(
       'idem_abcdefghijklmnopqrstuvwxyz123456',
@@ -109,6 +116,35 @@ describe('AICardClient', () => {
     })).rejects.toBeInstanceOf(AICardProtocolError);
   });
 
+  it('rejects userinfo without a valid authoritative AI Card ID', async () => {
+    const invalidResponses = [
+      {
+        sub: `sub_${'b'.repeat(43)}`,
+        display_name: '苏白',
+        principal_type: 'human',
+        avatar_url: null,
+        handle: 'subai',
+      },
+      {
+        sub: `sub_${'b'.repeat(43)}`,
+        display_name: '苏白',
+        principal_type: 'human',
+        avatar_url: null,
+        handle: 'subai',
+        card_id: 'not-an-ai-card',
+      },
+    ];
+
+    for (const response of invalidResponses) {
+      const client = new AICardClient(
+        config,
+        async () => Response.json(response),
+      );
+      await expect(client.getUserInfo(`at_${'a'.repeat(43)}`))
+        .rejects.toBeInstanceOf(AICardProtocolError);
+    }
+  });
+
   it('rejects a token response that omits approved offline access material', async () => {
     const client = new AICardClient(config, async () => Response.json({
       access_token: `at_${'a'.repeat(43)}`,
@@ -123,6 +159,70 @@ describe('AICardClient', () => {
       codeVerifier: 'verifier_abcdefghijklmnopqrstuvwxyz0123456789ABCDE',
       idempotencyKey: 'idem_abcdefghijklmnopqrstuvwxyz123456',
     })).rejects.toBeInstanceOf(AICardProtocolError);
+  });
+
+  it('rotates a refresh grant with a stable idempotency key', async () => {
+    let request: Request | undefined;
+    const client = new AICardClient(config, async (input, init) => {
+      request = new Request(input, init);
+      return Response.json({
+        access_token: `at_${'a'.repeat(43)}`,
+        token_type: 'Bearer',
+        expires_in: 600,
+        scope: config.scopes.join(' '),
+        sub: `sub_${'b'.repeat(43)}`,
+        refresh_token: `rt_${'n'.repeat(43)}`,
+        refresh_expires_in: 2_591_400,
+      });
+    });
+
+    await expect(client.exchangeRefreshToken({
+      refreshToken: `rt_${'o'.repeat(43)}`,
+      idempotencyKey: 'idem_abcdefghijklmnopqrstuvwxyz123456',
+    })).resolves.toMatchObject({
+      refreshToken: `rt_${'n'.repeat(43)}`,
+      subject: `sub_${'b'.repeat(43)}`,
+    });
+    expect(request?.headers.get('idempotency-key')).toBe(
+      'idem_abcdefghijklmnopqrstuvwxyz123456',
+    );
+    const requestBody = await request?.text();
+    expect(requestBody).toContain('grant_type=refresh_token');
+    expect(requestBody).toContain('client_id=yoyoo_dev');
+  });
+
+  it('distinguishes a revoked refresh grant from a temporary provider outage', async () => {
+    const revoked = new AICardClient(config, async () => Response.json(
+      { error: { code: 'invalid_grant', message: 'Grant revoked', retryable: false } },
+      { status: 400 },
+    ));
+    const unavailable = new AICardClient(config, async () => Response.json(
+      { error: { code: 'unavailable', message: 'Try later', retryable: true } },
+      { status: 503 },
+    ));
+
+    await expect(revoked.exchangeRefreshToken({
+      refreshToken: `rt_${'o'.repeat(43)}`,
+      idempotencyKey: 'idem_abcdefghijklmnopqrstuvwxyz123456',
+    })).rejects.toBeInstanceOf(AICardRefreshRejectedError);
+    await expect(unavailable.exchangeRefreshToken({
+      refreshToken: `rt_${'o'.repeat(43)}`,
+      idempotencyKey: 'idem_abcdefghijklmnopqrstuvwxyz123456',
+    })).rejects.toBeInstanceOf(AICardUnavailableError);
+  });
+
+  it('bounds refresh validation with an abort signal', async () => {
+    let signal: AbortSignal | null = null;
+    const client = new AICardClient(config, async (_input, init) => {
+      signal = init?.signal ?? null;
+      throw new TypeError('network unavailable');
+    });
+
+    await expect(client.exchangeRefreshToken({
+      refreshToken: `rt_${'o'.repeat(43)}`,
+      idempotencyKey: 'idem_abcdefghijklmnopqrstuvwxyz123456',
+    })).rejects.toBeInstanceOf(AICardUnavailableError);
+    expect(signal).toBeInstanceOf(AbortSignal);
   });
 
   it('introspects a short-lived Agent runtime token without echoing it', async () => {

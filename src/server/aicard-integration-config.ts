@@ -46,7 +46,9 @@ export class AICardIntegrationConfigurationError extends Error {
   }
 }
 
-export function getAICardIntegrationConfig(environment = process.env) {
+export function getAICardIntegrationConfig(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+) {
   const parsed = environmentSchema.safeParse(environment);
   if (!parsed.success) {
     throw new AICardIntegrationConfigurationError(
@@ -59,8 +61,22 @@ export function getAICardIntegrationConfig(environment = process.env) {
     clientId: parsed.data.YOYOO_AICARD_CLIENT_ID,
     redirectUri: parsed.data.YOYOO_AICARD_REDIRECT_URI,
     sessionSecret: parsed.data.YOYOO_AICARD_SESSION_SECRET,
-    scopes: ['card.basic', 'card.handle', 'offline_access'] as const,
+    scopes: ['card.basic', 'card.handle', 'card.id', 'offline_access'] as const,
   };
+}
+
+export function getAICardProfileUrl(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): string | null {
+  const humanAuthMode = environment.YOYOO_HUMAN_AUTH_MODE?.trim() || 'local';
+  const hasBrowserIntegration = Boolean(
+    environment.YOYOO_AICARD_REDIRECT_URI?.trim()
+    || environment.YOYOO_AICARD_SESSION_SECRET?.trim(),
+  );
+
+  if (humanAuthMode !== 'password' && !hasBrowserIntegration) return null;
+
+  return new URL('/me/card', getAICardIntegrationConfig(environment).issuer).toString();
 }
 
 export function getAICardRuntimeConfig(

@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import { z } from 'zod';
 
+const AI_CARD_REQUEST_TIMEOUT_MS = 8_000;
 const scopeSchema = z.enum(['card.basic', 'card.handle', 'card.id', 'offline_access']);
 const configSchema = z.object({
   issuer: z.url(),
@@ -12,6 +13,7 @@ const configSchema = z.object({
 const stateSchema = z.string().regex(/^[A-Za-z0-9._~-]{16,256}$/);
 const verifierSchema = z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/);
 const authorizationCodeSchema = z.string().regex(/^ac_[A-Za-z0-9_-]{43}$/);
+const refreshTokenSchema = z.string().regex(/^rt_[A-Za-z0-9_-]{43}$/);
 const idempotencyKeySchema = z.string().regex(/^[A-Za-z0-9_-]{22,128}$/);
 const tokenResponseSchema = z.object({
   access_token: z.string().regex(/^at_[A-Za-z0-9_-]{43}$/),
@@ -28,7 +30,7 @@ const userInfoSchema = z.object({
   principal_type: z.enum(['human', 'ai']),
   avatar_url: z.url().nullable(),
   handle: z.string().trim().min(1).max(80),
-  card_id: z.string().trim().min(1).max(120).optional(),
+  card_id: z.string().regex(/^AI_[1-9][0-9]{5,}$/),
 }).strict();
 const runtimeIntrospectionSchema = z.object({
   active: z.literal(true),
@@ -54,6 +56,20 @@ export class AICardProtocolError extends Error {
   }
 }
 
+export class AICardRefreshRejectedError extends AICardProtocolError {
+  constructor(message = 'AI Card refresh grant is no longer valid') {
+    super(message);
+    this.name = 'AICardRefreshRejectedError';
+  }
+}
+
+export class AICardUnavailableError extends AICardProtocolError {
+  constructor(message = 'AI Card is temporarily unavailable') {
+    super(message);
+    this.name = 'AICardUnavailableError';
+  }
+}
+
 export interface AICardTokenSet {
   accessToken: string;
   refreshToken: string | null;
@@ -70,7 +86,7 @@ export interface AICardUserInfo {
   principalType: 'human' | 'ai';
   avatarUrl: string | null;
   handle: string;
-  cardId: string | null;
+  cardId: string;
 }
 
 export interface AICardAgentRuntimeSession {
@@ -95,6 +111,7 @@ export async function introspectAICardAgentRuntime(
       method: 'POST',
       headers: { authorization: `Bearer ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(AI_CARD_REQUEST_TIMEOUT_MS),
     },
   );
   const body = await readJson(response);
@@ -177,9 +194,90 @@ export class AICardClient {
         code_verifier: codeVerifier,
       }),
       cache: 'no-store',
+      signal: AbortSignal.timeout(AI_CARD_REQUEST_TIMEOUT_MS),
     });
     const body = await readJson(response);
     if (!response.ok) throw providerError(response.status, body);
+    return this.parseTokenSet(body);
+  }
+
+  async exchangeRefreshToken(input: {
+    refreshToken: string;
+    idempotencyKey: string;
+  }): Promise<AICardTokenSet> {
+    const refreshToken = refreshTokenSchema.parse(input.refreshToken);
+    const idempotencyKey = idempotencyKeySchema.parse(input.idempotencyKey);
+    let response: Response;
+    try {
+      response = await this.fetcher(new URL('/api/v1/token', this.config.issuer), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'idempotency-key': idempotencyKey,
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: this.config.clientId,
+          refresh_token: refreshToken,
+        }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(AI_CARD_REQUEST_TIMEOUT_MS),
+      });
+    } catch {
+      throw new AICardUnavailableError();
+    }
+    const body = await readJson(response).catch(() => {
+      throw new AICardUnavailableError('AI Card returned a non-JSON refresh response');
+    });
+    if ([400, 401, 403].includes(response.status)) {
+      throw new AICardRefreshRejectedError(providerMessage(response.status, body));
+    }
+    if (response.status === 429 || response.status >= 500) {
+      throw new AICardUnavailableError(providerMessage(response.status, body));
+    }
+    if (!response.ok) throw providerError(response.status, body);
+    try {
+      return this.parseTokenSet(body);
+    } catch (error) {
+      if (error instanceof AICardProtocolError) {
+        throw new AICardUnavailableError(error.message);
+      }
+      throw error;
+    }
+  }
+
+  async getUserInfo(accessToken: string): Promise<AICardUserInfo> {
+    const token = tokenResponseSchema.shape.access_token.parse(accessToken);
+    const response = await this.fetcher(new URL('/api/v1/userinfo', this.config.issuer), {
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(AI_CARD_REQUEST_TIMEOUT_MS),
+    });
+    const body = await readJson(response);
+    if (!response.ok) throw providerError(response.status, body);
+    const parsed = userInfoSchema.safeParse(body);
+    if (!parsed.success) throw new AICardProtocolError();
+    return {
+      subject: parsed.data.sub,
+      displayName: parsed.data.display_name,
+      principalType: parsed.data.principal_type,
+      avatarUrl: parsed.data.avatar_url,
+      handle: parsed.data.handle,
+      cardId: parsed.data.card_id,
+    };
+  }
+
+  async introspectAgentRuntime(
+    accessToken: string,
+  ): Promise<AICardAgentRuntimeSession> {
+    return introspectAICardAgentRuntime(
+      this.config.issuer,
+      accessToken,
+      this.fetcher,
+    );
+  }
+
+  private parseTokenSet(body: unknown): AICardTokenSet {
     const parsed = tokenResponseSchema.safeParse(body);
     if (!parsed.success) throw new AICardProtocolError();
     const grantedScopes = new Set(parsed.data.scope.split(/\s+/));
@@ -202,36 +300,6 @@ export class AICardClient {
       subject: parsed.data.sub,
     };
   }
-
-  async getUserInfo(accessToken: string): Promise<AICardUserInfo> {
-    const token = tokenResponseSchema.shape.access_token.parse(accessToken);
-    const response = await this.fetcher(new URL('/api/v1/userinfo', this.config.issuer), {
-      headers: { authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    });
-    const body = await readJson(response);
-    if (!response.ok) throw providerError(response.status, body);
-    const parsed = userInfoSchema.safeParse(body);
-    if (!parsed.success) throw new AICardProtocolError();
-    return {
-      subject: parsed.data.sub,
-      displayName: parsed.data.display_name,
-      principalType: parsed.data.principal_type,
-      avatarUrl: parsed.data.avatar_url,
-      handle: parsed.data.handle,
-      cardId: parsed.data.card_id ?? null,
-    };
-  }
-
-  async introspectAgentRuntime(
-    accessToken: string,
-  ): Promise<AICardAgentRuntimeSession> {
-    return introspectAICardAgentRuntime(
-      this.config.issuer,
-      accessToken,
-      this.fetcher,
-    );
-  }
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -243,6 +311,10 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 function providerError(status: number, body: unknown): AICardProtocolError {
+  return new AICardProtocolError(providerMessage(status, body));
+}
+
+function providerMessage(status: number, body: unknown): string {
   const parsed = z.object({
     error: z.object({
       code: z.string(),
@@ -253,5 +325,5 @@ function providerError(status: number, body: unknown): AICardProtocolError {
   const message = parsed.success
     ? `AI Card 请求失败：${parsed.data.error.message}`
     : `AI Card 请求失败（HTTP ${status}）`;
-  return new AICardProtocolError(message);
+  return message;
 }
