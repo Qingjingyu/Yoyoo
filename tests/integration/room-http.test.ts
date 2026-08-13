@@ -565,7 +565,7 @@ describe("room HTTP boundary", () => {
 
   it("retains the PostgreSQL owner UUID across runtime restarts", async () => {
     await closeServerRuntime();
-    process.env.YOYOO_LOCAL_OWNER_ID = "local-owner-ui";
+    process.env.YOYOO_LOCAL_OWNER_ID = `local-owner-ui-${randomUUID()}`;
     const firstRuntime = await getServerRuntime();
     const ownerPrincipalId = firstRuntime.collaboration.bootstrap.principal.id;
     expect(ownerPrincipalId).toMatch(

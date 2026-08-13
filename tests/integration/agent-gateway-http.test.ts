@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   GET as listAgents,
-  POST as createAgent,
+  POST as requestLocalAgentCreation,
 } from "@/app/api/v1/workspaces/current/agents/route";
 import { POST as rotateAgentToken } from "@/app/api/v1/workspaces/current/agents/[principalId]/rotate/route";
 import { POST as revokeAgentToken } from "@/app/api/v1/workspaces/current/agents/[principalId]/revoke/route";
@@ -35,6 +35,18 @@ function jsonRequest(url: string, body: Record<string, unknown>, token?: string)
     headers,
     body: JSON.stringify(body),
   });
+}
+
+async function createAgent(request: Request): Promise<Response> {
+  const input = (await request.json()) as { handle: string; displayName: string };
+  const { collaboration, gateway } = await getServerRuntime();
+  const created = await gateway.repository.createAgent({
+    workspaceId: collaboration.bootstrap.workspace.id,
+    actorPrincipalId: collaboration.bootstrap.principal.id,
+    handle: input.handle,
+    displayName: input.displayName,
+  });
+  return Response.json(created, { status: 201 });
 }
 
 function agentContext(principalId: string) {
@@ -258,29 +270,28 @@ describe("Agent Gateway HTTP boundary", () => {
     ]);
   });
 
-  it("creates and lists Agents without returning the credential again", async () => {
+  it("rejects local Agent creation and requires an existing AI Card", async () => {
     const handle = `http-agent-${randomUUID().slice(0, 8)}`;
-    const createdResponse = await createAgent(
+    const createdResponse = await requestLocalAgentCreation(
       jsonRequest("http://localhost/api/v1/workspaces/current/agents", {
         handle,
         displayName: "HTTP Agent",
       }),
     );
-    const created = (await createdResponse.json()) as {
-      agent: { principalId: string; connectionStatus: string };
-      token: string;
-    };
-    expect(createdResponse.status).toBe(201);
-    expect(created.token).toMatch(/^yya_[A-Za-z0-9_-]{43}$/);
-    expect(created.agent.connectionStatus).toBe("never_connected");
+    expect(createdResponse.status).toBe(409);
+    await expect(createdResponse.json()).resolves.toMatchObject({
+      error: {
+        code: "AI_CARD_REQUIRED",
+        message: "新的 AI 必须先拥有 AI Card，再由你授权接入当前空间。",
+      },
+    });
 
     const listResponse = await listAgents();
-    const listed = (await listResponse.json()) as { agents: unknown[] };
+    const listed = (await listResponse.json()) as {
+      agents: Array<{ handle: string }>;
+    };
     expect(listResponse.status).toBe(200);
-    expect(listed.agents).toContainEqual(
-      expect.objectContaining({ principalId: created.agent.principalId }),
-    );
-    expect(JSON.stringify(listed)).not.toContain(created.token);
+    expect(listed.agents.map((agent) => agent.handle)).not.toContain(handle);
   });
 
   it("requires Bearer authentication and invalidates rotated or revoked tokens", async () => {
@@ -530,6 +541,7 @@ describe("Agent Gateway HTTP boundary", () => {
         issuer: "http://127.0.0.1:3000",
         clientId: "yoyoo_dev",
         subject,
+        cardId: `AI_${BigInt(Date.now()) * 1_000n + 8n}`,
         principalType: "ai",
         displayName: "AI Card HTTP Agent",
         handle: `aicard-http-${randomUUID().slice(0, 8)}`,
