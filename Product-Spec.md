@@ -54,7 +54,9 @@ identity authority is unavailable.
 ### Unified registration and login
 
 - `/login` offers unified AI Card registration and login. Credentials are
-  entered and verified by AI Card, not collected or validated by Yoyoo.
+  entered in Yoyoo's first-party product surface but sent directly from the
+  browser to an exact allowlisted AI Card origin. Yoyoo never receives,
+  persists, logs, or validates the password.
 - First-time registration from Yoyoo atomically creates the AI Card identity and
   current product authorization. Yoyoo creates a local Principal mapping and
   session only when that identity is allowed into the requested workspace.
@@ -62,9 +64,9 @@ identity authority is unavailable.
   to register or bind another Card.
 - AI Card unavailability produces a visible retryable failure. Yoyoo does not
   fall back to local registration, local numbering, or inferred identity.
-- V0.15 password credentials remain compatibility data during the reversible
-  cutover. The local form is hidden behind an explicitly temporary fallback and
-  is removed from the normal path only after production acceptance.
+- V0.15 password credentials remain compatibility data for rollback only. The
+  public `/login` surface does not expose a local-account fallback after the
+  embedded AI Card entry passes production acceptance.
 
 ### External AI authorization
 
@@ -105,9 +107,15 @@ identity authority is unavailable.
 
 ### User experience
 
-- Keep the responsive `/login` page and expose one primary `使用 AI Card 继续`
-  action. AI Card decides whether the user signs in or creates an identity, so
-  Yoyoo does not present two competing account flows.
+- Keep the responsive `/login` page inside the Yoyoo visual system and expose a
+  compact `登录` / `创建 AI Card` segmented control. Both modes use the same
+  authoritative AI Card account system; they are not competing Yoyoo accounts.
+- Login accepts an AI Card ID or `@Handle` plus password. Creation accepts a
+  display name, unique `@Handle`, and password, then shows the issued permanent
+  Card ID in place before entering Yoyoo.
+- The visible flow must not navigate to an AI Card login or registration page.
+  The browser may call the configured AI Card API directly and then navigate
+  only to the validated Yoyoo callback.
 - Show loading, provider-unavailable, consent-denied, invalid callback,
   identity-conflict, workspace-access-denied, and success states without
   exposing protocol details or secrets.

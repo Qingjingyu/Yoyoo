@@ -74,8 +74,13 @@
 
 ### Deliverables
 
-- Make `使用 AI Card 继续` the primary entry. AI Card owns the register-or-login
-  decision; keep the local password form collapsed only for reversible cutover.
+- Replace the external `使用 AI Card 继续` hop with a Yoyoo-native segmented
+  login/create surface built entirely from existing semantic design tokens.
+- Keep credentials out of Yoyoo by sending them from the browser only to an
+  exact allowlisted AI Card origin. Resolve the existing authorization request
+  through AI Card's host-only session, CSRF, PKCE, and state controls.
+- Remove the temporary local-password fallback from the public entry after the
+  embedded path passes production acceptance; retain data only for rollback.
 - Preserve a validated same-origin destination across the federation round trip.
 - Add loading, denied, unavailable, invalid-session, identity-conflict,
   workspace-access-denied, and success states.
