@@ -13,6 +13,21 @@ export const dynamic = 'force-dynamic';
 
 export const AICARD_AUTHORIZATION_COOKIE = 'yoyoo_aicard_authorization';
 
+function publicAuthorizationRequest(authorizationUrl: string) {
+  const url = new URL(authorizationUrl);
+  const principalType = url.searchParams.get('principal_type');
+  return {
+    responseType: url.searchParams.get('response_type') ?? '',
+    clientId: url.searchParams.get('client_id') ?? '',
+    redirectUri: url.searchParams.get('redirect_uri') ?? '',
+    scope: url.searchParams.get('scope') ?? '',
+    state: url.searchParams.get('state') ?? '',
+    codeChallenge: url.searchParams.get('code_challenge') ?? '',
+    codeChallengeMethod: url.searchParams.get('code_challenge_method') ?? '',
+    ...(principalType ? { principalType } : {}),
+  };
+}
+
 function safeReturnTo(value: string | null, origin: string): string {
   if (!value?.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
     return '/';
@@ -29,6 +44,7 @@ function safeReturnTo(value: string | null, origin: string): string {
 
 export async function GET(request: NextRequest): Promise<Response> {
   try {
+    const wantsJson = request.nextUrl.searchParams.get('format') === 'json';
     const requestedPurpose = request.nextUrl.searchParams.get('purpose');
     if (
       requestedPurpose !== null
@@ -57,6 +73,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       const target = new URL('/api/v1/auth/aicard/start', canonicalUrl.origin);
       if (purpose !== 'login') target.searchParams.set('purpose', purpose);
       if (returnTo !== '/') target.searchParams.set('next', returnTo);
+      if (wantsJson) target.searchParams.set('format', 'json');
       return NextResponse.redirect(target, 307);
     }
     const client = new AICardClient(config);
@@ -71,7 +88,12 @@ export async function GET(request: NextRequest): Promise<Response> {
       returnTo,
       createdAt: Date.now(),
     }, config.sessionSecret);
-    const response = NextResponse.redirect(transaction.authorizationUrl, 303);
+    const response = wantsJson
+      ? NextResponse.json({
+          issuer: config.issuer,
+          request: publicAuthorizationRequest(transaction.authorizationUrl),
+        })
+      : NextResponse.redirect(transaction.authorizationUrl, 303);
     response.cookies.set(AICARD_AUTHORIZATION_COOKIE, sealed, {
       httpOnly: true,
       sameSite: 'lax',

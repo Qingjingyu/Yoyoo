@@ -95,6 +95,37 @@ describe('AI Card authorization HTTP boundary', () => {
     expect(cookie).not.toContain('verifier_');
   });
 
+  it('returns a public embedded authorization transaction without exposing the verifier', async () => {
+    const response = await startAICardAuthorization(
+      new NextRequest(
+        'http://localhost:4173/api/v1/auth/aicard/start?format=json&next=%2Fconversation',
+      ),
+    );
+    const body = await response.json();
+    const cookie = response.headers.get('set-cookie')!;
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      issuer,
+      request: {
+        responseType: 'code',
+        clientId: 'yoyoo_dev',
+        redirectUri: 'http://localhost:4173/auth/aicard/callback',
+        scope: 'card.basic card.handle card.id offline_access',
+        state: expect.any(String),
+        codeChallenge: expect.any(String),
+        codeChallengeMethod: 'S256',
+      },
+    });
+    expect(body.request.state).toHaveLength(32);
+    expect(body.request.codeChallenge).toHaveLength(43);
+    expect(JSON.stringify(body)).not.toContain('codeVerifier');
+    expect(JSON.stringify(body)).not.toContain('code_verifier');
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).not.toContain('verifier_');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('starts Agent identity authorization with an explicit AI principal request', async () => {
     const response = await startAICardAuthorization(
       new NextRequest('http://localhost:4173/api/v1/auth/aicard/start?purpose=agent'),
