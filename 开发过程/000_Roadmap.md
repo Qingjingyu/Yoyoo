@@ -1,11 +1,11 @@
 # Yoyoo Space Roadmap
 
-> Updated: 2026-08-14
+> Updated: 2026-08-15
 
 ## Current State
 
-- V0.17 embedded AI Card entry is implemented and locally self-tested on an
-  isolated branch. Yoyoo now presents product context plus inline login and
+- V0.17 embedded AI Card entry is deployed and publicly self-verified. Yoyoo
+  now presents product context plus inline login and
   Card creation in one native dual-theme surface. Passwords are posted directly
   from the browser to the exact allowlisted AI Card origin; Yoyoo retains only
   the encrypted PKCE transaction and accepts only its fixed callback origin and
@@ -14,8 +14,11 @@
   gates pass. Two-service HTTPS browser acceptance proves same-page `AI_100001`
   creation, automatic authorization, second-browser login, stable Principal
   reuse, password delivery only to AI Card, and the existing YOS Agent runtime
-  path. Merge, production deployment, real public holder acceptance and
-  independent security review are still pending.
+  path. Production runs `yoyoo-space:316c5f6` with `aicard:11bb31f`. Public
+  acceptance covers healthy containers and endpoints, exact trusted-origin
+  CORS, anonymous protection, S256 PKCE, desktop and 390px mobile rendering,
+  no console errors and no horizontal overflow. No test identity was created;
+  real public holder registration and independent security review are pending.
 
 - V0.16 / AI Card Phase 8C is deployed and publicly self-verified.
   Forward migrations `015` through `018` stop Yoyoo-local Card allocation, persist a

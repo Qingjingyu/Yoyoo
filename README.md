@@ -8,14 +8,12 @@ across persistent group and direct rooms. The repository is a clean
 implementation started on 2026-08-05 and does not inherit the retired Yoyoo
 application or Git history.
 
-Current status: V0.15 is deployed at `https://app.yoyooai.com`. It adds permanent sequential AI Card IDs starting
-at `AI_100001`, owner-only password login, revocable database sessions, private
-route enforcement, responsive login/logout UX, and a containerized HTTPS
-deployment package. V0.16 is implemented and verified locally: Yoyoo no longer
-allocates new Card IDs, accepts verified AI Card `card_id` claims, maps them to
-stable local Principal UUIDs, and can create password-independent federated
-browser sessions. This path is not deployed yet; production remains on the
-V0.15 password flow. The local cross-repository acceptance has verified first
+Current status: V0.17 is deployed at `https://app.yoyooai.com`. The native login
+surface explains Yoyoo and lets a person log in with or create an AI Card without
+leaving the product. Yoyoo no longer allocates Card IDs or receives identity
+passwords; it accepts verified AI Card claims, maps them to stable local Principal
+UUIDs, and creates password-independent federated browser sessions. The local
+cross-repository acceptance has verified first
 registration, HTTPS consent callback, stable owner mapping and a second-browser
 login without a duplicate Principal or local credential. The same isolated
 acceptance also proves a claimed YOS AI Card can be authorized, authenticate its
@@ -44,7 +42,7 @@ ordered run events stream over SSE. Private bytes live behind an opaque local
 BlobStore and are authorized on every browser or Agent read. The provider-
 neutral Agent Gateway and AI Card runtime paths receive run-scoped attachment
 descriptors rather than local paths or permanent URLs. The product still does
-not include public registration, visible multi-human invitation,
+not include visible multi-human invitation,
 external push notifications, semantic document/OCR search, production object
 storage, malware scanning, or hard deletion.
 
