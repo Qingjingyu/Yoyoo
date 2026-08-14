@@ -4,14 +4,18 @@
 
 ## Current State
 
-- V0.17 embedded AI Card entry is implemented on an isolated branch and has
-  targeted tests only. Yoyoo now presents product context plus inline login and
+- V0.17 embedded AI Card entry is implemented and locally self-tested on an
+  isolated branch. Yoyoo now presents product context plus inline login and
   Card creation in one native dual-theme surface. Passwords are posted directly
   from the browser to the exact allowlisted AI Card origin; Yoyoo retains only
   the encrypted PKCE transaction and accepts only its fixed callback origin and
   path. The external-entry button and temporary local-account UI are removed.
-  Full regression, build, two-service browser acceptance, merge and production
-  deployment are still pending.
+  Full unit/UI, PostgreSQL integration, typecheck, lint and production build
+  gates pass. Two-service HTTPS browser acceptance proves same-page `AI_100001`
+  creation, automatic authorization, second-browser login, stable Principal
+  reuse, password delivery only to AI Card, and the existing YOS Agent runtime
+  path. Merge, production deployment, real public holder acceptance and
+  independent security review are still pending.
 
 - V0.16 / AI Card Phase 8C is deployed and publicly self-verified.
   Forward migrations `015` through `018` stop Yoyoo-local Card allocation, persist a
