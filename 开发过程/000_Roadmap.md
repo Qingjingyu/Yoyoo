@@ -4,7 +4,7 @@
 
 ## Current State
 
-- V0.16 / AI Card Phase 8C is implemented and locally verified but not deployed.
+- V0.16 / AI Card Phase 8C is deployed and publicly self-verified.
   Forward migrations `015` through `018` stop Yoyoo-local Card allocation, persist a
   verified authoritative `card_id` beside issuer/client/pairwise Subject, and
   support password-independent federated human sessions without changing any
@@ -24,19 +24,20 @@
   reuse against isolated databases. It now also proves a claimed YOS Card is
   authorized as `AI_100002`, maps to one stable Yoyoo Agent Principal without
   a `yya_` credential, obtains a two-minute runtime token, discovers an exact
-  authorized room ID and persists a message under that Principal. Current
-  production behavior remains V0.15 local password login; production issuer,
-  callback, owner mapping, backup, rollback rehearsal and public acceptance are
-  still required before this can be described as deployed unified identity.
+  authorized room ID and persists a message under that Principal. Production
+  now uses `https://id.yoyooai.com`, the `yoyoo_prod` client and the exact HTTPS
+  callback. Yoyoo runs image `9f28fad` with migrations `015` through `018`;
+  the former password login remains collapsed as a recovery path.
   The new-AI admission boundary is also locked locally: YOS and other external
   AI must own an AI Card before the owner authorizes them into Yoyoo. Settings
   no longer offers local Agent creation, and the former public POST returns
   `AI_CARD_REQUIRED`. Existing `yya_` identities remain manageable only as
   migration compatibility. Cross-repository YOS admission is self-verified;
-  independent security review and production deployment are still pending.
+  independent security review and real YOS runtime production acceptance remain pending.
   The production Compose, environment contract and rollback runbook now include
-  the independent `id.yoyooai.com` authority and `yoyoo_prod` client, but no
-  production service, schema or identity was changed by that preparation.
+  the independent `id.yoyooai.com` authority and `yoyoo_prod` client, and the
+  authority plus Yoyoo cutover are live. No temporary acceptance identity was
+  created, so the first real registration remains reserved for the owner.
 
 - V0.15 single-owner public preview is deployed and publicly verified at
   `https://app.yoyooai.com` on an isolated clean production database. It adds
