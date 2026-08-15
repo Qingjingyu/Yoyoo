@@ -57,11 +57,11 @@ export function getAICardIntegrationConfig(
   }
   return {
     nodeEnv: parsed.data.NODE_ENV,
-    issuer: parsed.data.YOYOO_AICARD_ISSUER,
+    issuer: new URL(parsed.data.YOYOO_AICARD_ISSUER).origin,
     clientId: parsed.data.YOYOO_AICARD_CLIENT_ID,
     redirectUri: parsed.data.YOYOO_AICARD_REDIRECT_URI,
     sessionSecret: parsed.data.YOYOO_AICARD_SESSION_SECRET,
-    scopes: ['card.basic', 'card.handle', 'card.id', 'offline_access'] as const,
+    scopes: ['card.basic', 'card.handle', 'card.id', 'offline_access', 'agent.enroll'] as const,
   };
 }
 
@@ -85,7 +85,7 @@ export function getAICardRuntimeConfig(
     );
   }
   return {
-    issuer: parsed.data.YOYOO_AICARD_ISSUER,
+    issuer: new URL(parsed.data.YOYOO_AICARD_ISSUER).origin,
     clientId: parsed.data.YOYOO_AICARD_CLIENT_ID,
     audience: parsed.data.YOYOO_AICARD_AUDIENCE,
   };

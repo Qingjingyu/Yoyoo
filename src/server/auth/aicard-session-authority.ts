@@ -36,6 +36,14 @@ export interface AICardSessionAuthorityPort {
     material: FederatedAuthorizationMaterial;
     now: Date;
   }): Promise<FederatedAuthorizationMaterial>;
+  refreshAuthorizationForOperation(input: {
+    issuer: string;
+    clientId: string;
+    subject: string;
+    authorizationStateHash: Buffer;
+    material: FederatedAuthorizationMaterial;
+    now: Date;
+  }): Promise<{ material: FederatedAuthorizationMaterial; accessToken: string }>;
 }
 
 export class FederatedAuthorizationRejectedError extends Error {
@@ -112,6 +120,17 @@ export class AICardSessionAuthority implements AICardSessionAuthorityPort {
     material: FederatedAuthorizationMaterial;
     now: Date;
   }): Promise<FederatedAuthorizationMaterial> {
+    return (await this.refreshAuthorizationForOperation(input)).material;
+  }
+
+  async refreshAuthorizationForOperation(input: {
+    issuer: string;
+    clientId: string;
+    subject: string;
+    authorizationStateHash: Buffer;
+    material: FederatedAuthorizationMaterial;
+    now: Date;
+  }): Promise<{ material: FederatedAuthorizationMaterial; accessToken: string }> {
     if (
       new URL(input.issuer).toString() !== this.issuer
       || input.clientId !== this.clientId
@@ -156,13 +175,14 @@ export class AICardSessionAuthority implements AICardSessionAuthorityPort {
       ) {
         throw new FederatedAuthorizationRejectedError();
       }
-      return this.protectRefreshToken({
+      const material = this.protectRefreshToken({
         refreshToken: rotated.refreshToken,
         authorizationStateHash: input.authorizationStateHash,
         refreshExpiresAt: new Date(
           input.now.getTime() + rotated.refreshExpiresIn * 1_000,
         ),
       });
+      return { material, accessToken: rotated.accessToken };
     } catch (error) {
       if (error instanceof FederatedAuthorizationRejectedError) throw error;
       if (error instanceof AICardRefreshRejectedError) {
