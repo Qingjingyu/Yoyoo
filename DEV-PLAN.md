@@ -1,7 +1,165 @@
-# Yoyoo V0.19 Product Consistency Development Plan
+# Yoyoo V0.20 Agent Onboarding Development Plan
 
-> Status: V0.19 implementation, verification, and production release are
-> complete. The deployed code baseline is `fa600aa`.
+> Status: V0.20 specification is approved; implementation has not started. The
+> deployed production code baseline remains `fa600aa`.
+
+## Tech Stack And Boundaries
+
+- Keep the existing Next.js 16.3, React 19, TypeScript 6, PostgreSQL 17, Zod,
+  Vitest, and Playwright stacks in both Yoyoo and AI Card.
+- Add no runtime dependency unless the current Node `crypto`, `fetch`, and
+  PostgreSQL stack cannot satisfy a verified requirement.
+- AI Card owns permanent Card allocation, controller relationships, Agent node
+  keys, and runtime-token issuance. Yoyoo owns invitations into its workspace,
+  local Principal mappings, permissions, room memberships, jobs, messages,
+  files, and audit.
+- Preserve all released migration bytes. New schema changes use AI Card
+  migration `0015` and Yoyoo migration `020` only.
+
+## Phase 8E-1: Atomic Identity And Admission Contract
+
+### Deliverables
+
+- Change AI Card enrollment so a generic invitation can be created without
+  allocating a Card. The successful claim transaction either verifies an
+  existing Agent Card or creates one new Agent Card, Card-derived unique handle,
+  controller link, node, and claim exactly once.
+- Add a scoped platform-authorized invitation operation for `yoyoo_prod`; Yoyoo
+  uses the current human's federated grant rather than a service-wide owner
+  credential or cross-origin AI Card cookie. Introduce `agent.enroll` for this
+  human authority and keep it distinct from Agent-side `agent.runtime`.
+- Add Yoyoo admission records containing hashed ticket, creator, workspace,
+  selected rooms/scopes, expiry, AI Card invitation correlation, and terminal
+  status. Admission completion requires a valid AI Card runtime identity and is
+  idempotent by claim ID.
+- Complete Principal mapping, workspace membership, and selected room membership
+  in one Yoyoo transaction. Existing Card proof reuses the mapping and never
+  transfers AI Card control.
+
+### Likely Files
+
+- AI Card: `infra/postgres/migrations/0015_deferred_agent_identity_claim.sql`
+  (new), `src/domain/identity/agent-enrollment.ts`,
+  `src/domain/authorization/scopes.ts`, `src/lib/contracts/yoyoo-client.ts`,
+  `src/server/agent-enrollment-service.ts`,
+  `src/server/postgres/agent-enrollment-repository.ts`, and the existing Agent
+  invitation/claim routes.
+- AI Card tests: `tests/unit/agent-enrollment.test.ts`,
+  `tests/integration/agent-enrollment.test.ts`, and
+  `tests/integration/platform-authorization.test.ts`.
+- Yoyoo: `infra/postgres/migrations/020_agent_admission_invitations.sql` (new),
+  `src/server/aicard-client.ts`, `src/server/agent-admission-service.ts` (new),
+  `src/server/postgres/agent-admission-repository.ts` (new), and new routes under
+  `src/app/api/v1/workspaces/current/agent-invitations/` and
+  `src/app/api/v1/agent-admissions/claim/`.
+- Yoyoo tests: new focused service/repository/HTTP tests plus the existing
+  `tests/integration/aicard-runtime-agent-client.test.ts` and
+  `tests/integration/aicard-authorization-http.test.ts`.
+
+### Verification
+
+- Test empty databases and upgrade from the exact released AI Card `0014` and
+  Yoyoo `019` ledgers; checksum all earlier migrations before and after.
+- Prove unused or expired invitations allocate no Card, concurrent claims create
+  one identity, replay returns the same result, wrong tickets/scopes/rooms fail
+  with zero partial membership, `agent.enroll` cannot call runtime APIs,
+  `agent.runtime` cannot create invitations, and existing Card proof reuses one
+  identity.
+- Run AI Card `npm run lint`, `npm run typecheck`, `npm test`, and
+  `npm run test:integration`; run the equivalent Yoyoo gates before Phase 8E-2.
+
+## Phase 8E-2: Yoyoo Invitation Experience
+
+### Deliverables
+
+- Replace the external authorization link in Settings with one in-product
+  `接入 Agent` flow for room selection, minimum permissions, creation, copy, and
+  revocation.
+- Generate a self-contained Chinese instruction with both public origins,
+  expiration, opaque enrollment/admission material, existing-Card reuse rules,
+  stable claim recovery, local-key protection, and the bounded completion reply.
+- Merge pending invitations and admitted Agents into one directory with truthful
+  state, permanent Card ID after claim, machine name, rooms, permissions, last
+  seen time, retry, expiry, and revoke behavior.
+- Keep secrets visible only inside the one generated instruction; subsequent API
+  reads return hints and state, never ticket values.
+
+### Likely Files
+
+- `src/components/settings/agent-directory.tsx`,
+  `src/lib/agent-directory-client.ts`, `src/styles/settings.css`, the new Yoyoo
+  invitation API routes, `tests/ui/agent-directory.test.tsx`,
+  `tests/ui/agent-directory-client.test.ts`, and `tests/e2e/agent-gateway.spec.ts`.
+
+### Verification
+
+- UI tests cover loading, empty, copied, pending, expired, waiting, online,
+  offline, failed, revoked, clipboard denial, API failure, and mobile overflow.
+- Playwright proves the owner completes the flow with one form and one copy
+  action, no external navigation, no secret after dismissal, and no unexpected
+  access to unselected rooms.
+- Run Yoyoo lint, typecheck, full unit/UI tests, PostgreSQL integration tests,
+  production build, and desktop/mobile E2E.
+
+## Phase 8E-3: Reference Agent And Real YOS Closure
+
+### Deliverables
+
+- Extend AI Card's `scripts/agent-enrollment-reference.mts` to consume the new
+  invitation package, retain its private file at mode `0600`, and recover an
+  unknown claim outcome without creating another identity.
+- Add a provider-neutral Yoyoo admission client and compose it with
+  `scripts/run-aicard-yos-gateway-agent.mts`; retain the current heartbeat,
+  two-minute runtime-token renewal, exact-room job claim/result, proactive send,
+  and attachment contract.
+- Publish one stable public Agent-instruction document from Yoyoo. The copied
+  text remains sufficient for an instruction-capable Agent and points to that
+  versioned contract for exact request schemas.
+- Validate one real YOS runtime through enrollment, assigned Card display,
+  workspace/room admission, online presence, message receipt, persisted reply,
+  attachment access, process restart, and revocation.
+
+### Likely Files
+
+- AI Card: `scripts/agent-enrollment-reference.mts` and its unit/integration
+  coverage.
+- Yoyoo: `scripts/aicard-runtime-token-provider.mts`,
+  `scripts/run-aicard-yos-gateway-agent.mts`, a new provider-neutral admission
+  client under `scripts/`, a public versioned instruction route under `src/app/`,
+  and the existing Agent Gateway integration/live tests.
+
+### Verification
+
+- Run `npm run test:federation:yoyoo` in AI Card plus both repositories' complete
+  lint, typecheck, test, integration, build, and E2E gates.
+- Perform a production-like three-process acceptance on isolated databases and
+  ports before any release request.
+- Production remains a separate gate requiring current branch/commit evidence,
+  verified database and Blob backups, migration baseline checks, rollback
+  images, redacted logs, public health, and explicit approval.
+
+## V0.20 Risks And Failure Controls
+
+- Duplicate identity after timeout: stable claim ID and recovery secret return
+  the original result; blind identity or machine-name retries are forbidden.
+- Stolen copied text: both tickets are short-lived, single-use, scope-bound,
+  hash-only at rest, and revocable before claim.
+- Partial cross-service completion: AI Card claim is durable first; Yoyoo
+  admission is idempotent and recoverable with the same verified Card, never by
+  minting another Card.
+- Permission expansion: Yoyoo persists exact room UUIDs and scopes before copy;
+  claim cannot submit broader values.
+- False online state: registration and membership never imply presence; only a
+  current authenticated heartbeat marks the Agent online.
+- Cross-repository rollout: deploy additive AI Card support first, then Yoyoo
+  server support, then enable the UI. Old Yoyoo and existing Agent runtimes must
+  remain operational throughout rollback.
+
+## V0.20 Out Of Scope
+
+- Agent marketplace, billing, reputation, discovery, voice, human invitations,
+  identity transfer, arbitrary remote installers, and natural-language routing.
+- Deleting the legacy Gateway compatibility path in the same release.
 
 ## Phase 8D: V0.19 Product Consistency Closure
 
