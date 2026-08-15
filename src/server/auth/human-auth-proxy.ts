@@ -17,6 +17,8 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/login",
   "/api/health",
   "/api/v1/auth/aicard/start",
+  "/api/v1/agent-admissions/claim",
+  "/api/v1/agent-admissions/instructions",
   "/auth/aicard/callback",
 ]);
 

@@ -21,6 +21,8 @@ describe("human authentication proxy policy", () => {
     expect(isPublicHumanPath("/api/health", "aicard")).toBe(true);
     expect(isPublicHumanPath("/_next/static/app.js", "aicard")).toBe(true);
     expect(isPublicHumanPath("/api/v1/agent-gateway/heartbeat", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/api/v1/agent-admissions/claim", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/api/v1/agent-admissions/instructions", "aicard")).toBe(true);
     expect(isPublicHumanPath("/conversation", "aicard")).toBe(false);
     expect(isPublicHumanPath("/api/v1/attachments/private/content", "aicard")).toBe(false);
   });

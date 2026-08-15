@@ -36,7 +36,7 @@ describe('AI Card embedded authorization start', () => {
         responseType: 'code',
         clientId: 'yoyoo_dev',
         redirectUri: 'http://localhost:4173/auth/aicard/callback',
-        scope: 'card.basic card.handle card.id offline_access',
+        scope: 'card.basic card.handle card.id offline_access agent.enroll',
         state: expect.stringMatching(/^[A-Za-z0-9_-]{32}$/),
         codeChallenge: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
         codeChallengeMethod: 'S256',
