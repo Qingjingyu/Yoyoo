@@ -2,7 +2,6 @@ import {
   AgentDirectory,
   type AICardResult,
 } from "@/components/settings/agent-directory";
-import { getAICardProfileUrl } from "@/server/aicard-integration-config";
 
 const AICARD_RESULTS = new Set<AICardResult>([
   "connected",
@@ -23,6 +22,5 @@ export default async function AgentsSettingsPage({
     aicard && AICARD_RESULTS.has(aicard as AICardResult)
       ? (aicard as AICardResult)
       : undefined;
-  const myCardUrl = getAICardProfileUrl() ?? undefined;
-  return <AgentDirectory aicardResult={aicardResult} myCardUrl={myCardUrl} />;
+  return <AgentDirectory aicardResult={aicardResult} />;
 }

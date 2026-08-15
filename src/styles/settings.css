@@ -94,6 +94,165 @@
     background: var(--surface-panel);
   }
 
+  .identity-load-error {
+    display: flex;
+    width: min(100%, 70rem);
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 auto var(--space-md);
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--danger-soft);
+    border-radius: var(--radius-control);
+    background: var(--surface-panel);
+    color: var(--danger);
+    font-size: 0.66rem;
+  }
+
+  .identity-load-error button {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.65rem;
+    border: 1px solid var(--border-default);
+    border-radius: 5px;
+    background: var(--surface-interactive);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .aicard-overlay {
+    position: fixed;
+    z-index: var(--layer-modal);
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: var(--surface-scrim);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  .aicard-dialog {
+    width: min(100%, 27rem);
+    padding: 1.25rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface-elevated);
+    box-shadow: var(--shadow-floating);
+  }
+
+  .aicard-dialog > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .aicard-dialog > header > div {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .aicard-dialog > header span,
+  .aicard-dialog dt {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+  }
+
+  .aicard-dialog h2 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 590;
+  }
+
+  .aicard-dialog > header button {
+    display: grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--border-default);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .aicard-dialog__identity {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 1.5rem 0;
+  }
+
+  .aicard-dialog__identity > span {
+    display: grid;
+    width: 3.25rem;
+    height: 3.25rem;
+    place-items: center;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    background: var(--surface-interactive);
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 620;
+  }
+
+  .aicard-dialog__identity > div {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .aicard-dialog__identity strong {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 590;
+  }
+
+  .aicard-dialog__identity small {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+  }
+
+  .aicard-dialog dl {
+    display: grid;
+    gap: 1px;
+    margin: 0;
+    background: var(--border-subtle);
+  }
+
+  .aicard-dialog dl > div {
+    display: grid;
+    grid-template-columns: 8rem minmax(0, 1fr);
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem 0;
+    background: var(--surface-elevated);
+  }
+
+  .aicard-dialog dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-align: right;
+  }
+
+  .aicard-dialog > p {
+    margin: 1.15rem 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.62rem;
+    line-height: 1.7;
+  }
+
   .appearance-settings > div:first-child {
     display: grid;
     gap: 0.16rem;

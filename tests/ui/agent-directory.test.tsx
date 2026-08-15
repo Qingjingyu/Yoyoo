@@ -5,7 +5,10 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { vi } from "vitest";
 
-import { AgentDirectory } from "@/components/settings/agent-directory";
+import {
+  AgentDirectory,
+  type CurrentIdentityClient,
+} from "@/components/settings/agent-directory";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import type { AgentDirectoryClient, AgentDirectoryRecord } from "@/lib/agent-directory-client";
 
@@ -49,32 +52,47 @@ function createClient(
   };
 }
 
+function createIdentityClient(
+  overrides: Partial<CurrentIdentityClient> = {},
+): CurrentIdentityClient {
+  return {
+    getCurrentIdentity: async () => ({
+      aiCardId: "AI_100001",
+      loginHandle: "subai",
+      displayName: "苏白",
+    }),
+    ...overrides,
+  };
+}
+
 describe("AgentDirectory", () => {
   it("only authorizes AI identities that already own an AI Card", async () => {
     renderWithTheme(
-      <AgentDirectory client={createClient({ listAgents: async () => [] })} />,
+      <AgentDirectory
+        client={createClient({ listAgents: async () => [] })}
+        identityClient={createIdentityClient()}
+      />,
     );
 
     expect(await screen.findByText("尚未接入 AI")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "授权 AI 接入" })).toHaveLength(2);
-    for (const link of screen.getAllByRole("link", { name: "授权 AI 接入" })) {
-      expect(link).toHaveAttribute(
-        "href",
-        "/api/v1/auth/aicard/start?purpose=agent",
-      );
-    }
+    expect(screen.getAllByRole("link", { name: "授权 AI 接入" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "授权 AI 接入" })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/aicard/start?purpose=agent",
+    );
     expect(screen.getByText("YOS 或其他 AI 需先拥有 AI Card，再由你授权加入当前空间。")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "兼容接入 AI" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "显示名称" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Agent 标识" })).not.toBeInTheDocument();
   });
 
-  it("opens the current unified AI Card without offering a second identity binding", async () => {
-    const { rerender } = renderWithTheme(
+  it("shows the current AI Card inside Yoyoo without navigating away", async () => {
+    const user = userEvent.setup();
+    renderWithTheme(
       <AgentDirectory
         client={createClient()}
+        identityClient={createIdentityClient()}
         aicardResult="connected"
-        myCardUrl="https://card.yoyooai.com/me/card"
       />,
     );
 
@@ -82,19 +100,39 @@ describe("AgentDirectory", () => {
       "href",
       "/api/v1/auth/aicard/start?purpose=agent",
     );
-    expect(screen.getByRole("link", { name: "我的 AI Card" })).toHaveAttribute(
-      "href",
-      "https://card.yoyooai.com/me/card",
-    );
+    const cardButton = await screen.findByRole("button", { name: "我的 AI Card" });
+    expect(screen.queryByRole("link", { name: "我的 AI Card" })).not.toBeInTheDocument();
+    await user.click(cardButton);
+    const card = screen.getByRole("dialog", { name: "我的 AI Card" });
+    expect(card).toHaveTextContent("苏白");
+    expect(card).toHaveTextContent("AI_100001");
+    expect(card).toHaveTextContent("@subai");
     expect(screen.queryByRole("link", { name: "连接我的身份" })).not.toBeInTheDocument();
     expect(await screen.findByRole("status")).toHaveTextContent(
       "统一 AI Card 身份已确认",
     );
+  });
 
-    rerender(<AgentDirectory client={createClient()} aicardResult="invalid_session" />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "授权已失效，请重新连接",
+  it("keeps identity loading failures visible and retryable", async () => {
+    const user = userEvent.setup();
+    const getCurrentIdentity = vi
+      .fn<CurrentIdentityClient["getCurrentIdentity"]>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        aiCardId: "AI_100001",
+        loginHandle: "subai",
+        displayName: "苏白",
+      });
+    renderWithTheme(
+      <AgentDirectory
+        client={createClient()}
+        identityClient={createIdentityClient({ getCurrentIdentity })}
+      />,
     );
+
+    expect(await screen.findByText("身份暂时无法载入")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重新载入身份" }));
+    expect(await screen.findByRole("button", { name: "我的 AI Card" })).toBeEnabled();
   });
 
   it("renders an AI Card Agent without legacy credential actions", async () => {
@@ -110,7 +148,12 @@ describe("AgentDirectory", () => {
       credentialVersion: null,
       lastSeenAt: null,
     };
-    renderWithTheme(<AgentDirectory client={createClient({ listAgents: async () => [cardAgent] })} />);
+    renderWithTheme(
+      <AgentDirectory
+        client={createClient({ listAgents: async () => [cardAgent] })}
+        identityClient={createIdentityClient()}
+      />,
+    );
 
     expect(await screen.findByText("悠悠研究员")).toBeInTheDocument();
     expect(screen.getByText("等待运行节点")).toBeInTheDocument();
@@ -121,7 +164,9 @@ describe("AgentDirectory", () => {
 
   it("renders connected legacy Agents without offering local identity creation", async () => {
     const client = createClient();
-    renderWithTheme(<AgentDirectory client={client} />);
+    renderWithTheme(
+      <AgentDirectory client={client} identityClient={createIdentityClient()} />,
+    );
 
     expect(await screen.findByRole("heading", { name: "AI 接入" })).toBeInTheDocument();
     expect(await screen.findByText("Researcher")).toBeInTheDocument();
@@ -142,6 +187,7 @@ describe("AgentDirectory", () => {
     renderWithTheme(
       <AgentDirectory
         client={createClient({ rotateCredential, revokeCredential })}
+        identityClient={createIdentityClient()}
       />,
     );
     await screen.findByText("Researcher");
@@ -163,7 +209,12 @@ describe("AgentDirectory", () => {
       .fn<AgentDirectoryClient["listAgents"]>()
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce([]);
-    renderWithTheme(<AgentDirectory client={createClient({ listAgents })} />);
+    renderWithTheme(
+      <AgentDirectory
+        client={createClient({ listAgents })}
+        identityClient={createIdentityClient()}
+      />,
+    );
 
     expect(await screen.findByText("AI 目录暂时无法载入")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重新载入" }));
@@ -175,7 +226,11 @@ describe("AgentDirectory", () => {
     const onSignedOut = vi.fn();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
     renderWithTheme(
-      <AgentDirectory client={createClient()} onSignedOut={onSignedOut} />,
+      <AgentDirectory
+        client={createClient()}
+        identityClient={createIdentityClient()}
+        onSignedOut={onSignedOut}
+      />,
     );
 
     await user.click(screen.getByRole("button", { name: "退出登录" }));

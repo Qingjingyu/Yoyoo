@@ -6,6 +6,7 @@ import {
   Bot,
   Check,
   Copy,
+  IdCard,
   KeyRound,
   LogOut,
   RefreshCw,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/agent-directory-client";
 
 type DirectoryState = "loading" | "ready" | "error";
+type IdentityState = "loading" | "ready" | "error";
 type PendingAction = `rotate:${string}` | `revoke:${string}` | null;
 export type AICardResult =
   | "connected"
@@ -36,6 +38,40 @@ interface OneTimeCredential {
   displayName: string;
   token: string;
 }
+
+export interface CurrentAICardIdentity {
+  aiCardId: string;
+  loginHandle: string;
+  displayName: string;
+}
+
+export interface CurrentIdentityClient {
+  getCurrentIdentity(): Promise<CurrentAICardIdentity>;
+}
+
+const browserCurrentIdentityClient: CurrentIdentityClient = {
+  async getCurrentIdentity() {
+    const response = await fetch("/api/v1/auth/session", {
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw new Error("current identity request failed");
+    const payload = (await response.json()) as {
+      authenticated?: boolean;
+      identity?: Partial<CurrentAICardIdentity>;
+    };
+    const identity = payload.identity;
+    if (
+      !payload.authenticated ||
+      !identity ||
+      typeof identity.aiCardId !== "string" ||
+      typeof identity.loginHandle !== "string" ||
+      typeof identity.displayName !== "string"
+    ) {
+      throw new Error("current identity response is invalid");
+    }
+    return identity as CurrentAICardIdentity;
+  },
+};
 
 function statusLabel(agent: AgentDirectoryRecord): string {
   if (
@@ -54,17 +90,20 @@ function statusLabel(agent: AgentDirectoryRecord): string {
 
 export function AgentDirectory({
   client = browserAgentDirectoryClient,
+  identityClient = browserCurrentIdentityClient,
   aicardResult,
-  myCardUrl,
   onSignedOut,
 }: {
   client?: AgentDirectoryClient;
+  identityClient?: CurrentIdentityClient;
   aicardResult?: AICardResult;
-  myCardUrl?: string;
   onSignedOut?: () => void;
 }) {
   const [agents, setAgents] = useState<AgentDirectoryRecord[]>([]);
   const [state, setState] = useState<DirectoryState>("loading");
+  const [identityState, setIdentityState] = useState<IdentityState>("loading");
+  const [identity, setIdentity] = useState<CurrentAICardIdentity | null>(null);
+  const [cardOpen, setCardOpen] = useState(false);
   const [pending, setPending] = useState<PendingAction>(null);
   const [confirming, setConfirming] = useState<PendingAction>(null);
   const [credential, setCredential] = useState<OneTimeCredential | null>(null);
@@ -83,10 +122,26 @@ export function AgentDirectory({
     }
   }, [client]);
 
+  const loadIdentity = useCallback(async () => {
+    setIdentityState("loading");
+    try {
+      setIdentity(await identityClient.getCurrentIdentity());
+      setIdentityState("ready");
+    } catch {
+      setIdentity(null);
+      setIdentityState("error");
+    }
+  }, [identityClient]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => void loadAgents(), 0);
     return () => window.clearTimeout(timer);
   }, [loadAgents]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadIdentity(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadIdentity]);
 
   async function rotate(agent: AgentDirectoryRecord) {
     const action: PendingAction = `rotate:${agent.principalId}`;
@@ -174,12 +229,14 @@ export function AgentDirectory({
               <BadgeCheck aria-hidden="true" size={16} strokeWidth={1.7} />
               授权 AI 接入
             </a>
-            {myCardUrl ? (
-              <a href={myCardUrl}>
-                <BadgeCheck aria-hidden="true" size={16} strokeWidth={1.7} />
-                我的 AI Card
-              </a>
-            ) : null}
+            <button
+              disabled={identityState !== "ready"}
+              onClick={() => setCardOpen(true)}
+              type="button"
+            >
+              <IdCard aria-hidden="true" size={16} strokeWidth={1.7} />
+              我的 AI Card
+            </button>
             <button
               aria-label="退出登录"
               disabled={signingOut}
@@ -192,6 +249,20 @@ export function AgentDirectory({
             </button>
           </div>
         </header>
+
+        {identityState === "error" ? (
+          <div className="identity-load-error" role="alert">
+            <span>身份暂时无法载入</span>
+            <button
+              aria-label="重新载入身份"
+              onClick={() => void loadIdentity()}
+              type="button"
+            >
+              <RefreshCw aria-hidden="true" size={14} />
+              重试
+            </button>
+          </div>
+        ) : null}
 
         <section aria-labelledby="appearance-title" className="appearance-settings">
           <div>
@@ -280,10 +351,6 @@ export function AgentDirectory({
               <Bot aria-hidden="true" size={24} strokeWidth={1.4} />
               <h2>尚未接入 AI</h2>
               <p>YOS 或其他 AI 需先拥有 AI Card，再由你授权加入当前空间。</p>
-              <a href="/api/v1/auth/aicard/start?purpose=agent">
-                <BadgeCheck aria-hidden="true" size={15} strokeWidth={1.7} />
-                授权 AI 接入
-              </a>
             </div>
           ) : (
             <div className="agent-list">
@@ -367,6 +434,55 @@ export function AgentDirectory({
             </div>
           )}
         </section>
+
+        {cardOpen && identity ? (
+          <div
+            className="aicard-overlay"
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) setCardOpen(false);
+            }}
+          >
+            <section
+              aria-labelledby="my-aicard-title"
+              aria-modal="true"
+              className="aicard-dialog"
+              role="dialog"
+            >
+              <header>
+                <div>
+                  <span>AI CARD</span>
+                  <h2 id="my-aicard-title">我的 AI Card</h2>
+                </div>
+                <button
+                  aria-label="关闭我的 AI Card"
+                  onClick={() => setCardOpen(false)}
+                  title="关闭"
+                  type="button"
+                >
+                  <X aria-hidden="true" size={17} />
+                </button>
+              </header>
+              <div className="aicard-dialog__identity">
+                <span aria-hidden="true">{identity.displayName.slice(0, 1)}</span>
+                <div>
+                  <strong>{identity.displayName}</strong>
+                  <small>@{identity.loginHandle}</small>
+                </div>
+              </div>
+              <dl>
+                <div>
+                  <dt>永久身份编号</dt>
+                  <dd>{identity.aiCardId}</dd>
+                </div>
+                <div>
+                  <dt>Yoyoo 用户名</dt>
+                  <dd>@{identity.loginHandle}</dd>
+                </div>
+              </dl>
+              <p>这张 AI Card 是你在 Yoyoo 及未来兼容产品中的统一身份。</p>
+            </section>
+          </div>
+        ) : null}
       </main>
     </div>
   );
