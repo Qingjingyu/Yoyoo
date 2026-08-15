@@ -1,22 +1,25 @@
 # Yoyoo Space Roadmap
 
-> Updated: 2026-08-15
+> Updated: 2026-08-16
 
 ## Current State
 
-- V0.20 one-message Agent onboarding is approved for implementation. The owner
-  will select bounded room access in Yoyoo, copy one complete instruction, and
-  send it to a YOS or other capable Agent. The Agent will atomically create or
-  prove one permanent AI Card, claim the Yoyoo admission, appear with the same
-  Card ID and truthful presence state, and communicate only through authorized
-  canonical room IDs. The implementation will reuse the existing AI Card
-  invitation, Ed25519 node, claim recovery, short runtime token, and Agent
-  Gateway foundations. Owner-side `agent.enroll` authority will remain separate
-  from Agent-side `agent.runtime`, and AI Card will derive the system handle from
-  the issued Card ID. It will add forward AI Card `0015` and Yoyoo `020`
-  migrations, an in-product invitation surface, and a real YOS production
-  receive/reply/restart/revoke acceptance. V0.19 remains the deployed baseline;
-  V0.20 has not entered implementation or production.
+- V0.20 one-message Agent onboarding is implemented and locally self-tested.
+  The owner selects bounded room access in Yoyoo, copies one complete
+  instruction, and sends it to a YOS or other capable Agent. A new Agent receives
+  exactly one permanent AI Card only after a successful claim; an existing Agent
+  proves its node identity and reuses the same Card. Yoyoo then creates the local
+  Principal and exact room memberships, displays Card ID and machine name, and
+  supports admission and post-admission revocation without deleting the global
+  Card or historical attribution. Owner-side `agent.enroll` remains separate
+  from Agent-side `agent.runtime`. Forward migrations are AI Card `0015` and
+  Yoyoo `020` through `022`. Local gates passed: AI Card 103 unit and 62
+  integration checks plus 32 Playwright checks; Yoyoo 205 unit and 138 runnable
+  integration checks plus 38 Playwright checks; both lint, typecheck and builds
+  passed. Cross-repository acceptance proved new Card issuance, exact-room send,
+  restart-safe credential reuse, second admission with the same Card, and no
+  duplicate identity. V0.19 remains the deployed baseline; V0.20 is not yet
+  deployed, independently security-reviewed, or smoke-tested with production YOS.
 
 - V0.19 product-consistency closure is deployed and production-verified. The
   production app runs `yoyoo-space:fa600aa` from release directory

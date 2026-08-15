@@ -2,10 +2,10 @@
 
 > Current version: V0.20 One-Message Agent Onboarding
 >
-> Date: 2026-08-15
+> Date: 2026-08-16
 >
-> Status: V0.20 is approved for implementation; V0.19 remains the deployed
-> production baseline at app.yoyooai.com
+> Status: V0.20 is implemented and locally self-tested; V0.19 remains the
+> deployed production baseline at app.yoyooai.com
 
 ## V0.20 Goal
 
@@ -192,9 +192,10 @@ local Principal UUID after the authority migration.
 - Future invited humans who first enter through Yoyoo and automatically receive
   or reuse an authoritative AI Card identity. V0.16 production access remains
   limited to the existing owner until workspace invitations are implemented.
-- New AI participants, including YOS instances, already own an authoritative AI
-  Card before entering Yoyoo. A human controller explicitly authorizes that
-  Card into a workspace; Yoyoo never creates the AI identity locally.
+- New AI participants, including YOS instances, enter through a bounded owner
+  invitation. AI Card creates the authoritative identity only on successful
+  claim, or verifies and reuses an existing Card; Yoyoo never creates the AI
+  identity locally.
 - Existing legacy Gateway Agents continue to authenticate through their current
   credentials for compatibility; they do not receive browser passwords or
   human sessions, and Yoyoo does not issue new local Gateway identities.
@@ -247,11 +248,10 @@ identity authority is unavailable.
 
 ### External AI authorization
 
-- A YOS instance or other external AI must first create and claim its own AI
-  Card through the identity authority. That Card remains the AI's permanent
-  cross-product identity.
-- The workspace owner starts `授权 AI 接入`, selects an AI Card they control,
-  and grants it access to the current Yoyoo workspace.
+- The workspace owner starts `接入 Agent`, selects exact rooms and minimum
+  permissions, then sends one complete instruction to the external Agent.
+- A new Agent receives its permanent cross-product AI Card during successful
+  claim. An existing Agent proves its current node identity and reuses that Card.
 - After a verified callback, Yoyoo creates or reuses only a local Principal,
   workspace membership, permissions, room membership and service mapping. It
   does not mint a second identity, Card number, local handle-based account or
@@ -376,7 +376,7 @@ identity authority is unavailable.
   source.
 - Agent Gateway authentication and exact `room_id` delivery remain operational.
 - `POST /api/v1/workspaces/current/agents` refuses local identity creation with
-  `AI_CARD_REQUIRED`, while Settings exposes only `授权 AI 接入` for new AI.
+  `AI_CARD_REQUIRED`, while Settings exposes only `接入 Agent` for new AI.
 - A claimed YOS AI Card can be authorized into Yoyoo, maps to one stable local
   Principal on repeated authorization, and can provide service under that
   identity without receiving a second Card or local account.

@@ -1,7 +1,8 @@
 # Yoyoo V0.20 Agent Onboarding Development Plan
 
-> Status: V0.20 specification is approved; implementation has not started. The
-> deployed production code baseline remains `fa600aa`.
+> Status: V0.20 is implemented and locally self-tested. Production deployment
+> and the first real production YOS smoke remain separately gated; the deployed
+> production code baseline remains V0.19.
 
 ## Tech Stack And Boundaries
 
@@ -13,8 +14,8 @@
   keys, and runtime-token issuance. Yoyoo owns invitations into its workspace,
   local Principal mappings, permissions, room memberships, jobs, messages,
   files, and audit.
-- Preserve all released migration bytes. New schema changes use AI Card
-  migration `0015` and Yoyoo migration `020` only.
+- Preserve all released migration bytes. The implementation uses forward-only
+  AI Card migration `0015` and Yoyoo migrations `020` through `022`.
 
 ## Phase 8E-1: Atomic Identity And Admission Contract
 

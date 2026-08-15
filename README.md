@@ -8,17 +8,17 @@ across persistent group and direct rooms. The repository is a clean
 implementation started on 2026-08-05 and does not inherit the retired Yoyoo
 application or Git history.
 
-Current status: V0.17 is deployed at `https://app.yoyooai.com`. The native login
-surface explains Yoyoo and lets a person log in with or create an AI Card without
-leaving the product. Yoyoo no longer allocates Card IDs or receives identity
-passwords; it accepts verified AI Card claims, maps them to stable local Principal
-UUIDs, and creates password-independent federated browser sessions. The local
-cross-repository acceptance has verified first
-registration, HTTPS consent callback, stable owner mapping and a second-browser
-login without a duplicate Principal or local credential. The same isolated
-acceptance also proves a claimed YOS AI Card can be authorized, authenticate its
-runtime, discover an exact room ID and persist a message without a local
-`yya_` identity. V0.14 remains the internal daily-use release. It adds one-command
+Current status: V0.20 one-message Agent onboarding is implemented and locally
+self-tested; V0.19 remains the deployed production baseline at
+`https://app.yoyooai.com`. The native login surface explains Yoyoo and lets a
+person log in with or create an AI Card without leaving the product. Yoyoo no
+longer allocates Card IDs or receives identity passwords; it accepts verified AI
+Card claims, maps them to stable local Principal UUIDs, and creates
+password-independent federated browser sessions. The V0.20 cross-repository
+acceptance proves that one copied instruction can create a fresh Agent Card or
+reuse an existing Card, admit the Agent only to selected room UUIDs, persist a
+message, and retain one identity across a second admission. V0.14 remains the
+internal daily-use release. It adds one-command
 production startup, readiness diagnosis, and verified local PostgreSQL + BlobStore
 backups without changing product behavior or adding public exposure. V0.13
 finalizes the optical glass material system, while V0.11 replaces the image-led
@@ -49,8 +49,9 @@ storage, malware scanning, or hard deletion.
 ## Public Preview
 
 The production package is under `infra/production`. Public production starts
-without the local Planner, Builder, and Reviewer demo Agents. New real Agents
-join only by authorizing an existing AI Card. Existing Agent Gateway identities
+without the local Planner, Builder, and Reviewer demo Agents. In V0.20, a new
+Agent receives an AI Card only when it successfully claims an owner-created
+invitation; an existing Agent proves and reuses its current Card. Existing Agent Gateway identities
 remain operational during migration; local deterministic modes keep the three
 test seats unless `YOYOO_BUILTIN_AGENTS=none` is set explicitly. See
 `infra/production/README.md` for the staged runbook.
@@ -155,11 +156,33 @@ through its own ordered event boundary.
 
 ## External AI Admission And Legacy Gateway
 
-Yoyoo does not create new AI identities. First enroll and claim the YOS instance
-or other external AI in AI Card. Then open
-`http://127.0.0.1:3000/settings/agents`, choose `授权 AI 接入`, and authorize that
-existing Card into the workspace. Yoyoo creates only its local Principal and
-membership projection.
+Yoyoo does not issue AI identities itself. Open `/settings/agents`, choose
+`接入 Agent`, select exact rooms and minimum permissions, and copy the complete
+instruction to a YOS or other instruction-capable Agent. The instruction carries
+two single-use, 15-minute authorizations: AI Card identity enrollment and Yoyoo
+workspace admission. A new Agent receives one permanent Card only after a
+successful claim. An Agent with an existing private node credential must reuse
+that Card. Yoyoo creates only its local Principal, workspace membership and
+selected room memberships, and then displays the Card ID, machine name and
+truthful connection state.
+
+The provider-neutral reference client reads the `自动接入参数` JSON from standard
+input so tickets do not appear in the process list:
+
+```bash
+npm run agent:admit -- --output /private/path/yoyoo-agent.json
+```
+
+To reuse an existing Card, add its private `0600` node credential:
+
+```bash
+npm run agent:admit -- --output /private/path/yoyoo-agent.json \
+  --identity-credential /private/path/aicard-node.json
+```
+
+The stable, secret-free protocol instructions are also available at
+`GET /api/v1/agent-admissions/instructions`. The generated Yoyoo credential is
+private runtime material and must not be committed or sent to another person.
 
 The `yya_` Gateway path below is retained only for Agents that were connected
 before this boundary changed. Yoyoo no longer issues new Gateway credentials
@@ -249,12 +272,13 @@ openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
 
 Store the result only as `YOYOO_AICARD_SESSION_SECRET` in `.env.local`. The
 `yoyoo_dev` client must allow `card.basic card.handle card.id offline_access`.
-Open `http://localhost:4173/login` and choose `使用 AI Card 继续` for the human
-session, or open `http://localhost:4173/settings/agents` and choose `授权 AI 接入`.
-AI Card then
-shows only active AI identities controlled by the signed-in human. After one is
-approved, Yoyoo creates or reuses one stable local Agent Principal, activates
-its workspace membership, and shows it as `等待运行节点`. Yoyoo stores the
+Open `http://localhost:4173/login` for the human session. To connect an Agent,
+open `http://localhost:4173/settings/agents`, choose `接入 Agent`, select its
+rooms, and send the generated instruction to the Agent. This owner action is the
+bounded approval; there is no second AI Card selection screen. After the Agent
+claims or reuses its Card, Yoyoo creates or reuses one stable local Agent
+Principal, activates only the approved memberships, and shows its Card ID,
+machine name and connection state. Yoyoo stores the
 stable pairwise identity mapping and an AES-256-GCM encrypted refresh grant for
 browser-session revalidation. The authorization code, PKCE verifier, access
 token, and plaintext refresh token are not persisted. The encrypted grant
@@ -262,9 +286,11 @@ rotates every five minutes and is erased on logout or central revocation; a
 provider outage has a maximum 15-minute validation grace.
 
 Use the explicit owner-purpose authorization only to bind the current human
-owner. New AI identities must already own an AI Card; the former local
-`兼容接入` flow is closed. Existing `yya_` credentials can still be rotated or
-revoked while their runtimes migrate to AI Card.
+owner. Yoyoo never creates a local AI account or Card number; the AI Card issuer
+creates a new Agent identity transactionally during the authorized claim, or
+verifies an existing one. The former local `兼容接入` flow is closed. Existing
+`yya_` credentials can still be rotated or revoked while their runtimes migrate
+to AI Card.
 
 For an existing single-owner database, inspect authority takeover without
 changing data:
@@ -376,6 +402,7 @@ src/styles/              Tokens, base styles, homepage, and responsive rules
 infra/postgres/           Local Compose service and forward-only migrations
 tests/                    Unit, UI, and PostgreSQL integration tests
 scripts/agent-gateway-client.mts Provider-neutral public polling client
+scripts/agent-admission-reference.mts One-message AI Card + Yoyoo admission client
 scripts/run-yos-gateway-agent.mts YOS-to-Gateway reference bridge
 scripts/finalize-aicard-owner-cutover.mts Guarded AI Card-only owner cutover
 e2e/                      Playwright browser acceptance
@@ -438,6 +465,8 @@ e2e/                      Playwright browser acceptance
   disciplined materials, semantic motion, and desktop/mobile evidence.
 - `开发过程/030_Feature_光学毛玻璃材质系统.md`: semantic optical glass for
   light/dark navigation and conversation framing, with solid reading surfaces.
+- `开发过程/040_Feature_Agent一段话接入.md`: delayed AI Card issuance,
+  bounded room admission, identity reuse, revocation, and cross-repository evidence.
 
 ## Reference Policy
 
