@@ -4,6 +4,18 @@
 
 ## Current State
 
+- V0.19 product-consistency closure is deployed and production-verified. The
+  production app runs `yoyoo-space:fa600aa` from release directory
+  `/opt/yoyoo/releases/fa600aa` with the previous `2add279` image and release
+  retained as the rollback target. The release applied no new migration and
+  preserved migration baseline `019`. Public health for Yoyoo and AI Card is
+  `200`, anonymous access still redirects to login, the retired Orb route is
+  `404`, and the YOS distribution shelf remains `200`. A real authenticated
+  browser session proved that `我的 AI Card` opens inside Yoyoo without changing
+  route, presents the current Card projection, and the room IM remains usable.
+  The verified pre-release backup is retained under
+  `/opt/yoyoo/backups/product-consistency-fa600aa-20260815T094959Z`.
+
 - V0.18 AI Card authority runtime is deployed and publicly self-verified. The new
   runtime contract makes AI Card the only public account authority while Yoyoo
   retains product-local Principal UUIDs solely for memberships and resource
@@ -555,7 +567,8 @@
   returns a real `404`. Lint, TypeScript, production build, 196 unit/UI checks,
   134 runnable PostgreSQL/HTTP integration checks, and 38 desktop/mobile
   Playwright checks passed. Seven explicitly gated external-service checks were
-  skipped and are not counted as passing. V0.19 has not been deployed; evidence
-  is recorded in `039_Feature_产品一致性收口.md`.
+  skipped and are not counted as passing. It was subsequently deployed and
+  production-verified; full evidence is recorded in
+  `039_Feature_产品一致性收口.md`.
 - Lighthouse scores of 99/100/100 belong to the previous homepage version and
   were not reused as evidence for this redesign.
