@@ -201,13 +201,13 @@ export async function finalizeAICardOwnerCutover(
     );
     const disabled = await client.query(
       `UPDATE human_credentials
-       SET status = 'disabled', updated_at = $2
+       SET status = 'disabled', updated_at = GREATEST(updated_at, $2)
        WHERE principal_id = $1 AND status = 'active'`,
       [inspection.ownerPrincipalId, input.now],
     );
     const cleared = await client.query(
       `UPDATE principals
-       SET ai_card_id = NULL, updated_at = $1
+       SET ai_card_id = NULL, updated_at = GREATEST(updated_at, $1)
        WHERE ai_card_id IS NOT NULL`,
       [input.now],
     );

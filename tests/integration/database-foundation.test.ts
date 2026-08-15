@@ -75,6 +75,9 @@ describe("PostgreSQL foundation", () => {
       "017_aicard_authorization_replay_guard.sql",
       "018_aicard_session_authority.sql",
       "019_release_legacy_ai_card_projection.sql",
+      "020_agent_admission_invitations.sql",
+      "021_agent_admission_revocation.sql",
+      "022_agent_admission_machine_name.sql",
     ]);
 
     const migrationCounts = await pool.query<{ version: string; count: string }>(
