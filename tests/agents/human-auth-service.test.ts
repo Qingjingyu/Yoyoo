@@ -57,6 +57,13 @@ function createAuthority(
       ...protectedRefresh,
       ciphertext: Buffer.alloc(48, 4),
     }),
+    refreshAuthorizationForOperation: vi.fn().mockResolvedValue({
+      material: {
+        ...protectedRefresh,
+        ciphertext: Buffer.alloc(48, 4),
+      },
+      accessToken: "at_operation-token",
+    }),
     ...overrides,
   };
 }

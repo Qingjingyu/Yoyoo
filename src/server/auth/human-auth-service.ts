@@ -261,6 +261,31 @@ export class HumanAuthService {
     }
   }
 
+  async getFederatedAccessToken(
+    session: HumanSessionRecord,
+    now = new Date(),
+  ): Promise<string> {
+    const authorization = session.federatedAuthorization;
+    if (session.authMethod !== "aicard" || !authorization || !this.aicardAuthority) {
+      throw new FederatedAuthorizationRejectedError("AI Card 登录授权不可用");
+    }
+    const rotated = await this.aicardAuthority.refreshAuthorizationForOperation({
+      issuer: authorization.issuer,
+      clientId: authorization.clientId,
+      subject: authorization.subject,
+      authorizationStateHash: authorization.authorizationStateHash,
+      material: authorization.material,
+      now,
+    });
+    const updated = await this.store.updateFederatedSessionAuthorization({
+      sessionId: session.sessionId,
+      federatedAuthorization: rotated.material,
+      validatedAt: now,
+    });
+    if (!updated) throw new FederatedAuthorizationRejectedError("登录会话已经失效");
+    return rotated.accessToken;
+  }
+
   logout(token: string, now = new Date()): Promise<boolean> {
     return this.store.revokeSession(hashOpaqueToken(token), now);
   }
