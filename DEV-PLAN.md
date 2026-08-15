@@ -1,7 +1,46 @@
-# Yoyoo V0.16 Unified AI Card Identity Development Plan
+# Yoyoo V0.19 Product Consistency Development Plan
 
-> Status: V0.15 production remains active; V0.16 local implementation and
-> verification complete, production integration and cutover pending
+> Status: V0.18 production remains active; V0.19 local implementation and
+> verification are complete, production release is pending a separate gate
+
+## Phase 8D: V0.19 Product Consistency Closure
+
+### Deliverables
+
+- Replace the homepage `current conversation` client with the authenticated
+  room client and route every message through an explicit `room_id`.
+- Remove browser dependence on `YOYOO_LOCAL_OWNER_ID` and retire the obsolete
+  homepage conversation surface after migration coverage is green.
+- Read the current display name and AI Card projection from the authenticated
+  session; calculate greetings at runtime and attribute interventions to the
+  authenticated human Principal.
+- Render `我的 AI Card` inside Settings with loading, empty, error, and success
+  states. Keep issuer URLs out of visible product navigation.
+- Restructure Settings into Identity, Appearance, and AI Access sections with a
+  single Agent authorization action.
+- Hide preview-only Live entry in production and make development previews
+  explicitly non-functional.
+- Add route-correct error/not-found handling and fence isolated motion previews
+  from production navigation.
+
+### Verification
+
+- Write failing UI and HTTP tests before each behavior change.
+- Prove the homepage sends to the selected canonical room and the message is
+  visible in the room IM without a second conversation store.
+- Prove two different authenticated display names render and attribute actions
+  correctly; no user-facing source contains the literal owner name.
+- Prove `我的 AI Card` opens in Yoyoo without an external navigation and handles
+  missing session data visibly.
+- Prove production mode exposes no functional microphone claim or preview route.
+- Run lint, typecheck, full unit/UI tests, PostgreSQL integration tests, the
+  production build, and desktop/mobile browser checks before completion.
+
+### Rejected Alternative
+
+- Patching only the `我的 AI Card` link is smaller but leaves the duplicate
+  conversation model, hard-coded identity, and simulated voice contract intact;
+  those shared assumptions would continue to produce the same class of defect.
 
 ## Phase 8C-6: AI Card-only Authority Finalization
 

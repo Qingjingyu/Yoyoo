@@ -1,10 +1,44 @@
 # Yoyoo Space Product Spec
 
-> Current version: V0.18 AI Card Authority Cutover
+> Current version: V0.19 Product Consistency Closure
 >
-> Date: 2026-08-13
+> Date: 2026-08-15
 >
-> Status: locally implemented and verified; production cutover pending
+> Status: V0.18 is deployed; V0.19 is locally verified and pending release
+
+## V0.19 Goal
+
+Remove the remaining single-user prototype assumptions from Yoyoo's public
+experience without changing the AI Card authority boundary or production data.
+The homepage, IM, Settings, identity presentation, and preview-only experiences
+must describe one product and use one authenticated Principal and room model.
+
+## V0.19 Scope
+
+- Every browser message is addressed through an explicit Yoyoo `room_id`; the
+  legacy `current conversation` plus `local-owner` browser path is retired.
+- The homepage opens or sends into a canonical room using the room API instead
+  of maintaining a second conversation history.
+- Human-facing names and action attribution come from the authenticated
+  Principal. No production UI contains a hard-coded owner name or fixed greeting.
+- `我的 AI Card` renders inside Yoyoo from the verified session projection. The
+  identity issuer remains a backend protocol boundary, not a user-facing product
+  destination.
+- Settings has clear Identity, Appearance, and AI Access sections with one
+  primary Agent authorization action.
+- Preview-only voice and motion surfaces never claim to capture or understand
+  audio. They are hidden from production until a real audio transport exists.
+- Route-specific loading, empty, error, and success states use the correct
+  product context on desktop and mobile.
+
+## Not Doing In V0.19
+
+- No new room, file, task, payment, invitation, or Agent runtime capability.
+- No change to AI Card account creation, issuer storage, Card numbering, or
+  Yoyoo Principal foreign keys.
+- No production data cleanup, migration rewrite, or credential rotation.
+- No simulated microphone, transcription, or realtime Agent response presented
+  as a working user feature.
 
 ## Goal
 
