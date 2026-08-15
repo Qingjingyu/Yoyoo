@@ -1,7 +1,7 @@
 # Yoyoo V0.19 Product Consistency Development Plan
 
-> Status: V0.18 production remains active; V0.19 local implementation and
-> verification are complete, production release is pending a separate gate
+> Status: V0.19 implementation, verification, and production release are
+> complete. The deployed code baseline is `fa600aa`.
 
 ## Phase 8D: V0.19 Product Consistency Closure
 

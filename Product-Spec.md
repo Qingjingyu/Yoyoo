@@ -4,7 +4,7 @@
 >
 > Date: 2026-08-15
 >
-> Status: V0.18 is deployed; V0.19 is locally verified and pending release
+> Status: V0.19 is deployed and production-verified at app.yoyooai.com
 
 ## V0.19 Goal
 
