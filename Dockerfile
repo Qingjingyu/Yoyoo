@@ -26,6 +26,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/db-migrate.mjs ./scripts/db-migrate.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/bootstrap-public-workspace.mts ./scripts/bootstrap-public-workspace.mts
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/provision-public-owner.mts ./scripts/provision-public-owner.mts
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/finalize-aicard-owner-cutover.mts ./scripts/finalize-aicard-owner-cutover.mts
 COPY --from=builder --chown=nextjs:nodejs /app/infra/postgres/migrations ./infra/postgres/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/server/auth ./src/server/auth
 COPY --from=builder --chown=nextjs:nodejs /app/src/server/collaboration-bootstrap.ts ./src/server/collaboration-bootstrap.ts
