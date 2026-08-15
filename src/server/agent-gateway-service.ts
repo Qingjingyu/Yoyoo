@@ -1,5 +1,6 @@
 import type {
   AgentGatewayJobRecord,
+  AgentGatewayPermission,
   AgentGatewaySessionRecord,
 } from "@/domain/collaboration";
 import {
@@ -12,6 +13,13 @@ export class AgentGatewayAuthenticationError extends Error {
   constructor() {
     super("A valid Agent Bearer token is required");
     this.name = "AgentGatewayAuthenticationError";
+  }
+}
+
+export class AgentGatewayPermissionError extends Error {
+  constructor() {
+    super("The Agent does not have the required permission");
+    this.name = "AgentGatewayPermissionError";
   }
 }
 
@@ -88,11 +96,22 @@ export class AgentGatewayService {
     return this.repository.heartbeat(session.principalId);
   }
 
+  async authorize(
+    authorization: string | null,
+    permission: AgentGatewayPermission,
+  ): Promise<AgentGatewaySessionRecord> {
+    const session = await this.authenticate(authorization);
+    if (session.permissions !== null && !session.permissions.includes(permission)) {
+      throw new AgentGatewayPermissionError();
+    }
+    return session;
+  }
+
   async claimJob(input: {
     authorization: string | null;
     leaseMs?: number;
   }): Promise<AgentGatewayJobRecord | null> {
-    const session = await this.authenticate(input.authorization);
+    const session = await this.authorize(input.authorization, "message.read");
     if (session.credentialVersion !== null) {
       await this.repository.heartbeat(session.principalId);
     }
@@ -108,7 +127,7 @@ export class AgentGatewayService {
     leaseId: string;
     result: Record<string, unknown>;
   }): Promise<Awaited<ReturnType<AgentGatewayRepository["settleJob"]>>> {
-    const session = await this.authenticate(input.authorization);
+    const session = await this.authorize(input.authorization, "message.write");
     return this.repository.settleJob({
       principalId: session.principalId,
       jobId: input.jobId,

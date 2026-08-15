@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   AgentGatewayAuthenticationError,
+  AgentGatewayPermissionError,
   AgentGatewayService,
   createConfiguredAgentGatewayService,
 } from '@/server/agent-gateway-service';
@@ -12,6 +13,7 @@ const legacySession = {
   handle: 'legacy-agent',
   displayName: 'Legacy Agent',
   credentialVersion: 1,
+  permissions: null,
 };
 
 function createRuntime(overrides: Record<string, unknown> = {}) {
@@ -30,6 +32,7 @@ function createRuntime(overrides: Record<string, unknown> = {}) {
     active: true,
     subject: `sub_${'b'.repeat(43)}`,
     nodeId: '019f78ba-6ea8-7e85-bdaf-05b5fe7aa0a3',
+    machineName: 'aicard-agent',
     clientId: 'yoyoo_dev',
     audience: 'yoyoo',
     scope: 'agent.runtime',
@@ -96,6 +99,33 @@ describe('AgentGatewayService runtime authentication', () => {
     expect(repository.heartbeat).not.toHaveBeenCalled();
   });
 
+  it('enforces an admitted Agent minimum permission set while preserving legacy access', async () => {
+    const { repository, service } = createRuntime();
+    repository.authenticateAICardRuntime.mockResolvedValueOnce({
+      ...legacySession,
+      credentialVersion: null,
+      permissions: ['message.read'],
+    });
+
+    await expect(service.authorize(
+      `Bearer at_${'a'.repeat(43)}`,
+      'message.read',
+    )).resolves.toMatchObject({ permissions: ['message.read'] });
+    repository.authenticateAICardRuntime.mockResolvedValueOnce({
+      ...legacySession,
+      credentialVersion: null,
+      permissions: ['message.read'],
+    });
+    await expect(service.authorize(
+      `Bearer at_${'a'.repeat(43)}`,
+      'message.write',
+    )).rejects.toBeInstanceOf(AgentGatewayPermissionError);
+    await expect(service.authorize(
+      `Bearer yya_${'a'.repeat(43)}`,
+      'attachment.write',
+    )).resolves.toMatchObject({ permissions: null });
+  });
+
   it('allows an authenticated AI Card Agent to claim work without a legacy credential', async () => {
     const { repository, service } = createRuntime();
 
@@ -115,10 +145,14 @@ describe('AgentGatewayService runtime authentication', () => {
       active: true,
       sub: `sub_${'b'.repeat(43)}`,
       node_id: '019f78ba-6ea8-7e85-bdaf-05b5fe7aa0a3',
+      machine_name: 'aicard-agent',
       client_id: 'yoyoo_dev',
       audience: 'yoyoo',
       scope: 'agent.runtime',
       expires_at: new Date(Date.now() + 60_000).toISOString(),
+      card_id: 'AI_100002',
+      display_name: 'AI Card Agent',
+      handle: 'aicard-agent',
     }));
     const service = createConfiguredAgentGatewayService(
       repository as never,
