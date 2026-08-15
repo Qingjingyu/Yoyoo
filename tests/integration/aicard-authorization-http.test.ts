@@ -88,7 +88,7 @@ describe('AI Card authorization HTTP boundary', () => {
     expect(location.searchParams.get('client_id')).toBe('yoyoo_dev');
     expect(location.searchParams.get('code_challenge_method')).toBe('S256');
     expect(location.searchParams.get('scope')).toBe(
-      'card.basic card.handle card.id offline_access',
+      'card.basic card.handle card.id offline_access agent.enroll',
     );
     expect(cookie).toContain('HttpOnly');
     expect(cookie.toLowerCase()).toContain('samesite=lax');
@@ -111,7 +111,7 @@ describe('AI Card authorization HTTP boundary', () => {
         responseType: 'code',
         clientId: 'yoyoo_dev',
         redirectUri: 'http://localhost:4173/auth/aicard/callback',
-        scope: 'card.basic card.handle card.id offline_access',
+        scope: 'card.basic card.handle card.id offline_access agent.enroll',
         state: expect.any(String),
         codeChallenge: expect.any(String),
         codeChallengeMethod: 'S256',
@@ -170,7 +170,7 @@ describe('AI Card authorization HTTP boundary', () => {
         access_token: accessToken,
         token_type: 'Bearer',
         expires_in: 600,
-        scope: 'card.basic card.handle card.id offline_access',
+        scope: 'card.basic card.handle card.id offline_access agent.enroll',
         sub: subject,
         refresh_token: refreshToken,
         refresh_expires_in: 2_592_000,
@@ -187,7 +187,7 @@ describe('AI Card authorization HTTP boundary', () => {
         access_token: accessToken,
         token_type: 'Bearer',
         expires_in: 600,
-        scope: 'card.basic card.handle card.id offline_access',
+        scope: 'card.basic card.handle card.id offline_access agent.enroll',
         sub: subject,
         refresh_token: refreshToken,
         refresh_expires_in: 2_592_000,
@@ -282,7 +282,7 @@ describe('AI Card authorization HTTP boundary', () => {
         access_token: `at_${'a'.repeat(43)}`,
         token_type: 'Bearer',
         expires_in: 600,
-        scope: 'card.basic card.handle card.id offline_access',
+        scope: 'card.basic card.handle card.id offline_access agent.enroll',
         sub: subject,
         refresh_token: `rt_${'r'.repeat(43)}`,
         refresh_expires_in: 2_592_000,
@@ -331,7 +331,7 @@ describe('AI Card authorization HTTP boundary', () => {
         access_token: `at_${'a'.repeat(43)}`,
         token_type: 'Bearer',
         expires_in: 600,
-        scope: 'card.basic card.handle card.id offline_access',
+        scope: 'card.basic card.handle card.id offline_access agent.enroll',
         sub: subject,
         refresh_token: `rt_${'r'.repeat(43)}`,
         refresh_expires_in: 2_592_000,
@@ -401,7 +401,7 @@ describe('AI Card authorization HTTP boundary', () => {
         access_token: `at_${'a'.repeat(43)}`,
         token_type: 'Bearer',
         expires_in: 600,
-        scope: 'card.basic card.handle card.id offline_access',
+        scope: 'card.basic card.handle card.id offline_access agent.enroll',
         sub: subject,
         refresh_token: `rt_${'r'.repeat(43)}`,
         refresh_expires_in: 2_592_000,
