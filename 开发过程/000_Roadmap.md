@@ -14,9 +14,12 @@
   now runs `yoyoo-space:2add279` in `aicard` mode with forward migration `019`;
   public health, anonymous redirect, login page, AI Card CORS, exact callback
   configuration, owner mapping/session and unchanged room counts were read back.
-  The production finalizer dry-run passes but `--apply` remains deliberately
-  unexecuted until the owner completes browser acceptance and gives separate
-  approval. Local gates pass: lint, typecheck, 199/199 unit/UI checks, 134/134 runnable
+  After the owner completed browser acceptance and gave separate approval, the
+  guarded production finalizer revoked all 10 legacy password sessions,
+  disabled the one legacy credential and cleared both local Card projections.
+  Its post-apply dry-run reports one active AI Card session and zero remaining
+  legacy authority records while Owner, mapping and business-resource counts
+  remain unchanged. Local gates pass: lint, typecheck, 199/199 unit/UI checks, 134/134 runnable
   PostgreSQL integration checks (7 environment-gated checks skipped), the
   production build, and Compose configuration validation.
 
