@@ -329,9 +329,9 @@ export function HumanLogin({
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               disabled={!ready || pending}
               maxLength={128}
-              minLength={12}
+              minLength={8}
               name="password"
-              placeholder="至少 12 个字符"
+              placeholder="至少 8 个字符"
               required
               type="password"
             />
@@ -343,7 +343,7 @@ export function HumanLogin({
                 autoComplete="new-password"
                 disabled={!ready || pending}
                 maxLength={128}
-                minLength={12}
+                minLength={8}
                 name="confirmPassword"
                 placeholder="再次输入密码"
                 required

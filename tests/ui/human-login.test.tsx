@@ -60,6 +60,17 @@ describe("HumanLogin", () => {
     expect(screen.queryByText("使用临时本地账号")).not.toBeInTheDocument();
   });
 
+  it("uses the shared eight-character password boundary", async () => {
+    const user = userEvent.setup();
+    render(<HumanLogin />);
+
+    expect(screen.getByLabelText("密码")).toHaveAttribute("minLength", "8");
+    await user.click(screen.getByRole("tab", { name: "创建 AI Card" }));
+    expect(screen.getByLabelText("设置密码")).toHaveAttribute("minLength", "8");
+    expect(screen.getByLabelText("设置密码")).toHaveAttribute("placeholder", "至少 8 个字符");
+    expect(screen.getByLabelText("确认密码")).toHaveAttribute("minLength", "8");
+  });
+
   it("logs in through AI Card without sending the password to Yoyoo", async () => {
     const user = userEvent.setup();
     const onAuthenticated = vi.fn();
