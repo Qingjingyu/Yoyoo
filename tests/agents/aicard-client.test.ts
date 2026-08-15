@@ -234,10 +234,14 @@ describe('AICardClient', () => {
         active: true,
         sub: `sub_${'b'.repeat(43)}`,
         node_id: '019f78ba-6ea8-7e85-bdaf-05b5fe7aa0a1',
+        machine_name: 'aicard-agent',
         client_id: 'yoyoo_dev',
         audience: 'yoyoo',
         scope: 'agent.runtime',
         expires_at: '2026-08-09T12:00:00.000Z',
+        card_id: 'AI_100002',
+        display_name: 'AI Card Agent',
+        handle: 'aicard-agent',
       });
     });
 
@@ -245,10 +249,14 @@ describe('AICardClient', () => {
       active: true,
       subject: `sub_${'b'.repeat(43)}`,
       nodeId: '019f78ba-6ea8-7e85-bdaf-05b5fe7aa0a1',
+      machineName: 'aicard-agent',
       clientId: 'yoyoo_dev',
       audience: 'yoyoo',
       scope: 'agent.runtime',
       expiresAt: new Date('2026-08-09T12:00:00.000Z'),
+      cardId: 'AI_100002',
+      displayName: 'AI Card Agent',
+      handle: 'aicard-agent',
     });
     expect(request?.method).toBe('POST');
     expect(request?.headers.get('authorization')).toBe(`Bearer ${token}`);
@@ -260,5 +268,21 @@ describe('AICardClient', () => {
 
     await expect(client.introspectAgentRuntime(`at_${'a'.repeat(43)}`))
       .rejects.toBeInstanceOf(AICardProtocolError);
+  });
+
+  it('revokes an Agent invitation with the scoped human bearer token', async () => {
+    const token = `at_${'a'.repeat(43)}`;
+    let request: Request | undefined;
+    const client = new AICardClient(config, async (input, init) => {
+      request = new Request(input, init);
+      return Response.json({ revoked: true });
+    });
+
+    await expect(client.revokeAgentInvitation(
+      token,
+      '019f78ba-6ea8-7e85-bdaf-05b5fe7aa0a1',
+    )).resolves.toBeUndefined();
+    expect(request?.method).toBe('DELETE');
+    expect(request?.headers.get('authorization')).toBe(`Bearer ${token}`);
   });
 });

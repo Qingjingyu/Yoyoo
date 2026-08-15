@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
 const AI_CARD_REQUEST_TIMEOUT_MS = 8_000;
-const scopeSchema = z.enum(['card.basic', 'card.handle', 'card.id', 'offline_access']);
+const scopeSchema = z.enum(['card.basic', 'card.handle', 'card.id', 'offline_access', 'agent.enroll']);
 const configSchema = z.object({
   issuer: z.url(),
   clientId: z.string().regex(/^[a-z][a-z0-9_-]{2,63}$/),
@@ -36,17 +36,38 @@ const runtimeIntrospectionSchema = z.object({
   active: z.literal(true),
   sub: z.string().regex(/^sub_[A-Za-z0-9_-]{43}$/),
   node_id: z.uuid(),
+  machine_name: z.string().regex(/^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/),
   client_id: z.string().regex(/^[a-z][a-z0-9_-]{2,63}$/),
   audience: z.string().regex(/^[a-z][a-z0-9:_-]{2,127}$/),
   scope: z.literal('agent.runtime'),
   expires_at: z.iso.datetime(),
+  card_id: z.string().regex(/^AI_[1-9][0-9]{5,}$/),
+  display_name: z.string().trim().min(1).max(120),
+  handle: z.string().trim().min(1).max(80),
+}).strict();
+const agentInvitationSchema = z.object({
+  invitationId: z.uuid(),
+  expiresAt: z.iso.datetime(),
+  instructions: z.string().min(1),
+  identity: z.object({
+    cardId: z.string().regex(/^AI_[1-9][0-9]{5,}$/).nullable(),
+    displayName: z.string().trim().min(1).max(120),
+    handle: z.string().trim().min(1).max(80).nullable(),
+  }).strict(),
+  claim: z.object({
+    serviceUrl: z.url(),
+    invitationId: z.uuid(),
+    ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    machineName: z.string().regex(/^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/),
+    clientId: z.string().regex(/^[a-z][a-z0-9_-]{2,63}$/),
+  }).strict(),
 }).strict();
 
 export interface AICardClientConfig {
   issuer: string;
   clientId: string;
   redirectUri: string;
-  scopes: readonly ('card.basic' | 'card.handle' | 'card.id' | 'offline_access')[];
+  scopes: readonly ('card.basic' | 'card.handle' | 'card.id' | 'offline_access' | 'agent.enroll')[];
 }
 
 export class AICardProtocolError extends Error {
@@ -93,10 +114,28 @@ export interface AICardAgentRuntimeSession {
   active: true;
   subject: string;
   nodeId: string;
+  machineName: string;
   clientId: string;
   audience: string;
   scope: 'agent.runtime';
   expiresAt: Date;
+  cardId: string;
+  displayName: string;
+  handle: string;
+}
+
+export interface AICardAgentInvitation {
+  invitationId: string;
+  expiresAt: Date;
+  instructions: string;
+  identity: { cardId: string | null; displayName: string; handle: string | null };
+  claim: {
+    serviceUrl: string;
+    invitationId: string;
+    ticket: string;
+    machineName: string;
+    clientId: string;
+  };
 }
 
 export async function introspectAICardAgentRuntime(
@@ -122,10 +161,14 @@ export async function introspectAICardAgentRuntime(
     active: true,
     subject: parsed.data.sub,
     nodeId: parsed.data.node_id,
+    machineName: parsed.data.machine_name,
     clientId: parsed.data.client_id,
     audience: parsed.data.audience,
     scope: parsed.data.scope,
     expiresAt: new Date(parsed.data.expires_at),
+    cardId: parsed.data.card_id,
+    displayName: parsed.data.display_name,
+    handle: parsed.data.handle,
   };
 }
 
@@ -265,6 +308,47 @@ export class AICardClient {
       handle: parsed.data.handle,
       cardId: parsed.data.card_id,
     };
+  }
+
+  async createAgentInvitation(
+    accessToken: string,
+    input: { displayName: string } | { cardId: string },
+  ): Promise<AICardAgentInvitation> {
+    const token = tokenResponseSchema.shape.access_token.parse(accessToken);
+    const response = await this.fetcher(new URL('/api/v1/agent-invitations', this.config.issuer), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(input),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(AI_CARD_REQUEST_TIMEOUT_MS),
+    });
+    const body = await readJson(response);
+    if (!response.ok) throw providerError(response.status, body);
+    const parsed = agentInvitationSchema.safeParse(body);
+    if (!parsed.success) throw new AICardProtocolError();
+    return {
+      ...parsed.data,
+      expiresAt: new Date(parsed.data.expiresAt),
+    };
+  }
+
+  async revokeAgentInvitation(accessToken: string, invitationId: string): Promise<void> {
+    const token = tokenResponseSchema.shape.access_token.parse(accessToken);
+    const id = z.uuid().parse(invitationId);
+    const response = await this.fetcher(
+      new URL(`/api/v1/agent-invitations/${id}`, this.config.issuer),
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${token}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(AI_CARD_REQUEST_TIMEOUT_MS),
+      },
+    );
+    const body = await readJson(response);
+    if (!response.ok) throw providerError(response.status, body);
   }
 
   async introspectAgentRuntime(
