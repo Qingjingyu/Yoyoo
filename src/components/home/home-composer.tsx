@@ -1,4 +1,4 @@
-import { ArrowUp, AudioLines } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import type { FormEvent, KeyboardEvent } from "react";
 
 interface HomeComposerProps {
@@ -6,7 +6,6 @@ interface HomeComposerProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onStartLive: () => void;
 }
 
 export function HomeComposer({
@@ -14,7 +13,6 @@ export function HomeComposer({
   value,
   onChange,
   onSubmit,
-  onStartLive,
 }: HomeComposerProps) {
   const canSubmit = !disabled && value.trim().length > 0;
 
@@ -51,16 +49,6 @@ export function HomeComposer({
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
       />
-      <button
-        className="composer__voice"
-        type="button"
-        disabled={disabled}
-        onClick={onStartLive}
-        aria-label="开始语音对话"
-        title="开始语音对话"
-      >
-        <AudioLines aria-hidden="true" size={19} strokeWidth={1.7} />
-      </button>
       <button
         className="composer__send"
         type="submit"

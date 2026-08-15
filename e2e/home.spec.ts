@@ -10,13 +10,15 @@ test("homepage stays focused, aligned, and free of horizontal overflow", async (
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "晚上好，苏白。" })).toBeVisible();
+  await expect(page.getByRole("heading", {
+    name: /^(夜深了|早上好|下午好|晚上好)，Su Bai。$/,
+  })).toBeVisible();
   await expect(page.getByText("Yoyoo 在线")).toBeVisible();
   await expect(page.locator(".space-backdrop")).toHaveCount(0);
   await expect(page.locator(".presence-scene")).toHaveCount(0);
   await expect(page.getByRole("img", { name: /Yoyoo 数字生命/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "最近对话" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "开始语音对话" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "开始语音对话" })).toHaveCount(0);
   await expect(page.getByText("01", { exact: true })).toHaveCount(0);
 
   if (testInfo.project.name === "desktop-chromium") {
@@ -82,46 +84,28 @@ test("image-free spatial canvas fills the viewport behind a centered conversatio
   }
 });
 
-test("homepage keeps Live mode separate from the collaboration room", async ({ page }) => {
+test("homepage does not expose simulated voice controls", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "开始语音对话" }).click();
-  await expect(page.getByRole("heading", { name: "Yoyoo Live" })).toBeVisible();
-  await expect(page.locator(".presence-scene")).toHaveCount(0);
-  const liveOrb = page.getByLabel("Yoyoo 数字生命，正在聆听");
-  await expect(liveOrb).toBeVisible();
-  await expect(liveOrb).toHaveAttribute("data-palette", "cyber-spectrum");
-  await expect(page.getByRole("textbox", { name: "给 Yoyoo 发消息" })).toHaveCount(0);
-
-  await page.getByRole("button", { name: "静音" }).click();
-  await expect(page.getByText("麦克风已静音")).toBeVisible();
-  await page.getByRole("button", { name: "结束语音对话" }).click();
   await expect(page.getByRole("textbox", { name: "给 Yoyoo 发消息" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "开始语音对话" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Yoyoo Live" })).toHaveCount(0);
   await expect(page.locator(".presence-scene")).toHaveCount(0);
+  await expect(page.getByLabel(/Yoyoo 数字生命/)).toHaveCount(0);
 });
 
-test("digital life honors the reduced motion preference", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-  await page.getByRole("button", { name: "开始语音对话" }).click();
-
-  const motion = await page
-    .getByLabel("Yoyoo 数字生命，正在聆听")
-    .locator("> span:nth-child(2)")
-    .evaluate((element) => {
-    const style = getComputedStyle(element, "::before");
-    return {
-      animationName: style.animationName,
-    };
-  });
-
-  expect(motion.animationName).toBe("none");
+test("standalone Orb study is not a public product route", async ({ page }) => {
+  const response = await page.goto("/orb-preview");
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "Yoyoo" })).toHaveCount(0);
 });
 
 test("homepage stays concise while the dedicated conversation uses the full viewport", async ({
   page,
 }, testInfo) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "晚上好，苏白。" })).toBeVisible();
+  await expect(page.getByRole("heading", {
+    name: /^(夜深了|早上好|下午好|晚上好)，Su Bai。$/,
+  })).toBeVisible();
   await expect(page.getByLabel("当前对话")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "对话", exact: true })).toHaveAttribute(
     "href",
