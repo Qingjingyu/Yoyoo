@@ -8,6 +8,19 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({ name: z.string() }).strict();
 
+export async function GET(): Promise<Response> {
+  try {
+    const { collaboration } = await getServerRuntime();
+    const rooms = await collaboration.service.listRooms(
+      collaboration.bootstrap.workspace.id,
+      collaboration.bootstrap.principal.id,
+    );
+    return Response.json({ rooms }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const idempotencyKey = request.headers.get("Idempotency-Key")?.trim();

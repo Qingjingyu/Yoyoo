@@ -42,6 +42,11 @@ export type AgentGatewayJobStatus =
   | "leased"
   | "completed"
   | "failed";
+export type AgentGatewayPermission =
+  | "message.read"
+  | "message.write"
+  | "attachment.read"
+  | "attachment.write";
 
 export interface PrincipalRecord {
   id: string;
@@ -85,6 +90,7 @@ export interface AgentGatewaySessionRecord {
   handle: string;
   displayName: string;
   credentialVersion: number | null;
+  permissions: AgentGatewayPermission[] | null;
 }
 
 export interface AgentGatewayJobRecord {
