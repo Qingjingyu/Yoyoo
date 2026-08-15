@@ -217,8 +217,9 @@
   composer, and a separate Live-mode interface; browser-verified on desktop and
   mobile.
 - Fluid digital life: used only as Live-mode voice feedback at `168px` on
-  desktop and `136px` on mobile; the isolated `/orb-preview` route remains for
-  motion tuning.
+  desktop and `136px` on mobile. The isolated `/orb-preview` implementation is
+  retained for component-level motion tuning, while its public route now
+  returns `404` until a real voice transport is available.
 - Interface quality pass: desktop navigation is grouped beneath the brand,
   spacing follows a 4pt token scale, mobile controls retain full touch targets,
   and the homepage surface no longer relies on decorative grids or a broad
@@ -546,5 +547,15 @@
   and 0 Agents. HTTPS/SNI acceptance returned health `200`, anonymous workspace
   `401`, login `200`, 1 room, and 0 Agents. Full evidence and rollback locations
   are recorded in `033_Feature_公网演示Agent清理.md`.
+- V0.19 product-consistency closure passed its local gate on 2026-08-15. The
+  homepage now uses the authoritative room API and authenticated Principal,
+  Settings renders the current AI Card inside Yoyoo, intervention attribution
+  uses the active human identity, simulated homepage voice controls are gone,
+  global loading/error states are route-neutral, and the retired Orb study
+  returns a real `404`. Lint, TypeScript, production build, 196 unit/UI checks,
+  134 runnable PostgreSQL/HTTP integration checks, and 38 desktop/mobile
+  Playwright checks passed. Seven explicitly gated external-service checks were
+  skipped and are not counted as passing. V0.19 has not been deployed; evidence
+  is recorded in `039_Feature_产品一致性收口.md`.
 - Lighthouse scores of 99/100/100 belong to the previous homepage version and
   were not reused as evidence for this redesign.
