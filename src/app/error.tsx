@@ -1,7 +1,7 @@
 "use client";
 
-import { HomeExperience } from "@/components/home/home-experience";
+import { AppStateScreen } from "@/components/shell/app-state-screen";
 
 export default function ErrorPage({ reset }: { reset: () => void }) {
-  return <HomeExperience onRetry={reset} state="error" />;
+  return <AppStateScreen onRetry={reset} state="error" />;
 }

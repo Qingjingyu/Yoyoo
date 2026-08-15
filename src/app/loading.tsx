@@ -1,5 +1,5 @@
-import { HomeExperience } from "@/components/home/home-experience";
+import { AppStateScreen } from "@/components/shell/app-state-screen";
 
 export default function Loading() {
-  return <HomeExperience state="loading" />;
+  return <AppStateScreen state="loading" />;
 }

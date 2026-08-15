@@ -14,7 +14,7 @@ const primaryItems = [
 export function Sidebar({
   activeItem = "home",
 }: {
-  activeItem?: "home" | "conversation" | "settings";
+  activeItem?: "home" | "conversation" | "settings" | "none";
 }) {
   return (
     <aside className="sidebar" aria-label="Yoyoo 导航">
