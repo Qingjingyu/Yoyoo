@@ -22,8 +22,9 @@ export async function POST(request: Request): Promise<Response> {
     }
     const body = bodySchema.parse(await request.json());
     const { attachments, gateway } = await getServerRuntime();
-    const session = await gateway.service.authenticate(
+    const session = await gateway.service.authorize(
       request.headers.get("authorization"),
+      "attachment.write",
     );
     const result = await attachments.service.beginAgentOutput({
       ...body,

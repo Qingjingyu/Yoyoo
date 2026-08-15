@@ -30,8 +30,9 @@ export async function PUT(
     const { attachmentId: rawAttachmentId } = await context.params;
     const attachmentId = databaseIdSchema.parse(rawAttachmentId);
     const { attachments, gateway } = await getServerRuntime();
-    const session = await gateway.service.authenticate(
+    const session = await gateway.service.authorize(
       request.headers.get("authorization"),
+      "attachment.write",
     );
     const attachment = await attachments.service.completeUpload({
       attachmentId,

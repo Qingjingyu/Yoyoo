@@ -46,8 +46,9 @@ export async function GET(
       new URL(request.url).searchParams.get("runId"),
     );
     const { attachments, gateway } = await getServerRuntime();
-    const session = await gateway.service.authenticate(
+    const session = await gateway.service.authorize(
       request.headers.get("authorization"),
+      "attachment.read",
     );
     const metadata = await attachments.service.getMetadataForAgent({
       attachmentId,

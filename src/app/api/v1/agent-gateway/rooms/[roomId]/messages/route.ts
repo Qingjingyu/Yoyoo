@@ -38,8 +38,9 @@ export async function POST(
     const roomId = databaseIdSchema.parse(rawRoomId);
     const body = bodySchema.parse(await request.json());
     const { collaboration, gateway } = await getServerRuntime();
-    const session = await gateway.service.authenticate(
+    const session = await gateway.service.authorize(
       request.headers.get("authorization"),
+      "message.write",
     );
     await collaboration.service.getRoomMembershipDetails({
       roomId,
