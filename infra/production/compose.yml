@@ -46,9 +46,9 @@ services:
     environment:
       DATABASE_URL: postgresql://yoyoo:${POSTGRES_PASSWORD}@postgres:5432/yoyoo_space
       YOYOO_BLOB_ROOT: /app/.data/blobs
-      YOYOO_HUMAN_AUTH_MODE: password
+      YOYOO_HUMAN_AUTH_MODE: ${YOYOO_HUMAN_AUTH_MODE:-aicard}
       YOYOO_PUBLIC_ORIGIN: https://${YOYOO_DOMAIN:?YOYOO_DOMAIN is required}
-      YOYOO_AUTH_PEPPER: ${YOYOO_AUTH_PEPPER:?YOYOO_AUTH_PEPPER is required}
+      YOYOO_AUTH_PEPPER: ${YOYOO_AUTH_PEPPER:-}
       YOYOO_LOCAL_OWNER_ID: ${YOYOO_LOCAL_OWNER_ID:-local-owner-ui}
       YOYOO_AGENT_ADAPTER: ${YOYOO_AGENT_ADAPTER:-deterministic-test}
       YOYOO_BUILTIN_AGENTS: ${YOYOO_BUILTIN_AGENTS:-none}

@@ -12,7 +12,7 @@ import {
 } from "@/server/auth/human-auth-http";
 
 describe("human authentication HTTP boundary", () => {
-  it("keeps local mode explicit and requires password mode in production", () => {
+  it("keeps local mode explicit and requires authenticated mode in production", () => {
     expect(getHumanAuthConfig({ NODE_ENV: "development" })).toEqual({
       mode: "local",
       publicOrigin: null,
@@ -22,7 +22,7 @@ describe("human authentication HTTP boundary", () => {
       NODE_ENV: "production",
       YOYOO_PUBLIC_ORIGIN: "https://app.yoyooai.com",
     })).toThrow(
-      "YOYOO_HUMAN_AUTH_MODE=password",
+      "YOYOO_HUMAN_AUTH_MODE=password or aicard",
     );
     expect(() => getHumanAuthConfig({
       NODE_ENV: "production",
@@ -30,6 +30,18 @@ describe("human authentication HTTP boundary", () => {
       YOYOO_PUBLIC_ORIGIN: "http://app.yoyooai.com",
       YOYOO_AUTH_PEPPER: randomBytes(32).toString("base64url"),
     })).toThrow("HTTPS");
+  });
+
+  it("accepts AI Card-only production auth without a local password pepper", () => {
+    expect(getHumanAuthConfig({
+      NODE_ENV: "production",
+      YOYOO_HUMAN_AUTH_MODE: "aicard",
+      YOYOO_PUBLIC_ORIGIN: "https://app.yoyooai.com",
+    })).toEqual({
+      mode: "aicard",
+      publicOrigin: "https://app.yoyooai.com",
+      pepper: null,
+    });
   });
 
   it("accepts a complete production password configuration", () => {

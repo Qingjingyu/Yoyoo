@@ -26,7 +26,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     );
   }
   const response = NextResponse.next();
-  if (runtime.config.mode === "password") {
+  if (runtime.config.mode !== "local") {
     response.headers.set("cache-control", "private, no-store");
   }
   return response;

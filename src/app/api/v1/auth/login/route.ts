@@ -24,6 +24,17 @@ function requestSource(request: Request): string {
 
 export async function POST(request: Request): Promise<Response> {
   const auth = getHumanAuthRuntime();
+  if (auth.config.mode === "aicard") {
+    return Response.json(
+      {
+        error: {
+          code: "PASSWORD_LOGIN_RETIRED",
+          message: "请使用 AI Card 登录。",
+        },
+      },
+      { status: 410, headers: { "cache-control": "no-store" } },
+    );
+  }
   if (auth.config.mode !== "password" || !auth.service || !auth.config.publicOrigin) {
     return Response.json(
       { error: { code: "AUTH_NOT_CONFIGURED", message: "账号登录尚未启用。" } },

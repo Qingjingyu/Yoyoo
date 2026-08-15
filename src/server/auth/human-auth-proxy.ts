@@ -16,13 +16,16 @@ export type HumanRequestAuthorization =
 const PUBLIC_EXACT_PATHS = new Set([
   "/login",
   "/api/health",
-  "/api/v1/auth/login",
   "/api/v1/auth/aicard/start",
   "/auth/aicard/callback",
 ]);
 
-export function isPublicHumanPath(pathname: string): boolean {
+export function isPublicHumanPath(
+  pathname: string,
+  mode: HumanAuthConfig["mode"] = "password",
+): boolean {
   return PUBLIC_EXACT_PATHS.has(pathname)
+    || (mode === "password" && pathname === "/api/v1/auth/login")
     || pathname.startsWith("/_next/")
     || pathname.startsWith("/api/v1/agent-gateway/")
     || pathname === "/favicon.ico"
@@ -50,7 +53,10 @@ export async function authorizeHumanRequest(
   config: HumanAuthConfig,
   resolver: SessionResolver,
 ): Promise<HumanRequestAuthorization> {
-  if (config.mode === "local" || isPublicHumanPath(new URL(request.url).pathname)) {
+  if (
+    config.mode === "local"
+    || isPublicHumanPath(new URL(request.url).pathname, config.mode)
+  ) {
     return { kind: "allowed", session: null };
   }
 

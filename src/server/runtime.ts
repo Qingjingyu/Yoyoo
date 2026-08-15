@@ -208,7 +208,7 @@ export interface ServerRuntime {
     service: AgentGatewayService;
   };
   humanAuth: {
-    mode: "local" | "password";
+    mode: "local" | "password" | "aicard";
     publicOrigin: string | null;
     service: HumanAuthService | null;
   };
@@ -241,7 +241,7 @@ async function createRuntime(): Promise<ServerRuntime> {
   const gateway = new AgentGatewayRepository(pool);
   const humanAuthRepository = new HumanAuthRepository(pool);
   const humanAuthConfig = getHumanAuthConfig();
-  const aicardIntegrationConfig = humanAuthConfig.mode === "password"
+  const aicardIntegrationConfig = humanAuthConfig.mode !== "local"
     ? getAICardIntegrationConfig()
     : null;
   const delegationRepository = new DelegationRepository(pool);
@@ -353,10 +353,14 @@ async function createRuntime(): Promise<ServerRuntime> {
     humanAuth: {
       mode: humanAuthConfig.mode,
       publicOrigin: humanAuthConfig.publicOrigin,
-      service: humanAuthConfig.pepper
+      service: humanAuthConfig.mode !== "local"
           ? new HumanAuthService(humanAuthRepository, {
-            pepper: humanAuthConfig.pepper,
-            allowedLoginHandle: "ai_100001",
+            ...(humanAuthConfig.pepper
+              ? {
+                  pepper: humanAuthConfig.pepper,
+                  allowedLoginHandle: "ai_100001",
+                }
+              : {}),
             aicardAuthority: aicardIntegrationConfig
               ? new AICardSessionAuthority(
                   aicardIntegrationConfig,

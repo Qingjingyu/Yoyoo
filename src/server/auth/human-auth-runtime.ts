@@ -49,8 +49,9 @@ export function getHumanAuthRuntime(): HumanAuthRuntime {
   const pool = createPostgresPool();
   const aicardConfig = getAICardIntegrationConfig();
   const service = new HumanAuthService(new HumanAuthRepository(pool), {
-    pepper: config.pepper!,
-    allowedLoginHandle: "ai_100001",
+    ...(config.pepper
+      ? { pepper: config.pepper, allowedLoginHandle: "ai_100001" }
+      : {}),
     aicardAuthority: new AICardSessionAuthority(
       aicardConfig,
       aicardConfig.sessionSecret,

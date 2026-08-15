@@ -6,7 +6,7 @@ export const HUMAN_SESSION_COOKIE = "yoyoo_session";
 type AuthEnvironment = Readonly<Record<string, string | undefined>>;
 
 export interface HumanAuthConfig {
-  mode: "local" | "password";
+  mode: "local" | "password" | "aicard";
   publicOrigin: string | null;
   pepper: Buffer | null;
 }
@@ -41,14 +41,14 @@ export function getHumanAuthConfig(
 ): HumanAuthConfig {
   const production = environment.NODE_ENV === "production";
   const mode = environment.YOYOO_HUMAN_AUTH_MODE?.trim() || "local";
-  if (mode !== "local" && mode !== "password") {
+  if (mode !== "local" && mode !== "password" && mode !== "aicard") {
     throw new HumanAuthConfigurationError(
-      "YOYOO_HUMAN_AUTH_MODE must be local or password",
+      "YOYOO_HUMAN_AUTH_MODE must be local, password, or aicard",
     );
   }
-  if (production && environment.YOYOO_PUBLIC_ORIGIN?.trim() && mode !== "password") {
+  if (production && environment.YOYOO_PUBLIC_ORIGIN?.trim() && mode === "local") {
     throw new HumanAuthConfigurationError(
-      "Production requires YOYOO_HUMAN_AUTH_MODE=password",
+      "Production requires YOYOO_HUMAN_AUTH_MODE=password or aicard",
     );
   }
   if (mode === "local") {
@@ -65,6 +65,13 @@ export function getHumanAuthConfig(
   }
   if (origin.pathname !== "/" || origin.search || origin.hash) {
     throw new HumanAuthConfigurationError("YOYOO_PUBLIC_ORIGIN must contain only an origin");
+  }
+  if (mode === "aicard") {
+    return {
+      mode,
+      publicOrigin: origin.origin,
+      pepper: null,
+    };
   }
   const pepperValue = environment.YOYOO_AUTH_PEPPER?.trim();
   if (!pepperValue) {

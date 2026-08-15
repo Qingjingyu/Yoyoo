@@ -20,7 +20,7 @@ function cookieValue(request: Request): string | null {
 
 export async function GET(request: Request): Promise<Response> {
   const auth = getHumanAuthRuntime();
-  if (auth.config.mode !== "password" || !auth.service) {
+  if (auth.config.mode === "local" || !auth.service) {
     return Response.json({ authenticated: false }, { headers: { "cache-control": "no-store" } });
   }
   try {
@@ -47,7 +47,7 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function DELETE(request: Request): Promise<Response> {
   const auth = getHumanAuthRuntime();
-  if (auth.config.mode === "password" && auth.service && auth.config.publicOrigin) {
+  if (auth.config.mode !== "local" && auth.service && auth.config.publicOrigin) {
     try {
       assertSameOrigin(request, auth.config.publicOrigin);
       const token = cookieValue(request);

@@ -34,6 +34,17 @@ describe('AI Card browser integration configuration', () => {
     })).toBe('https://id.example.com/me/card');
   });
 
+  it('returns the central profile URL for AI Card-only browser integration', () => {
+    expect(getAICardProfileUrl({
+      NODE_ENV: 'production',
+      YOYOO_HUMAN_AUTH_MODE: 'aicard',
+      YOYOO_AICARD_ISSUER: 'https://id.example.com',
+      YOYOO_AICARD_CLIENT_ID: 'yoyoo_prod',
+      YOYOO_AICARD_REDIRECT_URI: 'https://app.example.com/auth/aicard/callback',
+      YOYOO_AICARD_SESSION_SECRET: 'test-secret',
+    })).toBe('https://id.example.com/me/card');
+  });
+
   it('rejects an incomplete password-mode integration', () => {
     expect(() => getAICardProfileUrl({
       NODE_ENV: 'production',

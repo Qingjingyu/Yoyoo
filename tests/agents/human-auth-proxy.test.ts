@@ -12,16 +12,17 @@ describe("human authentication proxy policy", () => {
     pepper: Buffer.alloc(32),
   };
 
-  it("exposes only login, health, framework assets, and Agent Gateway paths", () => {
-    expect(isPublicHumanPath("/login")).toBe(true);
-    expect(isPublicHumanPath("/api/v1/auth/login")).toBe(true);
-    expect(isPublicHumanPath("/api/v1/auth/aicard/start")).toBe(true);
-    expect(isPublicHumanPath("/auth/aicard/callback")).toBe(true);
-    expect(isPublicHumanPath("/api/health")).toBe(true);
-    expect(isPublicHumanPath("/_next/static/app.js")).toBe(true);
-    expect(isPublicHumanPath("/api/v1/agent-gateway/heartbeat")).toBe(true);
-    expect(isPublicHumanPath("/conversation")).toBe(false);
-    expect(isPublicHumanPath("/api/v1/attachments/private/content")).toBe(false);
+  it("exposes the legacy password endpoint only in rollback mode", () => {
+    expect(isPublicHumanPath("/login", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/api/v1/auth/login", "aicard")).toBe(false);
+    expect(isPublicHumanPath("/api/v1/auth/login", "password")).toBe(true);
+    expect(isPublicHumanPath("/api/v1/auth/aicard/start", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/auth/aicard/callback", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/api/health", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/_next/static/app.js", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/api/v1/agent-gateway/heartbeat", "aicard")).toBe(true);
+    expect(isPublicHumanPath("/conversation", "aicard")).toBe(false);
+    expect(isPublicHumanPath("/api/v1/attachments/private/content", "aicard")).toBe(false);
   });
 
   it("allows local mode without consulting the password service", async () => {
@@ -47,6 +48,15 @@ describe("human authentication proxy policy", () => {
     await expect(authorizeHumanRequest(
       new Request("https://app.yoyooai.com/api/v1/rooms"),
       config,
+      service,
+    )).resolves.toEqual({ kind: "unauthorized" });
+  });
+
+  it("protects the removed password endpoint in AI Card-only mode", async () => {
+    const service = { resolveSession: vi.fn().mockResolvedValue(null) };
+    await expect(authorizeHumanRequest(
+      new Request("https://app.yoyooai.com/api/v1/auth/login", { method: "POST" }),
+      { mode: "aicard", publicOrigin: "https://app.yoyooai.com", pepper: null },
       service,
     )).resolves.toEqual({ kind: "unauthorized" });
   });
