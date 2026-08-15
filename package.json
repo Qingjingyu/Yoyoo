@@ -29,6 +29,7 @@
     "internal:start:local": "node --env-file-if-exists=.env.local scripts/internal-ops.mts start --mode=local --port=4173",
     "auth:bootstrap-owner": "node --env-file-if-exists=.env.local scripts/bootstrap-public-workspace.mts",
     "auth:provision-owner": "node --env-file-if-exists=.env.local scripts/provision-public-owner.mts",
+    "auth:finalize-aicard-owner": "node --env-file-if-exists=.env.local scripts/finalize-aicard-owner-cutover.mts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

@@ -185,6 +185,7 @@ describe("V0.15 public identity and auth migration", () => {
         "016_federated_human_sessions.sql",
         "017_aicard_authorization_replay_guard.sql",
         "018_aicard_session_authority.sql",
+        "019_release_legacy_ai_card_projection.sql",
       ]);
 
       const identities = await isolated.pool.query<{
@@ -366,6 +367,7 @@ describe("V0.15 public identity and auth migration", () => {
         "016_federated_human_sessions.sql",
         "017_aicard_authorization_replay_guard.sql",
         "018_aicard_session_authority.sql",
+        "019_release_legacy_ai_card_projection.sql",
       ]);
 
       const after = await isolated.pool.query<typeof before.rows[number]>(
