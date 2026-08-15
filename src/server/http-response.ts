@@ -22,7 +22,10 @@ import {
   AgentGatewayAuthorizationError,
   AgentGatewayConflictError,
 } from "@/server/postgres/agent-gateway-repository";
-import { AgentGatewayAuthenticationError } from "@/server/agent-gateway-service";
+import {
+  AgentGatewayAuthenticationError,
+  AgentGatewayPermissionError,
+} from "@/server/agent-gateway-service";
 import {
   AttachmentMediaMismatchError,
   BlockedAttachmentTypeError,
@@ -39,6 +42,16 @@ import {
   AttachmentPermissionError,
 } from "@/server/postgres/attachment-repository";
 import { DraftRevisionConflictError } from "@/server/postgres/member-state-repository";
+import {
+  AICardProtocolError,
+  AICardUnavailableError,
+} from "@/server/aicard-client";
+import { AgentAdmissionAuthorizationError } from "@/server/agent-admission-service";
+import { AgentAdmissionConflictError } from "@/server/postgres/agent-admission-repository";
+import {
+  HumanRequestOriginError,
+  HumanSessionRequiredError,
+} from "@/server/auth/human-auth-http";
 
 export function errorResponse(error: unknown): Response {
   if (error instanceof ZodError || error instanceof SyntaxError) {
@@ -57,6 +70,45 @@ export function errorResponse(error: unknown): Response {
     return Response.json(
       { error: { code: "AGENT_UNAUTHENTICATED", message: "Agent 凭据无效或已失效。" } },
       { status: 401, headers: { "WWW-Authenticate": "Bearer" } },
+    );
+  }
+  if (error instanceof AgentGatewayPermissionError) {
+    return Response.json(
+      { error: { code: "AGENT_PERMISSION_DENIED", message: "Agent 未获授权执行此操作。" } },
+      { status: 403 },
+    );
+  }
+  if (error instanceof HumanSessionRequiredError) {
+    return Response.json(
+      { error: { code: "HUMAN_UNAUTHENTICATED", message: error.message } },
+      { status: 401 },
+    );
+  }
+  if (
+    error instanceof HumanRequestOriginError
+    || error instanceof AgentAdmissionAuthorizationError
+  ) {
+    return Response.json(
+      { error: { code: "AGENT_ADMISSION_FORBIDDEN", message: error.message } },
+      { status: 403 },
+    );
+  }
+  if (error instanceof AgentAdmissionConflictError) {
+    return Response.json(
+      { error: { code: "AGENT_ADMISSION_CONFLICT", message: error.message } },
+      { status: 409 },
+    );
+  }
+  if (error instanceof AICardUnavailableError) {
+    return Response.json(
+      { error: { code: "AICARD_UNAVAILABLE", message: "AI Card 服务暂时不可用。" } },
+      { status: 503 },
+    );
+  }
+  if (error instanceof AICardProtocolError) {
+    return Response.json(
+      { error: { code: "AICARD_PROTOCOL_ERROR", message: error.message } },
+      { status: 502 },
     );
   }
   if (error instanceof InvalidAttachmentError || error instanceof InvalidObjectKeyError) {
