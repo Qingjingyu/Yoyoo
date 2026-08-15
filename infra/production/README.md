@@ -13,8 +13,9 @@ profile is selected. PostgreSQL is never exposed to the host network.
 2. Confirm the `app.yoyooai.com` A/AAAA records point only to that host.
 3. Create and verify a PostgreSQL plus BlobStore backup on the current system.
 4. Record the currently running image digest and keep it available for rollback.
-5. Generate `POSTGRES_PASSWORD` and `YOYOO_AUTH_PEPPER` on the host; never paste
-   them into Git, chat, shell arguments, or deployment logs.
+5. Generate `POSTGRES_PASSWORD` on the host; never paste it into Git, chat,
+   shell arguments, or deployment logs. Keep the existing auth pepper only for
+   the bounded rollback window; AI Card-only mode does not load it.
 6. Require a healthy `https://id.yoyooai.com`, a passing AI Card production
    doctor, and the exact registered `yoyoo_prod` callback before setting the
    five `YOYOO_AICARD_*` values.
@@ -29,8 +30,6 @@ docker compose --env-file .env -f compose.yml config --quiet
 docker compose --env-file .env -f compose.yml up -d postgres
 docker compose --env-file .env -f compose.yml run --rm migrate
 docker compose --env-file .env -f compose.yml run --rm bootstrap
-docker compose --env-file .env -f compose.yml run --rm --no-deps app \
-  node scripts/provision-public-owner.mts
 docker compose --env-file .env -f compose.yml up -d app caddy
 ```
 
@@ -45,7 +44,6 @@ $COMPOSE config --quiet
 $COMPOSE up -d postgres
 $COMPOSE run --rm migrate
 $COMPOSE run --rm bootstrap
-$COMPOSE run --rm --no-deps app node scripts/provision-public-owner.mts
 $COMPOSE up -d app
 ```
 
@@ -62,14 +60,23 @@ only after confirming that port `4173` is bound to loopback and the application
 health endpoint returns `200`. Issue TLS and enable the HTTPS redirect after DNS
 for `app.yoyooai.com` resolves to the target host.
 
-The provisioning command asks for the password twice without echo and prints
-one recovery code once. Store that code in a password manager. It will only bind
-the active human workspace owner whose AI Card ID is `AI_100001`.
+New deployments use `YOYOO_HUMAN_AUTH_MODE=aicard` and never provision a Yoyoo
+password. The bootstrap Principal is only the product-local Owner anchor; the
+first verified human AI Card callback maps authoritative `AI_100001` to it.
 
-The first unified-identity release intentionally keeps
-`YOYOO_HUMAN_AUTH_MODE=password`. AI Card is the primary login entry, while the
-collapsed local password form remains a temporary recovery route. Removing that
-route is a later, separately accepted cutover.
+For an existing password-mode deployment, do not switch blindly:
+
+1. Back up PostgreSQL, BlobStore, environment, proxy configuration and the
+   current image; verify the backup manifest.
+2. On the current additive release, complete a real AI Card login as the Owner
+   and verify room history, one message and one private file.
+3. Deploy the new image and forward migrations with
+   `YOYOO_HUMAN_AUTH_MODE=aicard`, retaining the prior image and pepper.
+4. Run `$COMPOSE run --rm --no-deps app npm run auth:finalize-aicard-owner`
+   without `--apply`. It must report one mapped Owner and at least one active AI
+   Card session.
+5. Verify public login, refresh, logout, mobile layout and anonymous denial.
+6. Only after a new explicit approval, rerun the same command with `-- --apply`.
 
 ## Verification
 
@@ -81,8 +88,7 @@ curl --fail --silent https://app.yoyooai.com/api/health
 Then verify in a private browser window:
 
 - anonymous `/` redirects to `/login`;
-- wrong credentials remain rejected;
-- `AI_100001` plus the owner password can log in;
+- the retired Yoyoo password API is not anonymously reachable;
 - rooms, one text message, one file download, refresh, and logout work;
 - mobile layout has no overflow and the browser console stays clean.
 - AI Card login returns to the exact callback, maps `AI_100001` to the existing
@@ -96,9 +102,11 @@ Application rollback is image-only while the forward schema remains compatible:
 2. Run `docker compose --env-file .env -f compose.yml up -d app`.
 3. Re-run health, login, room, and attachment smoke checks.
 
-For an identity-provider rollback, first restore the backed-up `.env` without
-the five `YOYOO_AICARD_*` values, then restart the recorded previous image and
-verify local password login. Do not change Principal, room, or message IDs.
+Before finalization apply, identity rollback is image and environment only.
+After apply, restoring password mode additionally requires re-enabling the
+backed-up legacy credential and restoring the Owner's legacy Card projection
+from the verified backup. Treat that data change as a separate approved
+operation; never alter Principal, room, message or file IDs.
 
 Do not automatically restore PostgreSQL or BlobStore. Data restore overwrites
 current state and requires a new backup, an exact restore point, and separate

@@ -55,11 +55,11 @@ remain operational during migration; local deterministic modes keep the three
 test seats unless `YOYOO_BUILTIN_AGENTS=none` is set explicitly. See
 `infra/production/README.md` for the staged runbook.
 
-Production currently signs the first owner in with AI Card ID `AI_100001` and a
-separately provisioned password. The ID is public and memorable; it is never an
-authentication secret. V0.16 replaces that normal entry with AI Card
-authorization after production issuer, client, callback and owner-mapping
-acceptance. Legacy password data is retained only for reversible cutover.
+AI Card is the only account and Card-number authority. Yoyoo stores a local
+Principal UUID only as the stable owner of memberships, rooms, messages and
+files, mapped from verified AI Card claims. The internal `system:yoyoo`
+Principal is not an account and owns no Card. Legacy password data is disabled
+only after verified `AI_100001` takeover and retained for one rollback window.
 
 ## Requirements
 
@@ -265,6 +265,20 @@ owner. New AI identities must already own an AI Card; the former local
 `兼容接入` flow is closed. Existing `yya_` credentials can still be rotated or
 revoked while their runtimes migrate to AI Card.
 
+For an existing single-owner database, inspect authority takeover without
+changing data:
+
+```bash
+npm run auth:finalize-aicard-owner
+```
+
+The command refuses to proceed unless the configured issuer/client has mapped
+authoritative `AI_100001` to the active Owner and that exact mapping has a live
+AI Card session. `--apply` is intentionally reserved for the separately
+approved production cutover; it disables the old credential and clears legacy
+local Card projections while preserving every Yoyoo Principal UUID and business
+relationship.
+
 To run the YOS bridge with the claimed AI Card node, keep the JSON produced by
 AI Card's `scripts/agent-enrollment-reference.mts` at permission `0600`, then
 configure only its absolute path plus the public service values:
@@ -362,6 +376,7 @@ infra/postgres/           Local Compose service and forward-only migrations
 tests/                    Unit, UI, and PostgreSQL integration tests
 scripts/agent-gateway-client.mts Provider-neutral public polling client
 scripts/run-yos-gateway-agent.mts YOS-to-Gateway reference bridge
+scripts/finalize-aicard-owner-cutover.mts Guarded AI Card-only owner cutover
 e2e/                      Playwright browser acceptance
 开发过程/                  Roadmap and feature delivery evidence
 ```

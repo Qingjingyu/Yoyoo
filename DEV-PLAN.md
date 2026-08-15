@@ -3,6 +3,33 @@
 > Status: V0.15 production remains active; V0.16 local implementation and
 > verification complete, production integration and cutover pending
 
+## Phase 8C-6: AI Card-only Authority Finalization
+
+### Deliverables
+
+- Add an explicit `aicard` human-auth mode that keeps federated session refresh,
+  authorization and logout while disabling the Yoyoo-local password endpoint.
+- Make production packaging default to AI Card-only mode; keep `password` only
+  as an explicitly configured rollback mode.
+- Add forward migration `019` to release only the obsolete legacy Card-ID
+  immutability trigger. Do not mutate identity data inside the migration.
+- Add a report-only-by-default finalization command. It may apply only after one
+  active Owner, the verified `AI_100001` mapping, and an unexpired AI Card
+  session are all proven in one transaction.
+- On explicit apply, revoke password sessions, disable rather than delete the
+  legacy credential, and clear local Principal Card projections without
+  changing Principal UUIDs or business foreign keys.
+
+### Verification
+
+- Unit tests prove production configuration, conditional public routes, and the
+  retired password endpoint.
+- Isolated PostgreSQL tests prove missing authority evidence causes zero
+  mutation, dry-run is read-only, repeated apply is safe, the AI Card session
+  remains active, and owner/workspace/room/mapping relationships are preserved.
+- Production remains a separate gate: backup, real Owner login, dry-run report,
+  public smoke checks, and a new explicit approval are required before apply.
+
 ## Technical Direction
 
 - Keep Next.js 16.3, React 19, TypeScript 6, PostgreSQL 17, Vitest, and

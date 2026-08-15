@@ -1,10 +1,10 @@
 # Yoyoo Space Product Spec
 
-> Current version: V0.16 Unified AI Card Identity
+> Current version: V0.18 AI Card Authority Cutover
 >
 > Date: 2026-08-13
 >
-> Status: local implementation and verification complete; production cutover pending
+> Status: locally implemented and verified; production cutover pending
 
 ## Goal
 
@@ -47,6 +47,10 @@ identity authority is unavailable.
   account. Existing Principal UUIDs remain the authoritative Yoyoo foreign keys.
 - Display names and handles remain mutable presentation fields synchronized from
   verified AI Card claims.
+- A Yoyoo Principal is a product-local resource owner, not a second account. It
+  has no password and receives no locally issued Card ID.
+- The `system:yoyoo` Principal is an internal product actor. It never owns an AI
+  Card and must not consume or display an `AI_` number.
 - The existing owner may be linked to authoritative `AI_100001` only after AI
   Card authentication returns both the expected Card ID and a valid pairwise
   Subject. A matching string in the legacy Yoyoo column is not proof.
@@ -64,9 +68,9 @@ identity authority is unavailable.
   to register or bind another Card.
 - AI Card unavailability produces a visible retryable failure. Yoyoo does not
   fall back to local registration, local numbering, or inferred identity.
-- V0.15 password credentials remain compatibility data for rollback only. The
-  public `/login` surface does not expose a local-account fallback after the
-  embedded AI Card entry passes production acceptance.
+- V0.15 password credentials remain disabled compatibility data for one rollback
+  window only. AI Card-only mode does not load their pepper, expose their login
+  endpoint, or accept their sessions.
 
 ### External AI authorization
 
@@ -104,6 +108,10 @@ identity authority is unavailable.
   bearer-token routes keep their existing independent authentication.
 - Production startup fails closed when AI Card issuer/client/callback settings,
   session secrets, or authoritative owner mapping are missing.
+- Legacy credential finalization is a separate guarded operation. It requires
+  the authoritative `AI_100001` mapping to the existing Owner Principal and at
+  least one active AI Card session before it can revoke password sessions,
+  disable the old credential, or clear legacy local Card projections.
 
 ### User experience
 
@@ -190,6 +198,9 @@ identity authority is unavailable.
 - Authoritative `AI_100001` is bound to the existing owner only after verified
   AI Card authentication, without changing historical room,
   message, file, or membership foreign keys.
+- The system Principal and other Yoyoo-local projections have no local
+  `principals.ai_card_id`; the verified mapping remains the only Card display
+  source.
 - Agent Gateway authentication and exact `room_id` delivery remain operational.
 - `POST /api/v1/workspaces/current/agents` refuses local identity creation with
   `AI_CARD_REQUIRED`, while Settings exposes only `授权 AI 接入` for new AI.
@@ -216,5 +227,7 @@ identity authority is unavailable.
   credentials.
 - No broad production reset, automated restore, historical Principal deletion,
   or rewrite of applied migrations.
+- No credential-table drop in the same release as the authority cutover; schema
+  removal waits until the rollback window is explicitly closed.
 - No automatic merge of two existing Cards and no identity guessing from names,
   handles, emails, or legacy IDs.

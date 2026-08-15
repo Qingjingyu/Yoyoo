@@ -4,6 +4,18 @@
 
 ## Current State
 
+- V0.18 AI Card authority finalization is locally implemented and verified. The new
+  runtime contract makes AI Card the only public account authority while Yoyoo
+  retains product-local Principal UUIDs solely for memberships and resource
+  ownership. AI Card-only mode does not expose the old password endpoint or
+  load its pepper. A report-only-by-default cutover command requires verified
+  `AI_100001` Owner mapping plus an active federated session before it can
+  disable legacy authentication and clear local Card projections. Production
+  deployment and data finalization are not yet approved or executed. Local
+  gates pass: lint, typecheck, 198/198 unit/UI checks, 134/134 runnable
+  PostgreSQL integration checks (7 environment-gated checks skipped), the
+  production build, and Compose configuration validation.
+
 - V0.17 embedded AI Card entry is deployed and publicly self-verified. Yoyoo
   now presents product context plus inline login and
   Card creation in one native dual-theme surface. Passwords are posted directly
