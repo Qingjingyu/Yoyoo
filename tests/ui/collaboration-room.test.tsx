@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -405,9 +405,14 @@ describe("CollaborationRoom", () => {
     render(<CollaborationRoom client={createClient()} />);
     const row = await screen.findByRole("button", { name: "切换到交付协作室" });
 
-    fireEvent.pointerDown(row, { pointerType: "touch" });
-    await new Promise((resolve) => setTimeout(resolve, 550));
-    fireEvent.pointerUp(row, { pointerType: "touch" });
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(row, { pointerType: "touch" });
+      act(() => vi.advanceTimersByTime(520));
+      fireEvent.pointerUp(row, { pointerType: "touch" });
+    } finally {
+      vi.useRealTimers();
+    }
 
     expect(screen.getByRole("menuitem", { name: "置顶会话" })).toBeInTheDocument();
   });
@@ -574,7 +579,7 @@ describe("CollaborationRoom", () => {
       expect(client.intervene).toHaveBeenCalledWith(
         "room",
         "run-reviewer",
-        expect.any(String),
+        "Su Bai已要求 Reviewer 停止本次执行。",
         expect.any(String),
       );
       expect(client.retryRun).toHaveBeenCalledWith(

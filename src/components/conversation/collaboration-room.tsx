@@ -678,7 +678,7 @@ export function CollaborationRoom({
       const interventionMessage = await client.intervene(
         snapshot.room.id,
         run.id,
-        `苏白已要求 ${agentName} 停止本次执行。`,
+        `${workspace?.principal.displayName ?? "当前用户"}已要求 ${agentName} 停止本次执行。`,
         operationKey(),
       );
       setSnapshot((current) =>

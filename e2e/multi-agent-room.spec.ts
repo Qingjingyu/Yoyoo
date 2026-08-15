@@ -59,7 +59,7 @@ test("one room coordinates three Agents, delegates, persists an Artifact, and ac
   await expect(interventionArticle.getByText("已停止", { exact: true })).toBeVisible({
     timeout: 8_000,
   });
-  await expect(page.getByText(/苏白已要求 Reviewer 停止本次执行/).last()).toBeVisible({
+  await expect(page.getByText(/Su Bai已要求 Reviewer 停止本次执行/).last()).toBeVisible({
     timeout: 8_000,
   });
 
