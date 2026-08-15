@@ -234,7 +234,8 @@ excluded. History is explicitly labeled as untrusted participant content at
 the adapter boundary.
 
 The isolated fluid-orb study remains available at
-`http://127.0.0.1:3000/orb-preview` for state and motion tuning.
+The Orb implementation remains covered by component tests, but its former
+standalone preview route is no longer exposed by the product.
 
 ## AI Card Local Integration
 
