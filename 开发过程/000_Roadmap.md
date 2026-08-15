@@ -4,6 +4,20 @@
 
 ## Current State
 
+- V0.20 one-message Agent onboarding is approved for implementation. The owner
+  will select bounded room access in Yoyoo, copy one complete instruction, and
+  send it to a YOS or other capable Agent. The Agent will atomically create or
+  prove one permanent AI Card, claim the Yoyoo admission, appear with the same
+  Card ID and truthful presence state, and communicate only through authorized
+  canonical room IDs. The implementation will reuse the existing AI Card
+  invitation, Ed25519 node, claim recovery, short runtime token, and Agent
+  Gateway foundations. Owner-side `agent.enroll` authority will remain separate
+  from Agent-side `agent.runtime`, and AI Card will derive the system handle from
+  the issued Card ID. It will add forward AI Card `0015` and Yoyoo `020`
+  migrations, an in-product invitation surface, and a real YOS production
+  receive/reply/restart/revoke acceptance. V0.19 remains the deployed baseline;
+  V0.20 has not entered implementation or production.
+
 - V0.19 product-consistency closure is deployed and production-verified. The
   production app runs `yoyoo-space:fa600aa` from release directory
   `/opt/yoyoo/releases/fa600aa` with the previous `2add279` image and release
