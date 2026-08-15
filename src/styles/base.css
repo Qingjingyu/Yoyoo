@@ -90,6 +90,65 @@
   .skip-link:focus {
     transform: translateY(0);
   }
+
+  .app-state-stage {
+    display: grid;
+    min-width: 0;
+    min-height: 100dvh;
+    place-items: center;
+    padding: 1rem;
+  }
+
+  .app-state-loading {
+    display: grid;
+    place-items: center;
+  }
+
+  .app-state-loading > span:first-child {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--border-default);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: app-state-spin 900ms linear infinite;
+  }
+
+  .app-state-error {
+    display: grid;
+    max-width: 24rem;
+    justify-items: center;
+    gap: 0.6rem;
+    color: var(--text-tertiary);
+    text-align: center;
+  }
+
+  .app-state-error strong {
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 580;
+  }
+
+  .app-state-error span {
+    font-size: 0.72rem;
+  }
+
+  .app-state-error button {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+    padding: 0 0.8rem;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-control);
+    background: var(--surface-interactive);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  @keyframes app-state-spin {
+    to { transform: rotate(360deg); }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
