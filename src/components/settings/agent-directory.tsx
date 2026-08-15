@@ -13,7 +13,7 @@ import {
   RotateCw,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import { Sidebar } from "@/components/shell/sidebar";
 import { ThemeSelector } from "@/components/theme/theme-selector";
@@ -21,6 +21,9 @@ import {
   browserAgentDirectoryClient,
   type AgentDirectoryClient,
   type AgentDirectoryRecord,
+  type AgentAdmissionInvitation,
+  type AgentAdmissionPermission,
+  type AgentAdmissionRoom,
 } from "@/lib/agent-directory-client";
 
 type DirectoryState = "loading" | "ready" | "error";
@@ -110,6 +113,20 @@ export function AgentDirectory({
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [admissionOpen, setAdmissionOpen] = useState(false);
+  const [admissionLoading, setAdmissionLoading] = useState(false);
+  const [admissionSubmitting, setAdmissionSubmitting] = useState(false);
+  const [admissionError, setAdmissionError] = useState<string | null>(null);
+  const [admissionName, setAdmissionName] = useState("");
+  const [admissionRooms, setAdmissionRooms] = useState<AgentAdmissionRoom[]>([]);
+  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
+  const [admissionPermissions, setAdmissionPermissions] = useState<AgentAdmissionPermission[]>([
+    "message.read",
+    "message.write",
+  ]);
+  const [invitations, setInvitations] = useState<AgentAdmissionInvitation[]>([]);
+  const [admissionInstructions, setAdmissionInstructions] = useState<string | null>(null);
+  const [instructionsCopied, setInstructionsCopied] = useState(false);
   const authorizationResult = aicardResult ?? null;
 
   const loadAgents = useCallback(async () => {
@@ -195,6 +212,94 @@ export function AgentDirectory({
     }
   }
 
+  async function openAdmission() {
+    setAdmissionOpen(true);
+    setAdmissionInstructions(null);
+    setAdmissionError(null);
+    setAdmissionLoading(true);
+    try {
+      const [rooms, existingInvitations] = await Promise.all([
+        client.listRooms(),
+        client.listInvitations(),
+      ]);
+      setAdmissionRooms(rooms.filter((room) => room.status === "active"));
+      setInvitations(existingInvitations);
+    } catch {
+      setAdmissionError("接入信息暂时无法载入，请稍后重试。");
+    } finally {
+      setAdmissionLoading(false);
+    }
+  }
+
+  async function refreshAdmissionStatus() {
+    setAdmissionError(null);
+    try {
+      const refreshed = await client.listInvitations();
+      setInvitations(refreshed);
+      if (refreshed.some((invitation) => invitation.status === "admitted")) {
+        await loadAgents();
+      }
+    } catch {
+      setAdmissionError("接入状态暂时无法刷新，请稍后重试。");
+    }
+  }
+
+  function toggleRoom(roomId: string) {
+    setSelectedRooms((current) => current.includes(roomId)
+      ? current.filter((candidate) => candidate !== roomId)
+      : [...current, roomId]);
+  }
+
+  function togglePermission(permission: AgentAdmissionPermission) {
+    setAdmissionPermissions((current) => current.includes(permission)
+      ? current.filter((candidate) => candidate !== permission)
+      : [...current, permission]);
+  }
+
+  async function createAdmission(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (admissionSubmitting || !admissionName.trim() || selectedRooms.length === 0) return;
+    setAdmissionSubmitting(true);
+    setAdmissionError(null);
+    try {
+      const invitation = await client.createInvitation({
+        displayName: admissionName.trim(),
+        roomIds: selectedRooms,
+        permissions: admissionPermissions,
+      });
+      setAdmissionInstructions(invitation.instructions);
+      setInvitations((current) => [invitation, ...current]);
+    } catch {
+      setAdmissionError("接入说明未能生成，请检查登录授权后重试。");
+    } finally {
+      setAdmissionSubmitting(false);
+    }
+  }
+
+  async function copyAdmissionInstructions() {
+    if (!admissionInstructions) return;
+    try {
+      await navigator.clipboard.writeText(admissionInstructions);
+      setInstructionsCopied(true);
+      window.setTimeout(() => setInstructionsCopied(false), 1_500);
+    } catch {
+      setAdmissionError("当前浏览器无法复制，请手动选择完整说明。");
+    }
+  }
+
+  async function revokeInvitation(invitationId: string) {
+    setAdmissionError(null);
+    try {
+      await client.revokeInvitation(invitationId);
+      setInvitations((current) => current.map((invitation) =>
+        invitation.invitationId === invitationId
+          ? { ...invitation, status: "revoked" }
+          : invitation));
+    } catch {
+      setAdmissionError("邀请未能撤销，可能已经被使用或失效。");
+    }
+  }
+
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
@@ -225,10 +330,10 @@ export function AgentDirectory({
             <h1>AI 接入</h1>
           </div>
           <div className="agent-directory-header__actions">
-            <a href="/api/v1/auth/aicard/start?purpose=agent">
+            <button onClick={() => void openAdmission()} type="button">
               <BadgeCheck aria-hidden="true" size={16} strokeWidth={1.7} />
-              授权 AI 接入
-            </a>
+              接入 Agent
+            </button>
             <button
               disabled={identityState !== "ready"}
               onClick={() => setCardOpen(true)}
@@ -350,7 +455,7 @@ export function AgentDirectory({
             <div className="agent-directory-state">
               <Bot aria-hidden="true" size={24} strokeWidth={1.4} />
               <h2>尚未接入 AI</h2>
-              <p>YOS 或其他 AI 需先拥有 AI Card，再由你授权加入当前空间。</p>
+              <p>由你生成一段完整说明，Agent 会自动领取或复用 AI Card 并加入指定会话。</p>
             </div>
           ) : (
             <div className="agent-list">
@@ -369,7 +474,11 @@ export function AgentDirectory({
                       <span aria-hidden="true"><Bot size={17} strokeWidth={1.5} /></span>
                       <div>
                         <strong>{agent.displayName}</strong>
-                        <small>@{agent.handle}</small>
+                        <small>
+                          {[`@${agent.handle}`, agent.cardId, agent.machineName]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </small>
                       </div>
                     </div>
                     <span
@@ -385,9 +494,7 @@ export function AgentDirectory({
                         : `····${agent.tokenHint} · v${agent.credentialVersion}`}
                     </span>
                     <div className="agent-row__actions">
-                      {agent.authenticationMode === "aicard" ? (
-                        <span className="agent-row__revoked">等待运行时</span>
-                      ) : confirming === rotateAction ? (
+                      {confirming === rotateAction ? (
                         <span className="agent-row__confirm">
                           <button
                             disabled={pending === rotateAction}
@@ -405,6 +512,16 @@ export function AgentDirectory({
                           >确认撤销</button>
                           <button onClick={() => setConfirming(null)} type="button">取消</button>
                         </span>
+                      ) : agent.authenticationMode === "aicard"
+                        && agent.connectionStatus !== "revoked" ? (
+                        <button
+                          aria-label={`停用 ${agent.displayName} 的 Yoyoo 接入`}
+                          onClick={() => setConfirming(revokeAction)}
+                          title="停用 Yoyoo 接入"
+                          type="button"
+                        >
+                          <Ban aria-hidden="true" size={15} strokeWidth={1.6} />
+                        </button>
                       ) : agent.credentialStatus === "active" ? (
                         <>
                           <button
@@ -480,6 +597,147 @@ export function AgentDirectory({
                 </div>
               </dl>
               <p>这张 AI Card 是你在 Yoyoo 及未来兼容产品中的统一身份。</p>
+            </section>
+          </div>
+        ) : null}
+
+        {admissionOpen ? (
+          <div
+            className="aicard-overlay"
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) setAdmissionOpen(false);
+            }}
+          >
+            <section
+              aria-labelledby="agent-admission-title"
+              aria-modal="true"
+              className="agent-admission-dialog"
+              role="dialog"
+            >
+              <header>
+                <div>
+                  <span>YOYOO AGENT ACCESS</span>
+                  <h2 id="agent-admission-title">接入 Agent</h2>
+                </div>
+                <button
+                  aria-label="关闭接入 Agent"
+                  onClick={() => setAdmissionOpen(false)}
+                  title="关闭"
+                  type="button"
+                >
+                  <X aria-hidden="true" size={17} />
+                </button>
+              </header>
+
+              {admissionLoading ? (
+                <div className="agent-admission-state" role="status">正在读取可授权会话…</div>
+              ) : admissionInstructions ? (
+                <div className="agent-admission-result">
+                  <p>把下面整段内容发送给你的 Agent，它会自动完成身份领取和空间接入。</p>
+                  <textarea
+                    aria-label="完整 Agent 接入说明"
+                    readOnly
+                    rows={14}
+                    value={admissionInstructions}
+                  />
+                  <button onClick={() => void copyAdmissionInstructions()} type="button">
+                    {instructionsCopied ? <Check size={16} /> : <Copy size={16} />}
+                    {instructionsCopied ? "已复制" : "复制完整接入说明"}
+                  </button>
+                </div>
+              ) : (
+                <form className="agent-admission-form" onSubmit={(event) => void createAdmission(event)}>
+                  <label>
+                    <span>Agent 昵称</span>
+                    <input
+                      aria-label="Agent 昵称"
+                      autoComplete="off"
+                      maxLength={120}
+                      onChange={(event) => setAdmissionName(event.target.value)}
+                      placeholder="例如：研究助手"
+                      value={admissionName}
+                    />
+                  </label>
+
+                  <fieldset>
+                    <legend>允许进入的会话</legend>
+                    {admissionRooms.length ? admissionRooms.map((room) => (
+                      <label className="agent-admission-option" key={room.id}>
+                        <input
+                          checked={selectedRooms.includes(room.id)}
+                          onChange={() => toggleRoom(room.id)}
+                          type="checkbox"
+                        />
+                        <span><strong>{room.name}</strong><small>{room.id}</small></span>
+                      </label>
+                    )) : <p className="agent-admission-empty">暂无可授权的会话。</p>}
+                  </fieldset>
+
+                  <fieldset>
+                    <legend>最小权限</legend>
+                    {([
+                      ["message.read", "读取消息"],
+                      ["message.write", "发送消息"],
+                      ["attachment.read", "读取附件"],
+                      ["attachment.write", "发送附件"],
+                    ] as Array<[AgentAdmissionPermission, string]>).map(([permission, label]) => (
+                      <label className="agent-admission-permission" key={permission}>
+                        <input
+                          checked={admissionPermissions.includes(permission)}
+                          onChange={() => togglePermission(permission)}
+                          type="checkbox"
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+
+                  <button
+                    className="agent-admission-submit"
+                    disabled={
+                      admissionSubmitting
+                      || !admissionName.trim()
+                      || selectedRooms.length === 0
+                      || admissionPermissions.length === 0
+                    }
+                    type="submit"
+                  >
+                    {admissionSubmitting ? "正在生成" : "生成接入说明"}
+                  </button>
+                </form>
+              )}
+
+              {admissionError ? <p className="agent-admission-error" role="alert">{admissionError}</p> : null}
+
+              {invitations.length ? (
+                <div className="agent-admission-history">
+                  <header>
+                    <h3>最近邀请</h3>
+                    <button onClick={() => void refreshAdmissionStatus()} type="button">
+                      <RefreshCw aria-hidden="true" size={13} />
+                      刷新状态
+                    </button>
+                  </header>
+                  {invitations.slice(0, 5).map((invitation) => (
+                    <article key={invitation.invitationId}>
+                      <div>
+                        <strong>{invitation.displayName}</strong>
+                        <small>
+                          {[invitation.cardId, invitation.machineName]
+                            .filter(Boolean)
+                            .join(" · ") || invitation.status}
+                        </small>
+                      </div>
+                      {invitation.status === "pending" ? (
+                        <button
+                          onClick={() => void revokeInvitation(invitation.invitationId)}
+                          type="button"
+                        >撤销</button>
+                      ) : <span>{invitation.status === "admitted" ? "已接入" : "已结束"}</span>}
+                    </article>
+                  ))}
+                </div>
+              ) : null}
             </section>
           </div>
         ) : null}

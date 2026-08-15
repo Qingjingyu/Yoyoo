@@ -571,12 +571,282 @@
     line-height: 1.7;
   }
 
+  .agent-admission-dialog {
+    display: grid;
+    width: min(100%, 38rem);
+    max-height: min(48rem, calc(100dvh - 2rem));
+    gap: 1rem;
+    padding: 1.25rem;
+    overflow-y: auto;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface-elevated);
+    box-shadow: var(--shadow-floating);
+  }
+
+  .agent-admission-dialog > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .agent-admission-dialog > header > div {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .agent-admission-dialog > header span {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+  }
+
+  .agent-admission-dialog h2,
+  .agent-admission-dialog h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-weight: 590;
+  }
+
+  .agent-admission-dialog h2 {
+    font-size: 1rem;
+  }
+
+  .agent-admission-dialog h3 {
+    font-size: 0.7rem;
+  }
+
+  .agent-admission-dialog > header > button {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--border-default);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .agent-admission-state,
+  .agent-admission-empty {
+    margin: 0;
+    padding: 2rem 0;
+    color: var(--text-tertiary);
+    font-size: 0.68rem;
+    text-align: center;
+  }
+
+  .agent-admission-form,
+  .agent-admission-form > label,
+  .agent-admission-result {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .agent-admission-form > label > span,
+  .agent-admission-form legend {
+    color: var(--text-secondary);
+    font-size: 0.64rem;
+    font-weight: 560;
+  }
+
+  .agent-admission-form input[type="text"],
+  .agent-admission-form > label > input {
+    min-height: 2.65rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    outline: none;
+    background: var(--surface-interactive);
+    color: var(--text-primary);
+    font-size: 0.72rem;
+  }
+
+  .agent-admission-form input:focus-visible,
+  .agent-admission-result textarea:focus-visible,
+  .agent-admission-dialog button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .agent-admission-form fieldset {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+  }
+
+  .agent-admission-form legend {
+    padding: 0 0.3rem;
+  }
+
+  .agent-admission-option,
+  .agent-admission-permission {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .agent-admission-option {
+    min-height: 2.75rem;
+    padding: 0.55rem;
+    border-radius: 5px;
+    background: var(--surface-interactive);
+  }
+
+  .agent-admission-option > span {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+  }
+
+  .agent-admission-option strong {
+    color: var(--text-primary);
+    font-size: 0.68rem;
+    font-weight: 560;
+  }
+
+  .agent-admission-option small {
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .agent-admission-permission {
+    display: inline-flex;
+    margin-right: 1rem;
+    font-size: 0.64rem;
+  }
+
+  .agent-admission-submit,
+  .agent-admission-result button {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0 1rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--text-primary);
+    color: var(--surface-elevated);
+    font-size: 0.68rem;
+    font-weight: 560;
+    cursor: pointer;
+  }
+
+  .agent-admission-submit:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .agent-admission-result p,
+  .agent-admission-error {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.66rem;
+    line-height: 1.7;
+  }
+
+  .agent-admission-result textarea {
+    width: 100%;
+    min-height: 16rem;
+    resize: vertical;
+    padding: 0.8rem;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    outline: none;
+    background: var(--surface-interactive);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.66rem;
+    line-height: 1.65;
+  }
+
+  .agent-admission-error {
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--danger-soft);
+    border-radius: 6px;
+    color: var(--danger);
+  }
+
+  .agent-admission-history {
+    display: grid;
+    gap: 0.45rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .agent-admission-history > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .agent-admission-history article {
+    display: flex;
+    min-height: 2.8rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .agent-admission-history article > div {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+  }
+
+  .agent-admission-history strong {
+    color: var(--text-primary);
+    font-size: 0.66rem;
+    font-weight: 560;
+  }
+
+  .agent-admission-history small,
+  .agent-admission-history article > span {
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 0.56rem;
+  }
+
+  .agent-admission-history button {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.65rem;
+    border: 1px solid var(--border-default);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.6rem;
+    cursor: pointer;
+  }
+
   @keyframes agent-skeleton {
     from { background-color: var(--surface-interactive); }
     to { background-color: var(--surface-interactive-hover); }
   }
 
   @media (max-width: 48rem) {
+    .agent-admission-dialog button {
+      min-height: 2.75rem;
+    }
+
     .agent-directory-stage {
       height: calc(100dvh - var(--mobile-navigation-height) - env(safe-area-inset-bottom, 0px));
       padding: 0 1rem 2rem;
@@ -658,6 +928,16 @@
     .agent-row__actions {
       grid-column: 2;
       grid-row: 1 / span 3;
+    }
+
+    .agent-admission-dialog {
+      width: 100%;
+      max-height: calc(100dvh - 1rem);
+      padding: 1rem;
+    }
+
+    .agent-admission-result textarea {
+      min-height: 13rem;
     }
   }
 }

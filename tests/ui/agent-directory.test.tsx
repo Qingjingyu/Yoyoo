@@ -10,13 +10,19 @@ import {
   type CurrentIdentityClient,
 } from "@/components/settings/agent-directory";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import type { AgentDirectoryClient, AgentDirectoryRecord } from "@/lib/agent-directory-client";
+import type {
+  AgentDirectoryClient,
+  AgentDirectoryRecord,
+  CreatedAgentAdmissionInvitation,
+} from "@/lib/agent-directory-client";
 
 const existingAgent: AgentDirectoryRecord = {
   principalId: "agent-1",
   workspaceId: "workspace-1",
   handle: "researcher",
   displayName: "Researcher",
+  cardId: null,
+  machineName: null,
   authenticationMode: "gateway_token",
   credentialStatus: "active",
   connectionStatus: "connected",
@@ -39,6 +45,24 @@ function createClient(
 ): AgentDirectoryClient {
   return {
     listAgents: async () => [existingAgent],
+    listRooms: async () => [{ id: "188a9734-b236-4a9b-a3ae-d9134f390fcf", name: "产品研究", status: "active" }],
+    listInvitations: async () => [],
+    createInvitation: async () => ({
+      invitationId: "cf740f76-ea2f-4bb3-8eab-96ca201b8a22",
+      displayName: "研究助手",
+      machineName: "research-agent",
+      roomIds: ["188a9734-b236-4a9b-a3ae-d9134f390fcf"],
+      permissions: ["message.read", "message.write"],
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      cardId: null,
+      principalId: null,
+      nodeId: null,
+      createdAt: new Date().toISOString(),
+      admittedAt: null,
+      instructions: "请将当前 Agent 接入 Yoyoo。",
+    }),
+    revokeInvitation: async () => undefined,
     rotateCredential: async () => ({
       agent: { ...existingAgent, credentialVersion: 2 },
       token: `yya_${"r".repeat(43)}`,
@@ -66,7 +90,8 @@ function createIdentityClient(
 }
 
 describe("AgentDirectory", () => {
-  it("only authorizes AI identities that already own an AI Card", async () => {
+  it("starts Agent admission inside Yoyoo instead of navigating to another system", async () => {
+    const user = userEvent.setup();
     renderWithTheme(
       <AgentDirectory
         client={createClient({ listAgents: async () => [] })}
@@ -75,15 +100,56 @@ describe("AgentDirectory", () => {
     );
 
     expect(await screen.findByText("尚未接入 AI")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "授权 AI 接入" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "授权 AI 接入" })).toHaveAttribute(
-      "href",
-      "/api/v1/auth/aicard/start?purpose=agent",
-    );
-    expect(screen.getByText("YOS 或其他 AI 需先拥有 AI Card，再由你授权加入当前空间。")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "接入 Agent" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "接入 Agent" }));
+    expect(await screen.findByRole("dialog", { name: "接入 Agent" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Agent 昵称" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /产品研究/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "兼容接入 AI" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "显示名称" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Agent 标识" })).not.toBeInTheDocument();
+  });
+
+  it("creates and copies one complete Agent onboarding instruction", async () => {
+    const user = userEvent.setup();
+    const invitation: CreatedAgentAdmissionInvitation = {
+      invitationId: "cf740f76-ea2f-4bb3-8eab-96ca201b8a22",
+      displayName: "研究助手",
+      machineName: "research-agent",
+      roomIds: ["188a9734-b236-4a9b-a3ae-d9134f390fcf"],
+      permissions: ["message.read", "message.write"],
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      cardId: null,
+      principalId: null,
+      nodeId: null,
+      createdAt: new Date().toISOString(),
+      admittedAt: null,
+      instructions: "请将当前 Agent 接入 Yoyoo：完整说明",
+    };
+    const createInvitation = vi.fn().mockResolvedValue(invitation);
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined);
+    renderWithTheme(
+      <AgentDirectory
+        client={createClient({ createInvitation })}
+        identityClient={createIdentityClient()}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "接入 Agent" }));
+    await user.type(screen.getByRole("textbox", { name: "Agent 昵称" }), "研究助手");
+    await user.click(screen.getByRole("checkbox", { name: /产品研究/ }));
+    await user.click(screen.getByRole("button", { name: "生成接入说明" }));
+
+    expect(createInvitation).toHaveBeenCalledWith({
+      displayName: "研究助手",
+      roomIds: ["188a9734-b236-4a9b-a3ae-d9134f390fcf"],
+      permissions: ["message.read", "message.write"],
+    });
+    expect(await screen.findByLabelText("完整 Agent 接入说明")).toHaveValue(invitation.instructions);
+    await user.click(screen.getByRole("button", { name: "复制完整接入说明" }));
+    expect(writeText).toHaveBeenCalledWith(invitation.instructions);
   });
 
   it("shows the current AI Card inside Yoyoo without navigating away", async () => {
@@ -96,10 +162,7 @@ describe("AgentDirectory", () => {
       />,
     );
 
-    expect(screen.getByRole("link", { name: "授权 AI 接入" })).toHaveAttribute(
-      "href",
-      "/api/v1/auth/aicard/start?purpose=agent",
-    );
+    expect(screen.getByRole("button", { name: "接入 Agent" })).toBeInTheDocument();
     const cardButton = await screen.findByRole("button", { name: "我的 AI Card" });
     expect(screen.queryByRole("link", { name: "我的 AI Card" })).not.toBeInTheDocument();
     await user.click(cardButton);
@@ -141,6 +204,8 @@ describe("AgentDirectory", () => {
       principalId: "card-agent-1",
       displayName: "悠悠研究员",
       handle: "yoyoo_researcher",
+      cardId: "AI_100002",
+      machineName: "yoyoo-researcher",
       authenticationMode: "aicard",
       credentialStatus: null,
       connectionStatus: "never_connected",
