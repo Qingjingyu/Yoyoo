@@ -4,6 +4,12 @@ import { getHumanAuthRuntime } from "@/server/auth/human-auth-runtime";
 import { authorizeHumanRequest } from "@/server/auth/human-auth-proxy";
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  if (request.nextUrl.pathname === "/orb-preview") {
+    return new NextResponse(null, {
+      status: 404,
+      headers: { "cache-control": "no-store" },
+    });
+  }
   const runtime = getHumanAuthRuntime();
   const authorization = await authorizeHumanRequest(
     request,
