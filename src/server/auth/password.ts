@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 
 const scrypt = promisify(scryptCallback);
 const HANDLE_PATTERN = /^[a-z0-9][a-z0-9._-]{2,63}$/;
-const PASSWORD_MIN_LENGTH = 12;
+const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
 const SCRYPT_KEY_LENGTH = 64;
 
@@ -31,7 +31,7 @@ function validatePassword(password: string): void {
     || password.length > PASSWORD_MAX_LENGTH
     || password !== password.trim()
   ) {
-    throw new Error("密码必须为 12 至 128 个字符，且不能包含首尾空格。");
+    throw new Error("密码必须为 8 至 128 个字符，且不能包含首尾空格。");
   }
 }
 

@@ -14,20 +14,20 @@ describe("human password credentials", () => {
   });
 
   it("hashes and verifies a password without retaining plaintext", async () => {
-    const credential = await hashPassword("A-secure-password-2026");
+    const credential = await hashPassword("12345678");
 
     expect(credential.algorithm).toBe("scrypt-v1");
     expect(credential.hash).toHaveLength(64);
     expect(credential.salt).toHaveLength(16);
-    expect(credential.hash.toString("utf8")).not.toContain("secure-password");
+    expect(credential.hash.toString("utf8")).not.toContain("12345678");
     await expect(
-      verifyPassword("A-secure-password-2026", credential),
+      verifyPassword("12345678", credential),
     ).resolves.toBe(true);
     await expect(verifyPassword("wrong-password-2026", credential)).resolves.toBe(false);
   });
 
   it("rejects weak, oversized, and whitespace-ambiguous passwords", async () => {
-    await expect(hashPassword("too-short")).rejects.toThrow("密码");
+    await expect(hashPassword("1234567")).rejects.toThrow("密码");
     await expect(hashPassword(` ${"a".repeat(20)}`)).rejects.toThrow("密码");
     await expect(hashPassword("a".repeat(129))).rejects.toThrow("密码");
   });
