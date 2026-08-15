@@ -7,6 +7,7 @@ import type {
   AgentGatewayConnectionStatus,
   AgentGatewayCredentialStatus,
   AgentGatewayJobRecord,
+  AgentGatewayPermission,
   AgentGatewaySessionRecord,
 } from "@/domain/collaboration";
 import { withTransaction } from "@/server/postgres/transaction";
@@ -33,6 +34,7 @@ interface GatewaySessionRow {
   handle: string;
   display_name: string;
   credential_version: number | null;
+  capabilities: Record<string, unknown>;
 }
 
 interface GatewayJobRow {
@@ -117,12 +119,26 @@ function mapAgent(row: GatewayAgentRow, now?: Date): AgentGatewayAgentRecord {
 }
 
 function mapSession(row: GatewaySessionRow): AgentGatewaySessionRecord {
+  const configured = row.capabilities.permissions;
+  const allowed = new Set<AgentGatewayPermission>([
+    "message.read",
+    "message.write",
+    "attachment.read",
+    "attachment.write",
+  ]);
+  const permissions = configured === undefined
+    ? null
+    : Array.isArray(configured)
+      ? configured.filter((value): value is AgentGatewayPermission =>
+          typeof value === "string" && allowed.has(value as AgentGatewayPermission))
+      : [];
   return {
     principalId: row.principal_id,
     workspaceId: row.workspace_id,
     handle: row.handle,
     displayName: row.display_name,
     credentialVersion: row.credential_version,
+    permissions,
   };
 }
 
@@ -278,7 +294,8 @@ export class AgentGatewayRepository {
     const result = await this.pool.query<GatewaySessionRow>(
       `SELECT credentials.principal_id, credentials.workspace_id,
               principals.handle, principals.display_name,
-              credentials.version AS credential_version
+              credentials.version AS credential_version,
+              agent_bindings.capabilities
        FROM agent_gateway_credentials AS credentials
        JOIN principals ON principals.id = credentials.principal_id
        JOIN workspace_members
@@ -310,7 +327,8 @@ export class AgentGatewayRepository {
     const result = await this.pool.query<GatewaySessionRow>(
       `WITH candidates AS (
          SELECT mappings.principal_id, members.workspace_id,
-                principals.handle, principals.display_name
+                principals.handle, principals.display_name,
+                agent_bindings.capabilities
          FROM aicard_identity_mappings AS mappings
          JOIN principals ON principals.id = mappings.principal_id
          JOIN workspace_members AS members
@@ -352,7 +370,8 @@ export class AgentGatewayRepository {
        )
        SELECT resolved.principal_id, resolved.workspace_id,
               resolved.handle, resolved.display_name,
-              NULL::integer AS credential_version
+              NULL::integer AS credential_version,
+              resolved.capabilities
        FROM resolved
        JOIN upserted ON upserted.principal_id = resolved.principal_id`,
       [

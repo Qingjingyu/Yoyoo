@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request): Promise<Response> {
   try {
     const { collaboration, gateway } = await getServerRuntime();
-    const session = await gateway.service.authenticate(
+    const session = await gateway.service.authorize(
       request.headers.get("authorization"),
+      "message.read",
     );
     const rooms = await collaboration.service.listRooms(
       session.workspaceId,

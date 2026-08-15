@@ -523,10 +523,15 @@ describe("Agent Gateway HTTP boundary", () => {
     process.env.YOYOO_AICARD_AUDIENCE = "yoyoo";
     const subject = `sub_${randomUUID().replaceAll("-", "").padEnd(43, "z").slice(0, 43)}`;
     const nodeId = randomUUID();
+    const cardId = `AI_${BigInt(Date.now()) * 1_000n + 8n}`;
     const fetcher = vi.fn(async () => Response.json({
         active: true,
         sub: subject,
         node_id: nodeId,
+        machine_name: "aicard-http-agent",
+        card_id: cardId,
+        display_name: "AI Card HTTP Agent",
+        handle: "aicard_http_agent",
         client_id: "yoyoo_dev",
         audience: "yoyoo",
         scope: "agent.runtime",
@@ -541,7 +546,7 @@ describe("Agent Gateway HTTP boundary", () => {
         issuer: "http://127.0.0.1:3000",
         clientId: "yoyoo_dev",
         subject,
-        cardId: `AI_${BigInt(Date.now()) * 1_000n + 8n}`,
+        cardId,
         principalType: "ai",
         displayName: "AI Card HTTP Agent",
         handle: `aicard-http-${randomUUID().slice(0, 8)}`,
