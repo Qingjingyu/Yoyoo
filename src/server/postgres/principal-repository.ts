@@ -61,9 +61,11 @@ export interface AICardAgentDirectoryRecord {
   workspaceId: string;
   handle: string;
   displayName: string;
+  cardId: string;
+  machineName: string | null;
   authenticationMode: "aicard";
   credentialStatus: null;
-  connectionStatus: "never_connected" | "connected" | "offline";
+  connectionStatus: "never_connected" | "connected" | "offline" | "revoked";
   tokenHint: null;
   credentialVersion: null;
   lastSeenAt: Date | null;
@@ -237,8 +239,11 @@ export class PrincipalRepository {
       workspace_id: string;
       handle: string;
       display_name: string;
+      card_id: string;
+      machine_name: string | null;
       last_seen_at: Date | null;
       session_expires_at: Date | null;
+      binding_status: "enabled" | "disabled" | null;
       created_at: Date;
       updated_at: Date;
     }>(
@@ -247,8 +252,11 @@ export class PrincipalRepository {
               members.workspace_id,
               principals.handle,
               principals.display_name,
+              mappings.card_id,
+              admission.machine_name,
               presence.last_seen_at,
               presence.session_expires_at,
+              bindings.status AS binding_status,
               principals.created_at,
               GREATEST(
                 principals.updated_at,
@@ -267,31 +275,86 @@ export class PrincipalRepository {
        LEFT JOIN agent_gateway_runtime_presence AS presence
          ON presence.principal_id = principals.id
         AND presence.workspace_id = members.workspace_id
+       LEFT JOIN agent_bindings AS bindings
+         ON bindings.principal_id = principals.id
+         AND bindings.adapter_id = $2
+       LEFT JOIN LATERAL (
+         SELECT invitations.machine_name
+         FROM agent_admission_invitations AS invitations
+         WHERE invitations.principal_id = principals.id
+           AND invitations.workspace_id = members.workspace_id
+         ORDER BY invitations.admitted_at DESC NULLS LAST,
+                  invitations.created_at DESC
+         LIMIT 1
+       ) AS admission ON TRUE
        WHERE members.workspace_id = $1
          AND members.status = 'active'
          AND principals.kind = 'agent'
          AND principals.status = 'active'
          AND credentials.principal_id IS NULL
        ORDER BY principals.id, mappings.updated_at DESC`,
-      [workspaceId],
+      [workspaceId, GATEWAY_ADAPTER_ID],
     );
     return result.rows.map((row) => ({
       principalId: row.principal_id,
       workspaceId: row.workspace_id,
       handle: row.handle,
       displayName: row.display_name,
+      cardId: row.card_id,
+      machineName: row.machine_name,
       authenticationMode: "aicard",
       credentialStatus: null,
-      connectionStatus: aicardConnectionStatus(
-        row.last_seen_at,
-        row.session_expires_at,
-      ),
+      connectionStatus: row.binding_status === "disabled"
+        ? "revoked"
+        : aicardConnectionStatus(row.last_seen_at, row.session_expires_at),
       tokenHint: null,
       credentialVersion: null,
       lastSeenAt: row.last_seen_at,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
+  }
+
+  async revokeAICardAgent(input: {
+    workspaceId: string;
+    actorPrincipalId: string;
+    principalId: string;
+  }): Promise<AICardAgentDirectoryRecord> {
+    await withTransaction(this.pool, async (client) => {
+      const authorized = await client.query(
+        `SELECT 1
+         FROM workspace_members owner_member
+         JOIN principals agent ON agent.id = $3 AND agent.kind = 'agent'
+         JOIN aicard_identity_mappings mapping ON mapping.principal_id = agent.id
+         JOIN workspace_members agent_member
+           ON agent_member.workspace_id = owner_member.workspace_id
+          AND agent_member.principal_id = agent.id
+          AND agent_member.status = 'active'
+         WHERE owner_member.workspace_id = $1
+           AND owner_member.principal_id = $2
+           AND owner_member.role = 'owner'
+           AND owner_member.status = 'active'
+         LIMIT 1`,
+        [input.workspaceId, input.actorPrincipalId, input.principalId],
+      );
+      if (authorized.rowCount !== 1) throw new Error("AI Card Agent is not managed by this workspace");
+      const disabled = await client.query(
+        `UPDATE agent_bindings
+         SET status = 'disabled', updated_at = NOW()
+         WHERE principal_id = $1 AND adapter_id = $2`,
+        [input.principalId, GATEWAY_ADAPTER_ID],
+      );
+      if (disabled.rowCount !== 1) throw new Error("AI Card Agent binding is unavailable");
+      await client.query(
+        `DELETE FROM agent_gateway_runtime_presence
+         WHERE principal_id = $1 AND workspace_id = $2`,
+        [input.principalId, input.workspaceId],
+      );
+    });
+    const agent = (await this.listAICardAgents(input.workspaceId))
+      .find((candidate) => candidate.principalId === input.principalId);
+    if (!agent) throw new Error("AI Card Agent is unavailable after revocation");
+    return agent;
   }
 
   async create(input: {

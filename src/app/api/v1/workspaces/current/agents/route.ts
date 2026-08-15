@@ -18,6 +18,8 @@ export async function GET(): Promise<Response> {
     const agents = [
       ...gatewayAgents.map((agent) => ({
         ...agent,
+        cardId: null,
+        machineName: null,
         authenticationMode: "gateway_token" as const,
       })),
       ...cardAgents,
