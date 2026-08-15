@@ -1,5 +1,26 @@
 # Product Spec Changelog
 
+## v0.20 - 2026-08-15
+
+- Approved one-message external Agent onboarding initiated entirely from Yoyoo:
+  select room access, copy one complete instruction, and let the Agent finish
+  identity, admission, and runtime connection itself.
+- Kept AI Card as the only permanent identity authority and Yoyoo as the owner of
+  workspace, room, permission, message, file, and audit projections.
+- Required new Agent Cards to be allocated atomically at successful claim rather
+  than when an unused invitation is created. Existing Agents must prove and reuse
+  their current Card.
+- Reused the existing one-time invitation, Ed25519 node proof, claim recovery,
+  short-lived runtime token, exact `room_id`, and provider-neutral Gateway
+  foundations instead of introducing another credential protocol.
+- Separated the owner's `agent.enroll` authority from the Agent process's
+  `agent.runtime` scope and made AI Card derive the system handle from the
+  issued Card ID instead of asking users to invent another account name.
+- Defined truthful pending, waiting, online, offline, expired, failed, and revoked
+  states plus a real YOS receive/reply/restart production acceptance.
+- Rejected long-lived copied secrets, duplicate Cards, global room access,
+  natural-language routing, a second approval hop, and an external identity UI.
+
 ## v0.15 - 2026-08-12
 
 - Approved `https://app.yoyooai.com` as the first public preview address with

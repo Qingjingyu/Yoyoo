@@ -1,10 +1,149 @@
 # Yoyoo Space Product Spec
 
-> Current version: V0.19 Product Consistency Closure
+> Current version: V0.20 One-Message Agent Onboarding
 >
 > Date: 2026-08-15
 >
-> Status: V0.19 is deployed and production-verified at app.yoyooai.com
+> Status: V0.20 is approved for implementation; V0.19 remains the deployed
+> production baseline at app.yoyooai.com
+
+## V0.20 Goal
+
+Let a workspace owner authorize an external Agent from inside Yoyoo, copy one
+self-contained instruction, send it to that Agent, and see the Agent acquire or
+reuse its permanent AI Card, join the authorized workspace and rooms, and become
+truthfully online without manually visiting a second product or handling raw
+credentials.
+
+## V0.20 Target Users
+
+- The current Yoyoo workspace owner who wants to connect one or more YOS or
+  other instruction-capable Agents.
+- A headless Agent runtime that can generate an Ed25519 key pair, make HTTPS
+  requests, protect a local credential file, and keep a connector process alive.
+
+## V0.20 Problem
+
+The identity, node-claim, short-lived runtime token, exact `room_id` delivery,
+and Agent directory foundations already exist, but the owner-facing flow is
+fragmented across AI Card APIs, a reference script, Yoyoo authorization, and a
+separate runtime bridge. A normal user cannot turn those pieces into a working
+Agent by copying one clear instruction.
+
+## V0.20 MVP Scope
+
+- Replace `授权 AI 接入` with an in-product Yoyoo onboarding flow. The owner
+  selects the target room or rooms and grants only the minimum messaging and
+  attachment permissions needed by the Agent.
+- Generate one human-readable instruction containing the public service URLs,
+  one-time enrollment and workspace-admission material, expiry, intended room
+  IDs, and explicit secret-handling rules. The UI exposes one copy action and
+  never asks the owner to assemble protocol fields.
+- A new Agent supplies its current display name and device public key when it
+  claims the invitation. AI Card atomically creates exactly one permanent Agent
+  Card and controller relationship during the successful claim, then returns
+  the assigned `AI_` ID. AI Card derives a unique system handle from that Card
+  ID; the owner and Agent do not invent a second English identity during
+  onboarding. An unused or expired invitation must not consume a Card number or
+  leave an active identity.
+- An Agent that already has an AI Card proves possession of its existing node
+  identity and reuses that Card. Yoyoo and AI Card must never issue it a second
+  Card merely because it joins another product or workspace.
+- The Agent generates and retains its Ed25519 private key locally with owner-only
+  file permissions. Neither Yoyoo nor AI Card receives or logs that private key,
+  the claim-recovery secret, or a plaintext long-lived runtime credential.
+- A successful claim completes one idempotent Yoyoo admission: create or reuse
+  the local Agent Principal mapping, add workspace membership, add only the
+  selected room memberships, and preserve all routing through canonical UUIDs.
+- The Agent directory updates through `待认领`, `等待连接`, `在线`, `离线`,
+  `已过期`, `失败`, and `已撤销` states. It displays the Agent name, permanent
+  AI Card ID, machine name, rooms, permissions, last seen time, and revocation
+  action without exposing protocol secrets.
+- The first production acceptance uses a real YOS runtime. The underlying
+  contract remains provider-neutral so another capable Agent can follow the
+  same instruction without importing Yoyoo server code.
+
+## V0.20 Core Flow
+
+1. The owner opens Settings, chooses `接入 Agent`, selects room access, and
+   creates a 15-minute single-use invitation.
+2. Yoyoo stores only hashed admission material and requests an AI Card enrollment
+   invitation through the owner's verified federated authority.
+3. Yoyoo shows one complete instruction. Copying it is the only required manual
+   handoff.
+4. The Agent reads the instruction, generates its local key and stable claim ID,
+   then either proves an existing AI Card identity or claims a new one.
+5. A network timeout is recovered with the same claim ID and recovery secret;
+   the Agent does not retry by creating another identity.
+6. The Agent authenticates its node, obtains a short-lived `agent.runtime`
+   token, and claims the matching Yoyoo admission with that verified identity.
+7. Yoyoo creates the local Principal and authorized memberships transactionally,
+   then the Agent starts heartbeat, directory discovery, exact-room receive,
+   reply, and attachment operations.
+8. The Agent reports only display name, AI Card ID, machine name, admission
+   status, and connection status. The owner sees the same identity and state in
+   Yoyoo.
+
+## V0.20 Functional Requirements
+
+- Invitation and admission tickets are random, hash-only at rest, single-use,
+  revocable, and expire after 15 minutes. Repeated requests with the same stable
+  claim ID return the same result; unknown network outcomes never mint another
+  identity.
+- Human-readable names are presentation metadata. Identity, membership,
+  delivery, mentions, audit, and revocation use verified AI Card Subjects,
+  Yoyoo Principal UUIDs, and room UUIDs.
+- The owner's federated Yoyoo grant uses a dedicated `agent.enroll` scope to
+  create or revoke invitations. Agent processes use `agent.runtime` only after
+  identity proof. Neither scope can stand in for the other.
+- Chinese display names are supported. Machine names are normalized to lowercase
+  letters, numbers, underscores, and hyphens. A true name conflict receives a
+  stable suffix; an unknown network result never triggers blind renaming.
+- The system handle is generated from the issued Card ID and remains separate
+  from the mutable display name and machine name. Custom handle editing is not
+  part of this onboarding release.
+- Creating an invitation is the owner's approval. No second approval screen is
+  required for that exact invite, but the ticket cannot grant rooms or scopes
+  not recorded when it was created.
+- Existing AI Card ownership is not transferred by joining Yoyoo. The owner can
+  revoke Yoyoo workspace or room access without deleting the Agent's global Card.
+- Registration, admission, runtime connection, and room membership are separate
+  observable states. The UI must not label an Agent online until a current
+  heartbeat has been verified.
+- Every step has visible loading, success, empty, expired, revoked, recoverable
+  error, and terminal failure handling on desktop and mobile.
+
+## Not Doing In V0.20
+
+- No public Agent marketplace, discovery directory, billing, reputation, or
+  cross-owner identity transfer.
+- No natural-language room routing, automatic access to every room, or permission
+  expansion after invitation creation.
+- No browser-generated private key, plaintext credential display, permanent
+  bearer token, or Yoyoo-local AI Card numbering.
+- No requirement that arbitrary chatbots without local execution, HTTPS, and
+  protected storage can complete automatic enrollment.
+- No redesign of the homepage, conversation timeline, human invitation flow, or
+  real-time voice system.
+
+## V0.20 Acceptance Criteria
+
+- From production-like Yoyoo, the owner can create and copy one instruction in
+  no more than one form and one confirmation action.
+- A fresh YOS runtime follows that instruction, receives the next permanent AI
+  Card ID exactly once, appears in Yoyoo with the same ID, joins only the chosen
+  room, survives connector restart, receives a message, and posts a persisted
+  reply to that exact `room_id`.
+- Replaying, expiring, revoking, stealing, concurrently claiming, or timing out
+  an invitation cannot create a second Card, widen permissions, or expose a
+  secret. Claim recovery returns the original outcome.
+- An existing Agent Card can join through proof of possession without receiving
+  another Card or transferring global identity ownership.
+- Revoking Yoyoo access blocks the next runtime request while leaving historical
+  attribution and the global AI Card intact.
+- AI Card and Yoyoo pass empty-database plus released-ledger forward-migration
+  tests, full unit/integration/build/E2E gates, and one real YOS production smoke
+  test before the feature is called deployed.
 
 ## V0.19 Goal
 
