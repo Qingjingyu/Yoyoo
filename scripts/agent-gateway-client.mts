@@ -118,6 +118,10 @@ function wait(delayMs: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+function isTerminalGatewayError(error: AgentGatewayProtocolError): boolean {
+  return error.status === 401 || error.code === "AGENT_UNAUTHENTICATED";
+}
+
 export class AgentGatewayClient {
   readonly #baseUrl: string;
   readonly #provideToken: AgentGatewayTokenProvider;
@@ -371,11 +375,13 @@ export async function runAgentGatewayLoop(
   const heartbeatIntervalMs = Math.max(5_000, options.heartbeatIntervalMs ?? 15_000);
   const leaseMs = Math.min(120_000, Math.max(1_000, options.leaseMs ?? 120_000));
   let heartbeatInFlight = false;
+  let terminalError: AgentGatewayProtocolError | undefined;
   const report = (error: unknown) => {
     const safeError = error instanceof AgentGatewayProtocolError
       ? error
       : new AgentGatewayProtocolError(0, "CLIENT_FAILED", "Gateway client failed");
     options.onError?.(safeError);
+    return safeError;
   };
   const sendHeartbeat = async () => {
     if (heartbeatInFlight || options.signal.aborted) return;
@@ -383,16 +389,19 @@ export async function runAgentGatewayLoop(
     try {
       await client.heartbeat(options.signal);
     } catch (error) {
-      report(error);
+      const safeError = report(error);
+      if (isTerminalGatewayError(safeError)) terminalError = safeError;
     } finally {
       heartbeatInFlight = false;
     }
   };
 
   await sendHeartbeat();
+  if (terminalError) throw terminalError;
   const heartbeatTimer = setInterval(() => void sendHeartbeat(), heartbeatIntervalMs);
   try {
     while (!options.signal.aborted) {
+      if (terminalError) throw terminalError;
       try {
         const worked = await runAgentGatewayOnce(client, handler, {
           signal: options.signal,
@@ -400,7 +409,8 @@ export async function runAgentGatewayLoop(
         });
         if (!worked) await wait(idleDelayMs, options.signal);
       } catch (error) {
-        report(error);
+        const safeError = report(error);
+        if (isTerminalGatewayError(safeError)) throw safeError;
         await wait(idleDelayMs, options.signal);
       }
     }

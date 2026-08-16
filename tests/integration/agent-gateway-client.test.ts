@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AgentGatewayClient,
   AgentGatewayProtocolError,
+  runAgentGatewayLoop,
   runAgentGatewayOnce,
 } from "../../scripts/agent-gateway-client.mts";
 import { createYosGatewayHandler } from "../../scripts/run-yos-gateway-agent.mts";
@@ -123,6 +124,32 @@ describe("AgentGatewayClient", () => {
 
     expect(provideToken).toHaveBeenCalledTimes(2);
     expect(headers).toEqual([`Bearer ${first}`, `Bearer ${second}`]);
+  });
+
+  it("stops the gateway loop immediately when authorization is revoked", async () => {
+    const controller = new AbortController();
+    const fetcher = vi.fn(async () => jsonResponse({
+      error: { code: "AGENT_UNAUTHENTICATED" },
+    }, 401));
+    const onError = vi.fn(() => controller.abort());
+    const client = new AgentGatewayClient({
+      baseUrl: "https://yoyoo.example.test",
+      token,
+      fetcher,
+    });
+
+    await expect(runAgentGatewayLoop(client, vi.fn(), {
+      signal: controller.signal,
+      idleDelayMs: 100,
+      heartbeatIntervalMs: 5_000,
+      onError,
+    })).rejects.toMatchObject({
+      status: 401,
+      code: "AGENT_UNAUTHENTICATED",
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 
   it("downloads only run-scoped Gateway resources with Bearer authentication", async () => {
