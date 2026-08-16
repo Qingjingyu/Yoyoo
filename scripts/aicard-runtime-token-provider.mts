@@ -23,7 +23,7 @@ const runtimeResponseSchema = z.object({
     expiresIn: z.number().int().positive(),
     expiresAt: z.iso.datetime(),
     scope: z.literal("agent.runtime"),
-  }).strict(),
+  }).passthrough(),
 }).strict();
 
 export class AICardRuntimeProtocolError extends Error {

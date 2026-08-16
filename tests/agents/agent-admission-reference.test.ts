@@ -7,7 +7,10 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { runAgentAdmissionReference } from "../../scripts/agent-admission-reference.mts";
-import { loadAICardNodeCredential } from "../../scripts/aicard-runtime-token-provider.mts";
+import {
+  AICardRuntimeTokenProvider,
+  loadAICardNodeCredential,
+} from "../../scripts/aicard-runtime-token-provider.mts";
 
 describe("Agent admission reference client", () => {
   it("claims one AI Card, joins exact rooms, and resumes without creating another identity", async () => {
@@ -104,6 +107,9 @@ describe("Agent admission reference client", () => {
       "/api/v1/agent-nodes/authenticate",
       "/api/v1/agent-admissions/claim",
     ]);
+    const uuidV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    expect(calls[0]?.body.claimId).toMatch(uuidV7);
+    expect(calls[3]?.body.claimId).toMatch(uuidV7);
     expect(calls.at(-1)?.authorization).toBe(`Bearer at_${"T".repeat(43)}`);
     expect(calls.at(-1)?.body).toMatchObject({ invitationId: yoyooInvitationId });
     expect((await stat(output)).mode & 0o077).toBe(0);
@@ -184,5 +190,48 @@ describe("Agent admission reference client", () => {
       "/api/v1/agent-nodes/authenticate",
       "/api/v1/agent-admissions/claim",
     ]);
+  });
+
+  it("accepts additional identity fields in a valid AI Card runtime response", async () => {
+    const { generateKeyPairSync } = await import("node:crypto");
+    const { privateKey } = generateKeyPairSync("ed25519");
+    const nodeId = "7dc20811-f6d6-4241-badb-c3daaff1fe39";
+    const token = `at_${"T".repeat(43)}`;
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({
+        challengeId: "cce95406-3ac7-4d2e-b6dd-167f7b8f25dc",
+        challenge: "C".repeat(43),
+        expiresAt: "2026-08-16T12:00:30.000Z",
+      }))
+      .mockResolvedValueOnce(Response.json({
+        nodeId,
+        connectionStatus: "connected",
+        runtime: {
+          subject: `sub_${"S".repeat(43)}`,
+          nodeId,
+          machineName: "yos-0-1-18-agent",
+          clientId: "yoyoo_prod",
+          audience: "yoyoo",
+          cardId: "AI_100002",
+          displayName: "YOS 0.1.18 验收 Agent",
+          handle: "ai_100002",
+          accessToken: token,
+          tokenType: "Bearer",
+          expiresIn: 120,
+          expiresAt: "2026-08-16T12:02:00.000Z",
+          scope: "agent.runtime",
+        },
+      }));
+    const provider = new AICardRuntimeTokenProvider({
+      issuer: "https://id.example.com",
+      nodeId,
+      clientId: "yoyoo_prod",
+      audience: "yoyoo",
+      privateKey,
+      fetcher,
+      now: () => new Date("2026-08-16T12:00:00.000Z"),
+    });
+
+    await expect(provider.getToken()).resolves.toBe(token);
   });
 });

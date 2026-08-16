@@ -97,6 +97,25 @@ const admissionSchema = z.object({
 type AdmissionInput = z.infer<typeof inputSchema>;
 type StoredCredential = z.infer<typeof storedSchema>;
 
+function createUuidV7(timestamp = Date.now()): string {
+  const bytes = randomBytes(16);
+  let milliseconds = BigInt(timestamp);
+  for (let index = 5; index >= 0; index -= 1) {
+    bytes[index] = Number(milliseconds & 0xffn);
+    milliseconds >>= 8n;
+  }
+  bytes[6] = (bytes[6]! & 0x0f) | 0x70;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join("-");
+}
+
 export interface AgentAdmissionSummary {
   displayName: string;
   cardId: string;
@@ -195,7 +214,7 @@ async function createCredential(input: AdmissionInput, output: string): Promise<
     identityServiceUrl: normalizedOrigin(input.identityServiceUrl),
     identityInvitationId: input.identityInvitationId,
     identityTicket: input.identityTicket,
-    identityClaimId: randomUUID(),
+    identityClaimId: createUuidV7(),
     claimSecret: randomBytes(32).toString("base64url"),
     machineName: input.machineName,
     publicKeySpki: publicKey.export({ format: "der", type: "spki" }).toString("base64url"),
@@ -203,7 +222,7 @@ async function createCredential(input: AdmissionInput, output: string): Promise<
     yoyooServiceUrl: normalizedOrigin(input.yoyooServiceUrl),
     yoyooInvitationId: input.yoyooInvitationId,
     yoyooTicket: input.yoyooTicket,
-    yoyooClaimId: randomUUID(),
+    yoyooClaimId: createUuidV7(),
     clientId: input.clientId,
   };
   await persist(output, credential, true);
@@ -226,7 +245,7 @@ async function reuseCredential(
     identityInvitationId: input.identityInvitationId,
     identityTicket: input.identityTicket,
     unusedIdentityDeclined: false,
-    identityClaimId: randomUUID(),
+    identityClaimId: createUuidV7(),
     claimSecret: randomBytes(32).toString("base64url"),
     machineName: identity.machineName,
     publicKeySpki: identity.publicKeySpki,
@@ -234,7 +253,7 @@ async function reuseCredential(
     yoyooServiceUrl: normalizedOrigin(input.yoyooServiceUrl),
     yoyooInvitationId: input.yoyooInvitationId,
     yoyooTicket: input.yoyooTicket,
-    yoyooClaimId: randomUUID(),
+    yoyooClaimId: createUuidV7(),
     clientId: input.clientId,
     nodeId: identity.nodeId,
     cardId: identity.cardId,
