@@ -4,7 +4,7 @@
 
 ## Current State
 
-- V0.20 one-message Agent onboarding is implemented and locally self-tested.
+- V0.20 one-message Agent onboarding is deployed and publicly infrastructure-verified.
   The owner selects bounded room access in Yoyoo, copies one complete
   instruction, and sends it to a YOS or other capable Agent. A new Agent receives
   exactly one permanent AI Card only after a successful claim; an existing Agent
@@ -18,8 +18,14 @@
   integration checks plus 38 Playwright checks; both lint, typecheck and builds
   passed. Cross-repository acceptance proved new Card issuance, exact-room send,
   restart-safe credential reuse, second admission with the same Card, and no
-  duplicate identity. V0.19 remains the deployed baseline; V0.20 is not yet
-  deployed, independently security-reviewed, or smoke-tested with production YOS.
+  duplicate identity. Production runs `yoyoo-space:b72a165` from
+  `/opt/yoyoo/releases/b72a165` with forward migrations `020` through `022`.
+  The verified release backup is retained at
+  `/opt/yoyoo/backups/agent-onboarding-20260816T025532Z`; rollback retains
+  `yoyoo-space:fa600aa`. Public health, anonymous protection, the stable
+  instruction endpoint, AI Card exact-origin CORS, Nginx and the unaffected YOS
+  distribution shelf were verified. An authenticated Owner plus real production
+  YOS claim/send/restart/revoke smoke and independent security review remain pending.
 
 - V0.19 product-consistency closure is deployed and production-verified. The
   production app runs `yoyoo-space:fa600aa` from release directory
