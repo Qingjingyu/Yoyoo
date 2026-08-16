@@ -216,6 +216,51 @@ describe("YosWebConsoleAdapter", () => {
     });
   });
 
+  it("does not let a stale inbound message permanently block a new request", async () => {
+    const paths: string[] = [];
+    let sent = false;
+    const fixture = await startFixture(async (req, res) => {
+      const url = new URL(req.url ?? "/", "http://fixture");
+      paths.push(`${req.method} ${url.pathname}`);
+      if (url.pathname === "/api/auth") {
+        return json(res, 200, { required: false, authenticated: true });
+      }
+      if (url.pathname === "/api/conversations/recent") {
+        return json(res, 200, [{
+          id: 7,
+          direction: "in",
+          content: "已经失败的旧请求",
+          timestamp: new Date(Date.now() - 60_000).toISOString(),
+        }]);
+      }
+      if (url.pathname === "/api/send") {
+        sent = true;
+        return json(res, 200, { success: true });
+      }
+      if (url.pathname === "/api/poll") {
+        return sent
+          ? json(res, 200, [{ id: 8, direction: "out", content: "本轮正常回复" }])
+          : json(res, 200, []);
+      }
+      return json(res, 404, { error: "not found" });
+    });
+    const adapter = new YosWebConsoleAdapter({
+      baseUrl: fixture.baseUrl,
+      pollIntervalMs: 1,
+      responseTimeoutMs: 15,
+    });
+
+    const events = await collectAgentEvents(adapter.run(request, new AbortController().signal));
+
+    expect(paths).toContain("POST /api/send");
+    expect(paths.indexOf("POST /api/send")).toBeLessThan(paths.indexOf("GET /api/poll"));
+    expect(events.at(-1)).toEqual({
+      sequence: 4,
+      type: "completed",
+      text: "本轮正常回复",
+    });
+  });
+
   it("stops before contacting YOS when the run is already aborted", async () => {
     let requests = 0;
     const fixture = await startFixture((_req, res) => {

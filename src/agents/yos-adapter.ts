@@ -25,6 +25,7 @@ const messageSchema = z
     id: z.number().int().nonnegative(),
     direction: z.enum(["in", "out"]),
     content: z.string(),
+    timestamp: z.string().optional(),
   })
   .passthrough();
 const messagesSchema = z.array(messageSchema);
@@ -67,6 +68,15 @@ function boundedNumber(value: number | undefined, fallback: number, minimum: num
   if (value === undefined) return fallback;
   if (!Number.isFinite(value)) throw new Error("YOS timing options must be finite numbers");
   return Math.max(minimum, Math.floor(value));
+}
+
+function messageTimestamp(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)
+    ? `${value.replace(" ", "T")}Z`
+    : value;
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
 function wait(delayMs: number, signal: AbortSignal): Promise<boolean> {
@@ -161,10 +171,15 @@ export class YosWebConsoleAdapter implements AgentAdapter {
         await this.#json("/api/conversations/recent?limit=1", { signal }),
       );
       let cursor = recent.reduce((maximum, message) => Math.max(maximum, message.id), 0);
-      let priorRequestPending = recent.at(-1)?.direction === "in";
+      const latestMessage = recent.at(-1);
+      let priorRequestPending = latestMessage?.direction === "in";
 
       if (priorRequestPending) {
-        const settleDeadline = Date.now() + this.#responseTimeoutMs;
+        const receivedAt = messageTimestamp(latestMessage?.timestamp);
+        const settleDeadline = receivedAt === undefined
+          ? Date.now() + this.#responseTimeoutMs
+          : Math.min(receivedAt + this.#responseTimeoutMs, Date.now() + this.#responseTimeoutMs);
+        if (Date.now() >= settleDeadline) priorRequestPending = false;
         while (priorRequestPending && Date.now() < settleDeadline) {
           if (signal.aborted) {
             yield { sequence, type: "stopped" };
