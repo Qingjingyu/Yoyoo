@@ -4,8 +4,8 @@
 
 ## Current State
 
-- V0.20.1 production-chain hardening is implemented locally and is not deployed
-  yet. A real production YOS `0.1.18` run claimed one invitation, received the
+- V0.20.1 production-chain hardening is deployed and publicly verified. A real
+  production YOS `0.1.18` run claimed one invitation, received the
   permanent Card `AI_100002`, joined the exact authorized room, returned the
   requested acceptance text, reused the same identity after gateway and local
   YOS restarts, and lost access immediately after owner revocation. The run
@@ -16,9 +16,15 @@
   restarted with `TERM=dumb`. Targeted checks pass: YOS adapter 8/8 and Gateway
   client integration 11/11. Full local gates also pass: lint, typecheck, build,
   208/208 unit/UI checks and 139 runnable PostgreSQL integration checks, with 7
-  environment-gated checks skipped. Commit, push and production deployment
-  remain pending. The acceptance Agent is revoked in Yoyoo; its
-  global AI Card and historical attribution remain intact by design.
+  environment-gated checks skipped. Production now runs
+  `yoyoo-space:f7553f4` from `/opt/yoyoo/releases/f7553f4`; the verified release
+  backup is retained at
+  `/opt/yoyoo/backups/agent-hardening-f7553f4-20260816T094016Z`, and
+  `yoyoo-space:b72a165` remains the rollback image. Public health, login and
+  anonymous protection, Agent instructions, AI Card health, Nginx and the YOS
+  distribution shelf passed post-cutover checks. The acceptance Agent remains
+  revoked in Yoyoo; its global AI Card and historical attribution remain intact
+  by design, while its temporary local credential has been deleted.
 
 - V0.20 one-message Agent onboarding is deployed and publicly infrastructure-verified.
   The owner selects bounded room access in Yoyoo, copies one complete
