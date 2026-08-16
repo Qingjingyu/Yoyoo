@@ -14,7 +14,7 @@
   Card or historical attribution. Owner-side `agent.enroll` remains separate
   from Agent-side `agent.runtime`. Forward migrations are AI Card `0015` and
   Yoyoo `020` through `022`. Local gates passed: AI Card 103 unit and 62
-  integration checks plus 32 Playwright checks; Yoyoo 205 unit and 138 runnable
+  integration checks plus 32 Playwright checks; Yoyoo 206 unit and 138 runnable
   integration checks plus 38 Playwright checks; both lint, typecheck and builds
   passed. Cross-repository acceptance proved new Card issuance, exact-room send,
   restart-safe credential reuse, second admission with the same Card, and no

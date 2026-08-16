@@ -40,7 +40,7 @@ Yoyoo 已具备 AI Card 身份映射、精确 `room_id` 通信和 Agent 运行�
 
 ## 验证结果
 
-- Yoyoo：`lint`、`typecheck`、生产构建通过；47 个单元/UI 文件共 205 项通过；
+- Yoyoo：`lint`、`typecheck`、生产构建通过；47 个单元/UI 文件共 206 项通过；
   25 个可运行集成文件共 138 项通过，5 个外部环境文件的 7 项按开关跳过；
   桌面/移动端 Playwright 38/38 通过。
 - AI Card：`lint`、`typecheck`、生产构建通过；31 个单元文件共 103 项通过；
