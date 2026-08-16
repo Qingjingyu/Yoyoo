@@ -56,10 +56,10 @@ test("one room coordinates three Agents, delegates, persists an Artifact, and ac
   const stopReviewer = interventionArticle.getByRole("button", { name: "停止 Reviewer" });
   await expect(stopReviewer).toBeVisible();
   await stopReviewer.click();
-  await expect(interventionArticle.getByText("已停止", { exact: true })).toBeVisible({
+  await expect(page.getByText("Reviewer 正在停止。", { exact: true })).toBeVisible({
     timeout: 8_000,
   });
-  await expect(page.getByText(/Su Bai已要求 Reviewer 停止本次执行/).last()).toBeVisible({
+  await expect(interventionArticle.getByText("已停止", { exact: true })).toBeVisible({
     timeout: 8_000,
   });
 
