@@ -4,6 +4,22 @@
 
 ## Current State
 
+- V0.20.1 production-chain hardening is implemented locally and is not deployed
+  yet. A real production YOS `0.1.18` run claimed one invitation, received the
+  permanent Card `AI_100002`, joined the exact authorized room, returned the
+  requested acceptance text, reused the same identity after gateway and local
+  YOS restarts, and lost access immediately after owner revocation. The run
+  exposed three stability defects. Locally, revoked authorization now terminates
+  the Gateway loop instead of retrying forever; a timestamped inbound Web
+  Console request older than the reply window no longer blocks later work; and
+  the local YOS tmux environment persists `TERM=xterm-256color` even when PM2 is
+  restarted with `TERM=dumb`. Targeted checks pass: YOS adapter 8/8 and Gateway
+  client integration 11/11. Full local gates also pass: lint, typecheck, build,
+  208/208 unit/UI checks and 139 runnable PostgreSQL integration checks, with 7
+  environment-gated checks skipped. Commit, push and production deployment
+  remain pending. The acceptance Agent is revoked in Yoyoo; its
+  global AI Card and historical attribution remain intact by design.
+
 - V0.20 one-message Agent onboarding is deployed and publicly infrastructure-verified.
   The owner selects bounded room access in Yoyoo, copies one complete
   instruction, and sends it to a YOS or other capable Agent. A new Agent receives
@@ -24,8 +40,9 @@
   `/opt/yoyoo/backups/agent-onboarding-20260816T025532Z`; rollback retains
   `yoyoo-space:fa600aa`. Public health, anonymous protection, the stable
   instruction endpoint, AI Card exact-origin CORS, Nginx and the unaffected YOS
-  distribution shelf were verified. An authenticated Owner plus real production
-  YOS claim/send/restart/revoke smoke and independent security review remain pending.
+  distribution shelf were verified. The authenticated Owner plus real production
+  YOS claim/send/restart/revoke smoke is now complete as recorded in V0.20.1;
+  independent security review remains pending.
 
 - V0.19 product-consistency closure is deployed and production-verified. The
   production app runs `yoyoo-space:fa600aa` from release directory
