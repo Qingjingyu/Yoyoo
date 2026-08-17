@@ -40,6 +40,7 @@ export async function runMigrations({
   });
   const applied = [];
   const skipped = [];
+  let lockAcquired = false;
 
   await client.connect();
   try {
@@ -51,6 +52,7 @@ export async function runMigrations({
       )
     `);
     await client.query("SELECT pg_advisory_lock(hashtext($1))", [advisoryLockName]);
+    lockAcquired = true;
 
     for (const filename of filenames) {
       const sql = await readFile(resolve(migrationsDirectory, filename), "utf8");
@@ -85,8 +87,13 @@ export async function runMigrations({
 
     return { applied, skipped };
   } finally {
-    await client.query("SELECT pg_advisory_unlock(hashtext($1))", [advisoryLockName]);
-    await client.end();
+    try {
+      if (lockAcquired) {
+        await client.query("SELECT pg_advisory_unlock(hashtext($1))", [advisoryLockName]);
+      }
+    } finally {
+      await client.end();
+    }
   }
 }
 
